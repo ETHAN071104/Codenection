@@ -1,0 +1,224 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) * 0.72);
+  --radius-md: calc(var(--radius) * 0.86);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.35);
+  --radius-2xl: calc(var(--radius) * 1.7);
+}
+
+:root {
+  --background: oklch(0.975 0.018 86);
+  --foreground: oklch(0.24 0.015 250);
+  --card: oklch(0.995 0.008 82);
+  --card-foreground: oklch(0.24 0.015 250);
+  --primary: oklch(0.24 0.015 250);
+  --primary-foreground: oklch(0.985 0.01 90);
+  --secondary: oklch(0.92 0.038 82);
+  --secondary-foreground: oklch(0.28 0.015 250);
+  --muted: oklch(0.94 0.022 84);
+  --muted-foreground: oklch(0.43 0.015 250);
+  --accent: oklch(0.88 0.075 55);
+  --accent-foreground: oklch(0.31 0.055 42);
+  --destructive: oklch(0.58 0.2 28);
+  --border: oklch(0.86 0.035 83);
+  --input: oklch(0.88 0.028 84);
+  --ring: oklch(0.3 0.018 250);
+  --radius: 0.9rem;
+}
+
+.dark {
+  --background: oklch(0.19 0.025 250);
+  --foreground: oklch(0.94 0.018 84);
+  --card: oklch(0.23 0.03 250);
+  --card-foreground: oklch(0.94 0.018 84);
+  --primary: oklch(0.8 0.015 250);
+  --primary-foreground: oklch(0.17 0.025 250);
+  --secondary: oklch(0.29 0.035 250);
+  --secondary-foreground: oklch(0.94 0.018 84);
+  --muted: oklch(0.27 0.028 250);
+  --muted-foreground: oklch(0.72 0.015 250);
+  --accent: oklch(0.68 0.13 53);
+  --accent-foreground: oklch(0.16 0.028 42);
+  --destructive: oklch(0.7 0.18 25);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.8 0.015 250);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+  }
+
+  body {
+    @apply min-h-screen bg-background text-foreground antialiased;
+    background-image:
+      radial-gradient(
+        circle at 10% 10%,
+        color-mix(in oklab, var(--accent) 24%, transparent) 0,
+        transparent 30rem
+      ),
+      radial-gradient(
+        circle at 90% 85%,
+        color-mix(in oklab, var(--primary) 14%, transparent) 0,
+        transparent 34rem
+      );
+  }
+
+  button,
+  input {
+    font: inherit;
+  }
+  .maplibregl-popup-content {
+    @apply bg-transparent! shadow-none! p-0! rounded-none!;
+  }
+  .maplibregl-popup-tip {
+    @apply hidden!;
+  }
+  .maplibregl-ctrl-attrib {
+    @apply bg-background! text-muted-foreground! border-border! rounded-md! border! shadow-sm!;
+  }
+  .maplibregl-ctrl-attrib a {
+    @apply text-muted-foreground!;
+  }
+  .maplibregl-ctrl-attrib a:hover {
+    @apply text-foreground!;
+  }
+  .maplibregl-ctrl-attrib-button {
+    @apply bg-transparent! dark:invert;
+  }
+}
+
+.atlas-page {
+  color-scheme: light;
+}
+
+.homepage-page {
+  --foreground: oklch(0.24 0.015 250);
+  --card-foreground: oklch(0.24 0.015 250);
+  --primary: oklch(0.24 0.015 250);
+  --primary-foreground: oklch(0.98 0.008 85);
+  --muted-foreground: oklch(0.43 0.015 250);
+  --ring: oklch(0.3 0.018 250);
+}
+
+.atlas-paper-noise {
+  opacity: 0.32;
+  background-image:
+    repeating-radial-gradient(
+      circle at 18% 27%,
+      rgb(57 65 58 / 7%) 0,
+      rgb(57 65 58 / 7%) 0.45px,
+      transparent 0.7px,
+      transparent 4px
+    ),
+    repeating-linear-gradient(
+      94deg,
+      transparent 0,
+      transparent 11px,
+      rgb(255 255 255 / 16%) 12px
+    );
+  background-size:
+    8px 8px,
+    17px 17px;
+}
+
+.atlas-range {
+  height: 28px;
+  cursor: pointer;
+  appearance: none;
+  background: transparent;
+}
+
+.atlas-range:focus-visible {
+  outline: 2px solid #2f3237;
+  outline-offset: 5px;
+}
+
+.atlas-range::-webkit-slider-runnable-track {
+  height: 1px;
+  background: #4b4f54;
+}
+
+.atlas-range::-webkit-slider-thumb {
+  width: 22px;
+  height: 22px;
+  margin-top: -10px;
+  appearance: none;
+  border: 2px solid #f2eee1;
+  border-radius: 50%;
+  background: #2f3237;
+  box-shadow: 0 0 0 1px #2f3237;
+}
+
+.atlas-range::-moz-range-track {
+  height: 1px;
+  background: #4b4f54;
+}
+
+.atlas-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #f2eee1;
+  border-radius: 50%;
+  background: #2f3237;
+  box-shadow: 0 0 0 1px #2f3237;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .atlas-question-enter {
+    animation: atlas-question-in 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes atlas-question-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-page *,
+  .atlas-page *::before,
+  .atlas-page *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

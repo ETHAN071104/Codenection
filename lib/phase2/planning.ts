@@ -1,0 +1,252 @@
+import 'server-only';
+
+import {
+  Phase2ProviderError,
+  getOpenRouterModel,
+  requestStructuredJson,
+} from './openrouter';
+import { findPlaceCandidates } from './google-places';
+import type {
+  DestinationSuggestion,
+  PersistedItineraryItem,
+  PlanningContext,
+} from './types';
+import {
+  parseDestinationSuggestion,
+  parseSearchStrategy,
+  parseSelectedItinerary,
+} from './validation';
+
+const SLOT_TIMES = ['09:00', '11:30', '14:30', '17:30', '19:30', '21:00'];
+
+const destinationSchema = {
+  type: 'object',
+  properties: {
+    destination: {
+      type: 'string',
+      minLength: 3,
+      maxLength: 120,
+      description: 'One city or compact region, including country.',
+    },
+    reason: {
+      type: 'string',
+      minLength: 12,
+      maxLength: 320,
+      description: 'A concise reason this destination fits the group.',
+    },
+    inputWasSpecific: {
+      type: 'boolean',
+      description:
+        'True only when the geographic input already names a city or compact destination.',
+    },
+  },
+  required: ['destination', 'reason', 'inputWasSpecific'],
+  additionalProperties: false,
+};
+
+const searchStrategySchema = {
+  type: 'object',
+  properties: {
+    searches: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 4,
+      items: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', minLength: 3, maxLength: 120 },
+          category: { type: 'string', minLength: 2, maxLength: 40 },
+          desiredCount: { type: 'integer', minimum: 3, maximum: 8 },
+        },
+        required: ['query', 'category', 'desiredCount'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['searches'],
+  additionalProperties: false,
+};
+
+function itinerarySchema(durationDays: number, maxStopsPerDay: number) {
+  return {
+    type: 'object',
+    properties: {
+      days: {
+        type: 'array',
+        minItems: durationDays,
+        maxItems: durationDays,
+        items: {
+          type: 'object',
+          properties: {
+            day: { type: 'integer', minimum: 1, maximum: durationDays },
+            theme: { type: 'string', minLength: 3, maxLength: 100 },
+            items: {
+              type: 'array',
+              minItems: 1,
+              maxItems: maxStopsPerDay,
+              items: {
+                type: 'object',
+                properties: {
+                  externalPlaceId: { type: 'string', minLength: 1 },
+                  estimatedDurationMinutes: {
+                    type: 'integer',
+                    minimum: 15,
+                    maximum: 720,
+                  },
+                  estimatedCost: {
+                    anyOf: [{ type: 'number', minimum: 0 }, { type: 'null' }],
+                  },
+                  reason: { type: 'string', minLength: 8, maxLength: 320 },
+                },
+                required: [
+                  'externalPlaceId',
+                  'estimatedDurationMinutes',
+                  'estimatedCost',
+                  'reason',
+                ],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ['day', 'theme', 'items'],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ['days'],
+    additionalProperties: false,
+  };
+}
+
+function stopsForPace(averagePace: number) {
+  if (averagePace <= 1.5) return 6;
+  if (averagePace <= 2.5) return 5;
+  if (averagePace <= 3.5) return 4;
+  if (averagePace <= 4.5) return 4;
+  return 3;
+}
+
+function destinationKey(value: string) {
+  return value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+export async function recommendDestination(context: {
+  durationDays: number;
+  finiteBudgetAverage: number | null;
+  unlimitedMembers: number;
+  averagePace: number;
+  topInterests: PlanningContext['topInterests'];
+  geographicScope: string | null;
+  previousSuggestions: string[];
+}): Promise<DestinationSuggestion> {
+  const { geographicScope, previousSuggestions, ...groupContext } = context;
+  const raw = await requestStructuredJson({
+    schemaName: 'destination_suggestion',
+    schema: destinationSchema,
+    system:
+      'You resolve one practical destination from an optional geographic preference. Return only the requested structured data. Never propose multiple destinations and never repeat an excluded destination.',
+    prompt: `Resolve one destination for this request:\n${JSON.stringify({
+      groupContext,
+      geographicScope,
+      previousSuggestions,
+    })}\nIf geographicScope is null, recommend any suitable city or compact region. If it names a country, state, or broad region, choose a specific city or compact destination strictly inside it, include the geographicScope text in the destination label, and set inputWasSpecific to false. If it already names a city or compact destination, set inputWasSpecific to true; the server will preserve the user's exact input. Respect trip length, budget signal, pace, and strongest interests. Never return a destination in previousSuggestions.`,
+    maxTokens: 500,
+  });
+  const parsed = parseDestinationSuggestion(raw);
+  const excluded = new Set(previousSuggestions.map(destinationKey));
+  const suggestion =
+    parsed && geographicScope && parsed.inputWasSpecific
+      ? { ...parsed, destination: geographicScope }
+      : parsed;
+  if (!suggestion) {
+    throw new Phase2ProviderError('OPENROUTER_INVALID_RESPONSE');
+  }
+  if (excluded.has(destinationKey(suggestion.destination))) {
+    throw new Phase2ProviderError('OPENROUTER_INVALID_RESPONSE');
+  }
+  if (
+    geographicScope &&
+    !suggestion.inputWasSpecific &&
+    !suggestion.destination
+      .toLocaleLowerCase()
+      .includes(geographicScope.toLocaleLowerCase())
+  ) {
+    throw new Phase2ProviderError('OPENROUTER_INVALID_RESPONSE');
+  }
+  return suggestion;
+}
+
+export async function generateGroundedItinerary(context: PlanningContext) {
+  const strategyRaw = await requestStructuredJson({
+    schemaName: 'place_search_strategy',
+    schema: searchStrategySchema,
+    system:
+      'Create a compact search strategy for Google Places Text Search. Return structured data only. Use no more than four distinct searches and focus on the strongest group interests.',
+    prompt: `Create Google Places search concepts for this trip:\n${JSON.stringify(context)}\nQueries must describe a single useful place category without repeating the destination because the server appends it. Avoid weak interests and duplicate searches.`,
+    maxTokens: 900,
+  });
+  const strategy = parseSearchStrategy(strategyRaw);
+  if (!strategy) {
+    throw new Phase2ProviderError('OPENROUTER_INVALID_RESPONSE');
+  }
+
+  const { candidates, callCount: googlePlacesCalls } =
+    await findPlaceCandidates(strategy.searches, context.destination);
+  const maxStopsPerDay = stopsForPace(context.averagePace);
+  const selectionRaw = await requestStructuredJson({
+    schemaName: 'grounded_itinerary',
+    schema: itinerarySchema(context.durationDays, maxStopsPerDay),
+    system:
+      'Arrange an itinerary using only the supplied Google Place candidate IDs. Never invent, alter, or autocomplete an externalPlaceId. Return structured data only.',
+    prompt: `Arrange this aggregate group plan:\n${JSON.stringify({
+      context,
+      maxStopsPerDay,
+      candidates,
+    })}\nReturn exactly ${context.durationDays} numbered days. Use only externalPlaceId values from candidates. Keep each day realistic for the pace. Cost is an estimate: use null whenever confidence is low. Reasons should explain fit without claiming unverifiable facts.`,
+    maxTokens: Math.min(7000, 1400 + context.durationDays * 550),
+  });
+  const itinerary = parseSelectedItinerary(
+    selectionRaw,
+    candidates,
+    context.durationDays,
+    maxStopsPerDay,
+  );
+  if (!itinerary) {
+    throw new Phase2ProviderError('OPENROUTER_INVALID_RESPONSE');
+  }
+
+  const items: PersistedItineraryItem[] = itinerary.days.flatMap((day) =>
+    day.items.map((item, index) => ({
+      ...item,
+      day: day.day,
+      sortOrder: index,
+      plannedTime: SLOT_TIMES[index] ?? SLOT_TIMES.at(-1)!,
+      dayTheme: day.theme,
+    })),
+  );
+  const selectedIds = new Set(items.map((item) => item.externalPlaceId));
+  const selectedPlaces = candidates.filter((candidate) =>
+    selectedIds.has(candidate.externalPlaceId),
+  );
+
+  if (items.length === 0 || selectedPlaces.length === 0) {
+    throw new Phase2ProviderError('OPENROUTER_INVALID_RESPONSE');
+  }
+
+  return {
+    places: selectedPlaces,
+    items,
+    metrics: {
+      model: getOpenRouterModel(),
+      openRouterCalls: 2,
+      googlePlacesCalls,
+      candidateCount: candidates.length,
+      persistedPlaceCount: selectedPlaces.length,
+    },
+  };
+}
