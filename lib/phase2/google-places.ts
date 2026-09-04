@@ -4,6 +4,7 @@ import { Phase2ProviderError } from './openrouter';
 import type { PlaceCandidate, SearchRequest } from './types';
 
 const GOOGLE_PLACES_URL = 'https://places.googleapis.com/v1/places:searchText';
+const GOOGLE_PLACE_DETAILS_URL = 'https://places.googleapis.com/v1/places';
 
 export const GOOGLE_PLACES_FIELD_MASK = [
   'places.id',
@@ -68,6 +69,52 @@ function normalizePlace(place: GooglePlace): PlaceCandidate | null {
       ? place.types.filter((type): type is string => typeof type === 'string')
       : [],
   };
+}
+
+export async function searchPlannerPlaces(
+  query: string,
+  destination: string,
+  limit = 5,
+) {
+  return searchPlaces(
+    {
+      query,
+      category: 'planner',
+      desiredCount: Math.min(Math.max(limit, 3), 5),
+    },
+    destination,
+  );
+}
+
+export async function getPlaceCandidateById(externalPlaceId: string) {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey) throw new Phase2ProviderError('GOOGLE_PLACES_UNAVAILABLE');
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `${GOOGLE_PLACE_DETAILS_URL}/${encodeURIComponent(externalPlaceId)}`,
+      {
+        headers: {
+          'X-Goog-Api-Key': apiKey,
+          'X-Goog-FieldMask':
+            'id,displayName,formattedAddress,location,rating,userRatingCount,priceLevel,types',
+        },
+        cache: 'no-store',
+      },
+    );
+  } catch {
+    throw new Phase2ProviderError('GOOGLE_PLACES_UNAVAILABLE');
+  }
+
+  if (!response.ok) {
+    throw new Phase2ProviderError('GOOGLE_PLACES_UNAVAILABLE');
+  }
+  const candidate = normalizePlace((await response.json()) as GooglePlace);
+  if (!candidate || candidate.externalPlaceId !== externalPlaceId) {
+    throw new Phase2ProviderError('NO_PLACE_CANDIDATES');
+  }
+  return candidate;
 }
 
 async function searchPlaces(

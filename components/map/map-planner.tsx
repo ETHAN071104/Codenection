@@ -1,8 +1,43 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import Link from 'next/link';
-import { Clock3, LoaderCircle, MapPin, Star } from 'lucide-react';
+import {
+  Bot,
+  CloudSun,
+  Clock3,
+  GripVertical,
+  LoaderCircle,
+  MapPin,
+  Play,
+  Plus,
+  Star,
+  Trash2,
+} from 'lucide-react';
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { AtlasShell } from '@/components/travel-dna/atlas-shell';
 import {
   Map as Mapcn,
@@ -14,10 +49,18 @@ import {
   useMap,
 } from '@/components/ui/map';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { AddPlacePanel } from '@/components/map/add-place-panel';
+import { AiEditPanel } from '@/components/map/ai-edit-panel';
 import { cn } from '@/lib/utils';
 import { phase2Fetch } from '@/lib/phase2/client';
 import type { ItineraryItemView, ItineraryPageData } from '@/lib/phase2/types';
 import type { RouteSegment, TripRoute } from '@/lib/routing/types';
+import type {
+  PlannerMutationResponse,
+  WeatherAtStop,
+  WeatherDayResponse,
+} from '@/lib/planner/types';
+import { useTripRealtime } from '@/lib/realtime/use-trip-realtime';
 
 type Screen = 'loading' | 'ready' | 'error';
 type RouteStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -208,70 +251,180 @@ function ItineraryCard({
   selected,
   onSelect,
   cardRef,
+  dragHandle,
+  removeAction,
+  weather,
 }: {
   item: ItineraryItemView;
   index: number;
   selected: boolean;
   onSelect: () => void;
   cardRef: (element: HTMLButtonElement | null) => void;
+  dragHandle: ReactNode;
+  removeAction: ReactNode;
+  weather: WeatherAtStop | null;
 }) {
   return (
-    <button
-      ref={cardRef}
-      type="button"
-      onClick={onSelect}
+    <div
       className={cn(
-        'w-full border-b border-[#35383d]/20 p-5 text-left outline-none transition-colors last:border-b-0 focus-visible:ring-2 focus-visible:ring-[#2f3237] focus-visible:ring-inset',
+        'flex border-b border-[#35383d]/20 transition-colors',
         selected
           ? 'bg-[#2f3237] text-[#f8f4e8]'
           : 'bg-[#f7f3e8] hover:bg-[#e7e0cd]',
       )}
-      aria-pressed={selected}
-      aria-label={`${index + 1}. ${item.place.name}, ${item.plannedTime}`}
     >
-      <div className="flex items-start gap-3">
-        <span
-          className={cn(
-            'flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
-            selected
-              ? 'bg-[#f8f4e8] text-[#2f3237]'
-              : 'bg-[#2f3237] text-[#f8f4e8]',
-          )}
-        >
-          {index + 1}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="flex items-baseline justify-between gap-3">
-            <span className="text-sm font-semibold">{item.place.name}</span>
-            <time
-              className={cn(
-                'shrink-0 text-xs font-medium',
-                selected ? 'text-[#f8f4e8]/75' : 'text-[#5a5d61]',
-              )}
-            >
-              {item.plannedTime}
-            </time>
-          </span>
+      {dragHandle}
+      <button
+        ref={cardRef}
+        type="button"
+        onClick={onSelect}
+        className="min-w-0 flex-1 p-5 text-left outline-none focus-visible:ring-2 focus-visible:ring-[#2f3237] focus-visible:ring-inset"
+        aria-pressed={selected}
+        aria-label={`${index + 1}. ${item.place.name}, ${item.plannedTime}`}
+      >
+        <span className="flex items-start gap-3">
           <span
             className={cn(
-              'mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs',
-              selected ? 'text-[#f8f4e8]/80' : 'text-[#5a5d61]',
+              'flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+              selected
+                ? 'bg-[#f8f4e8] text-[#2f3237]'
+                : 'bg-[#2f3237] text-[#f8f4e8]',
             )}
           >
-            {item.place.rating !== null && (
+            {index + 1}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-baseline justify-between gap-3">
+              <span className="text-sm font-semibold">{item.place.name}</span>
+              <time
+                className={cn(
+                  'shrink-0 text-xs font-medium',
+                  selected ? 'text-[#f8f4e8]/75' : 'text-[#5a5d61]',
+                )}
+              >
+                {item.plannedTime}
+              </time>
+            </span>
+            <span
+              className={cn(
+                'mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs',
+                selected ? 'text-[#f8f4e8]/80' : 'text-[#5a5d61]',
+              )}
+            >
+              {item.place.rating !== null && (
+                <span className="inline-flex items-center gap-1">
+                  <Star className="size-3 fill-current" aria-hidden="true" />
+                  {item.place.rating.toFixed(1)}
+                </span>
+              )}
               <span className="inline-flex items-center gap-1">
-                <Star className="size-3 fill-current" aria-hidden="true" />
-                {item.place.rating.toFixed(1)}
+                <Clock3 className="size-3" aria-hidden="true" />
+                {formatDuration(item.estimatedDurationMinutes)}
+              </span>
+            </span>
+            {weather && weather.temperatureC !== null && (
+              <span
+                className={cn(
+                  'mt-2 inline-flex items-center gap-1.5 text-xs',
+                  selected ? 'text-[#f8f4e8]/80' : 'text-[#5a5d61]',
+                )}
+              >
+                <CloudSun className="size-3.5" aria-hidden="true" />
+                {weather.condition}, {Math.round(weather.temperatureC)}°C
+                {weather.precipitationProbability !== null &&
+                  `, ${Math.round(weather.precipitationProbability)}% rain`}
               </span>
             )}
-            <span className="inline-flex items-center gap-1">
-              <Clock3 className="size-3" aria-hidden="true" />
-              {formatDuration(item.estimatedDurationMinutes)}
-            </span>
           </span>
         </span>
-      </div>
-    </button>
+      </button>
+      {removeAction}
+    </div>
+  );
+}
+
+function SortableItineraryCard({
+  item,
+  index,
+  selected,
+  onSelect,
+  cardRef,
+  segment,
+  disabled,
+  onRemove,
+  weather,
+}: {
+  item: ItineraryItemView;
+  index: number;
+  selected: boolean;
+  onSelect: () => void;
+  cardRef: (element: HTMLButtonElement | null) => void;
+  segment: RouteSegment | null;
+  disabled: boolean;
+  onRemove: () => void;
+  weather: WeatherAtStop | null;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id, disabled });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+      className={cn(
+        'relative',
+        isDragging && 'z-20 opacity-70 shadow-[0_12px_32px_rgb(37_40_45/28%)]',
+      )}
+    >
+      <ItineraryCard
+        item={item}
+        index={index}
+        selected={selected}
+        onSelect={onSelect}
+        cardRef={cardRef}
+        dragHandle={
+          <button
+            type="button"
+            className="flex w-9 shrink-0 cursor-grab items-center justify-center text-[#5a5d61] outline-none hover:text-[#2f3237] focus-visible:ring-2 focus-visible:ring-[#2f3237] focus-visible:ring-inset active:cursor-grabbing disabled:cursor-default disabled:opacity-45"
+            aria-label={`Drag ${item.place.name}`}
+            title="Drag to reorder"
+            disabled={disabled}
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="size-4" aria-hidden="true" />
+          </button>
+        }
+        removeAction={
+          <button
+            type="button"
+            aria-label={`Remove ${item.place.name}`}
+            title="Remove stop"
+            disabled={disabled}
+            onClick={onRemove}
+            className={cn(
+              'flex w-10 shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-[#2f3237] focus-visible:ring-inset disabled:opacity-45',
+              selected
+                ? 'text-[#f8f4e8]/70 hover:text-[#f8f4e8]'
+                : 'text-[#5a5d61] hover:text-[#a84a3f]',
+            )}
+          >
+            <Trash2 className="size-4" aria-hidden="true" />
+          </button>
+        }
+        weather={weather}
+      />
+      <TravelSegment segment={segment} />
+    </div>
   );
 }
 
@@ -304,11 +457,24 @@ export function MapPlanner({ tripId }: { tripId: string }) {
     status: 'idle',
     route: null,
   });
+  const [isSaving, setIsSaving] = useState(false);
+  const [plannerError, setPlannerError] = useState<string | null>(null);
+  const [addPlaceOpen, setAddPlaceOpen] = useState(false);
+  const [aiEditOpen, setAiEditOpen] = useState(false);
+  const [weatherByItemId, setWeatherByItemId] = useState(
+    new Map<string, WeatherAtStop>(),
+  );
   const [error, setError] = useState<string | null>(null);
   const cardRefs = useRef(new Map<string, HTMLButtonElement>());
   const routeCache = useRef(new Map<string, TripRoute>());
   const routeRequests = useRef(new Map<string, Promise<TripRoute>>());
   const activeRouteKey = useRef<string | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   const load = useCallback(async () => {
     setScreen('loading');
@@ -331,6 +497,23 @@ export function MapPlanner({ tripId }: { tripId: string }) {
     }
   }, [tripId]);
 
+  const refreshFromRealtime = useCallback(async () => {
+    if (isSaving) return;
+    try {
+      const payload = await phase2Fetch<ItineraryPageData>(
+        `/api/trips/${tripId}/itinerary`,
+      );
+      setData(payload);
+      setSelectedDay((current) =>
+        payload.itinerary?.days.some((day) => day.day === current)
+          ? current
+          : (payload.itinerary?.days[0]?.day ?? null),
+      );
+    } catch {
+      setPlannerError('Live updates paused. Refresh to reconnect.');
+    }
+  }, [isSaving, tripId]);
+
   useEffect(() => {
     void Promise.resolve().then(load);
   }, [load]);
@@ -338,6 +521,17 @@ export function MapPlanner({ tripId }: { tripId: string }) {
   const days = data?.itinerary?.days ?? [];
   const activeDay =
     days.find((day) => day.day === selectedDay) ?? days[0] ?? null;
+  const realtimeMembers = useTripRealtime({
+    tripId,
+    editingItemId: selectedItemId,
+    onItineraryChange: refreshFromRealtime,
+  });
+  const activeEditor = realtimeMembers.find((member) => member.editingItemId);
+  const activeEditorPlace = activeEditor?.editingItemId
+    ? days
+        .flatMap((day) => day.items)
+        .find((item) => item.id === activeEditor.editingItemId)?.place.name
+    : null;
   const routeKey = activeDay
     ? getRouteCacheKey(tripId, activeDay.day, activeDay.items)
     : null;
@@ -393,9 +587,30 @@ export function MapPlanner({ tripId }: { tripId: string }) {
   );
 
   useEffect(() => {
-    if (!activeDay) return;
+    if (!activeDay || isSaving) return;
     void Promise.resolve().then(() => loadRoute(activeDay));
-  }, [activeDay, loadRoute]);
+  }, [activeDay, isSaving, loadRoute]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeDay) return;
+    phase2Fetch<WeatherDayResponse>(
+      `/api/trips/${tripId}/weather?day=${activeDay.day}`,
+    )
+      .then((payload) => {
+        if (!cancelled) {
+          setWeatherByItemId(
+            new Map(payload.stops.map((stop) => [stop.itemId, stop])),
+          );
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setWeatherByItemId(new Map());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeDay, tripId]);
 
   const route = routeState.key === routeKey ? routeState.route : null;
   const routeStatus = routeState.key === routeKey ? routeState.status : 'idle';
@@ -419,6 +634,144 @@ export function MapPlanner({ tripId }: { tripId: string }) {
           block: 'nearest',
         });
       });
+    }
+  }
+
+  function applyPlannerMutation(result: PlannerMutationResponse) {
+    const updatedDay = result.data.itinerary?.days.find(
+      (day) => day.day === result.day,
+    );
+    if (updatedDay) {
+      const key = getRouteCacheKey(tripId, result.day, updatedDay.items);
+      routeCache.current.set(key, result.route);
+      activeRouteKey.current = key;
+      setRouteState({ key, status: 'ready', route: result.route });
+      setSelectedDay(result.day);
+    }
+    setData(result.data);
+    setSelectedItemId(null);
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    if (isSaving || !activeDay || !data) return;
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const previousItems = activeDay.items;
+    const fromIndex = previousItems.findIndex((item) => item.id === active.id);
+    const toIndex = previousItems.findIndex((item) => item.id === over.id);
+    if (fromIndex < 0 || toIndex < 0) return;
+
+    const reorderedItems = arrayMove(previousItems, fromIndex, toIndex).map(
+      (item, index) => ({ ...item, sortOrder: index }),
+    );
+    const oldRouteKey = getRouteCacheKey(tripId, activeDay.day, previousItems);
+
+    setData((current) => {
+      if (!current?.itinerary) return current;
+      return {
+        ...current,
+        itinerary: {
+          ...current.itinerary,
+          days: current.itinerary.days.map((day) =>
+            day.day === activeDay.day ? { ...day, items: reorderedItems } : day,
+          ),
+        },
+      };
+    });
+    setSelectedItemId(null);
+    setPlannerError(null);
+    setIsSaving(true);
+
+    try {
+      const result = await phase2Fetch<PlannerMutationResponse>(
+        `/api/trips/${tripId}/reorder`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            day: activeDay.day,
+            itemIds: reorderedItems.map((item) => item.id),
+          }),
+        },
+      );
+      routeCache.current.delete(oldRouteKey);
+      applyPlannerMutation(result);
+    } catch (saveError) {
+      setData((current) => {
+        if (!current?.itinerary) return current;
+        return {
+          ...current,
+          itinerary: {
+            ...current.itinerary,
+            days: current.itinerary.days.map((day) =>
+              day.day === activeDay.day
+                ? { ...day, items: previousItems }
+                : day,
+            ),
+          },
+        };
+      });
+      setPlannerError(
+        saveError instanceof Error
+          ? saveError.message
+          : 'We could not save that itinerary order.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleAddPlace(externalPlaceId: string) {
+    if (!activeDay || isSaving) return;
+    setIsSaving(true);
+    setPlannerError(null);
+    try {
+      const result = await phase2Fetch<PlannerMutationResponse>(
+        `/api/trips/${tripId}/places`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            day: activeDay.day,
+            externalPlaceId,
+          }),
+        },
+      );
+      applyPlannerMutation(result);
+    } catch (saveError) {
+      setPlannerError(
+        saveError instanceof Error
+          ? saveError.message
+          : 'We could not add that place.',
+      );
+      throw saveError;
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleRemovePlace(item: ItineraryItemView) {
+    if (isSaving) return;
+    const confirmed = window.confirm(
+      `Remove ${item.place.name} from this day?`,
+    );
+    if (!confirmed) return;
+
+    setIsSaving(true);
+    setPlannerError(null);
+    try {
+      const result = await phase2Fetch<PlannerMutationResponse>(
+        `/api/trips/${tripId}/items`,
+        { method: 'DELETE', body: JSON.stringify({ itemId: item.id }) },
+      );
+      applyPlannerMutation(result);
+    } catch (saveError) {
+      setPlannerError(
+        saveError instanceof Error
+          ? saveError.message
+          : 'We could not remove that stop.',
+      );
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -493,12 +846,24 @@ export function MapPlanner({ tripId }: { tripId: string }) {
               {data.itinerary.destination}
             </h1>
           </div>
-          <Link
-            href={`/trip/${tripId}/itinerary`}
-            className="text-sm font-semibold text-[#2f3237] underline-offset-4 hover:underline"
-          >
-            View full itinerary
-          </Link>
+          <div className="flex flex-wrap items-center gap-4">
+            <Link
+              href={`/trip/${tripId}/itinerary`}
+              className="text-sm font-semibold text-[#2f3237] underline-offset-4 hover:underline"
+            >
+              View full itinerary
+            </Link>
+            <Link
+              href={`/trip/${tripId}/live`}
+              className={buttonVariants({
+                className:
+                  'h-10 rounded-none bg-[#2f3237] px-4 text-[#f8f4e8] hover:bg-[#1f2227]',
+              })}
+            >
+              <Play className="size-4" aria-hidden="true" />
+              Start Live Trip
+            </Link>
+          </div>
         </div>
 
         <div
@@ -542,10 +907,43 @@ export function MapPlanner({ tripId }: { tripId: string }) {
           </div>
           <aside className="max-h-[45dvh] overflow-y-auto bg-[#f7f3e8] lg:max-h-[calc(100dvh-245px)]">
             <div className="sticky top-0 z-10 border-b border-[#35383d]/20 bg-[#f7f3e8] px-5 py-4">
-              <p className="text-xs font-semibold tracking-[0.1em] text-[#2f3237]">
-                DAY {activeDay.day}
-              </p>
-              <h2 className="mt-1 font-semibold">{activeDay.theme}</h2>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold tracking-[0.1em] text-[#2f3237]">
+                    DAY {activeDay.day}
+                  </p>
+                  <h2 className="mt-1 font-semibold">{activeDay.theme}</h2>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={() => {
+                      setAiEditOpen((open) => !open);
+                      setAddPlaceOpen(false);
+                    }}
+                    aria-expanded={aiEditOpen}
+                    className="inline-flex size-9 items-center justify-center border border-[#35383d]/40 bg-[#fffdf8] outline-none hover:bg-[#e7e0cd] focus-visible:ring-2 focus-visible:ring-[#2f3237] disabled:opacity-45"
+                    aria-label="Open AI itinerary editor"
+                    title="AI itinerary editor"
+                  >
+                    <Bot className="size-4" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={() => {
+                      setAddPlaceOpen((open) => !open);
+                      setAiEditOpen(false);
+                    }}
+                    aria-expanded={addPlaceOpen}
+                    className="inline-flex h-9 items-center gap-1.5 border border-[#35383d]/40 bg-[#fffdf8] px-3 text-xs font-semibold outline-none hover:bg-[#e7e0cd] focus-visible:ring-2 focus-visible:ring-[#2f3237] disabled:opacity-45"
+                  >
+                    <Plus className="size-3.5" aria-hidden="true" />
+                    Add Place
+                  </button>
+                </div>
+              </div>
               <p className="mt-1 text-xs text-[#5a5d61]">
                 {activeDay.items.length} stops
                 {route && route.totalDistanceMeters > 0 && (
@@ -564,29 +962,74 @@ export function MapPlanner({ tripId }: { tripId: string }) {
               {routeStatus === 'error' && (
                 <p className="mt-2 text-xs text-[#a84a3f]">Route unavailable</p>
               )}
+              {isSaving && (
+                <p className="mt-2 text-xs text-[#5a5d61]">
+                  Updating route and schedule...
+                </p>
+              )}
+              {plannerError && (
+                <p className="mt-2 text-xs text-[#a84a3f]">{plannerError}</p>
+              )}
+              {activeEditor && activeEditorPlace && (
+                <p className="mt-2 text-xs font-medium text-[#2f3237]">
+                  {activeEditor.displayName} is editing {activeEditorPlace}
+                </p>
+              )}
             </div>
+            {addPlaceOpen && (
+              <AddPlacePanel
+                tripId={tripId}
+                day={activeDay.day}
+                disabled={isSaving}
+                onAdd={handleAddPlace}
+                onClose={() => setAddPlaceOpen(false)}
+              />
+            )}
+            {aiEditOpen && (
+              <AiEditPanel
+                tripId={tripId}
+                day={activeDay.day}
+                disabled={isSaving}
+                onApplied={(result) => applyPlannerMutation(result)}
+                onApplyStateChange={setIsSaving}
+                onClose={() => setAiEditOpen(false)}
+              />
+            )}
             <div role="tabpanel" aria-label={`Day ${activeDay.day} itinerary`}>
-              {activeDay.items.map((item, index) => {
-                const nextItem = activeDay.items[index + 1];
-                const segment = nextItem
-                  ? (routeSegments.get(`${item.id}:${nextItem.id}`) ?? null)
-                  : null;
-                return (
-                  <div key={item.id}>
-                    <ItineraryCard
-                      item={item}
-                      index={index}
-                      selected={item.id === selectedItemId}
-                      onSelect={() => selectItem(item.id)}
-                      cardRef={(element) => {
-                        if (element) cardRefs.current.set(item.id, element);
-                        else cardRefs.current.delete(item.id);
-                      }}
-                    />
-                    <TravelSegment segment={segment} />
-                  </div>
-                );
-              })}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={(event) => void handleDragEnd(event)}
+              >
+                <SortableContext
+                  items={activeDay.items.map((item) => item.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {activeDay.items.map((item, index) => {
+                    const nextItem = activeDay.items[index + 1];
+                    const segment = nextItem
+                      ? (routeSegments.get(`${item.id}:${nextItem.id}`) ?? null)
+                      : null;
+                    return (
+                      <SortableItineraryCard
+                        key={item.id}
+                        item={item}
+                        index={index}
+                        selected={item.id === selectedItemId}
+                        onSelect={() => selectItem(item.id)}
+                        cardRef={(element) => {
+                          if (element) cardRefs.current.set(item.id, element);
+                          else cardRefs.current.delete(item.id);
+                        }}
+                        segment={segment}
+                        disabled={isSaving}
+                        onRemove={() => void handleRemovePlace(item)}
+                        weather={weatherByItemId.get(item.id) ?? null}
+                      />
+                    );
+                  })}
+                </SortableContext>
+              </DndContext>
             </div>
           </aside>
         </div>

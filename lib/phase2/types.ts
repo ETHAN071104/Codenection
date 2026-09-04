@@ -88,6 +88,8 @@ export type ItineraryPageData = {
     destination: string | null;
     destinationInput: string | null;
     durationDays: number;
+    startDate: string | null;
+    endDate: string | null;
   };
   itinerary: ItineraryView | null;
 };

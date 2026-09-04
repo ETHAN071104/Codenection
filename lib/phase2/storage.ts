@@ -14,7 +14,9 @@ export async function loadItineraryPageData(
 ): Promise<ItineraryPageData | null> {
   const { data: trip, error: tripError } = await supabase
     .from('trips')
-    .select('id, destination, destination_input, duration_days')
+    .select(
+      'id, destination, destination_input, duration_days, start_date, end_date',
+    )
     .eq('id', tripId)
     .maybeSingle();
   if (tripError) throw tripError;
@@ -92,6 +94,8 @@ export async function loadItineraryPageData(
         destination: trip.destination,
         destinationInput: trip.destination_input,
         durationDays,
+        startDate: trip.start_date,
+        endDate: trip.end_date,
       },
       itinerary: null,
     };
@@ -116,6 +120,8 @@ export async function loadItineraryPageData(
       destination: trip.destination,
       destinationInput: trip.destination_input,
       durationDays,
+      startDate: trip.start_date,
+      endDate: trip.end_date,
     },
     itinerary: {
       destination: trip.destination,

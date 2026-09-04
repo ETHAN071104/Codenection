@@ -227,6 +227,44 @@ export type Database = {
         };
         Returns: { saved_items: number }[];
       };
+      reorder_itinerary_day: {
+        Args: {
+          p_trip_id: string;
+          p_day_number: number;
+          p_item_ids: string[];
+        };
+        Returns: { item_id: string; sort_order: number }[];
+      };
+      reschedule_itinerary_day: {
+        Args: {
+          p_trip_id: string;
+          p_day_number: number;
+          p_schedule: Json;
+        };
+        Returns: { item_id: string; planned_time: string }[];
+      };
+      add_itinerary_place: {
+        Args: {
+          p_trip_id: string;
+          p_day_number: number;
+          p_place: Json;
+          p_estimated_duration_minutes?: number;
+        };
+        Returns: { item_id: string }[];
+      };
+      remove_itinerary_item: {
+        Args: { p_trip_id: string; p_item_id: string };
+        Returns: { day_number: number }[];
+      };
+      replace_itinerary_day: {
+        Args: {
+          p_trip_id: string;
+          p_day_number: number;
+          p_items: Json;
+          p_places: Json;
+        };
+        Returns: { saved_items: number }[];
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
