@@ -18,6 +18,7 @@ import { formatTripDuration } from '@/lib/trips/duration';
 import { phase2Fetch } from '@/lib/phase2/client';
 import type {
   DestinationSuggestion,
+  ExplorationPreference,
   ItineraryPageData,
   ItineraryView,
 } from '@/lib/phase2/types';
@@ -28,6 +29,28 @@ type PendingAction = 'resolve' | 'suggest' | 'accept' | 'generate' | null;
 function formatRatingCount(value: number) {
   return new Intl.NumberFormat('en', { notation: 'compact' }).format(value);
 }
+
+const EXPLORATION_OPTIONS: {
+  value: ExplorationPreference;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: 'stay_local',
+    label: 'Stay local',
+    description: 'Keep every day close to the base destination.',
+  },
+  {
+    value: 'nearby_day_trips',
+    label: 'Nearby day trips',
+    description: 'Mix the base with practical nearby excursions.',
+  },
+  {
+    value: 'explore_freely',
+    label: 'Explore freely',
+    description: 'Cover a wider practical area from one base.',
+  },
+];
 
 function ItineraryResult({ itinerary }: { itinerary: ItineraryView }) {
   const placeCount = itinerary.days.reduce(
@@ -63,6 +86,12 @@ function ItineraryResult({ itinerary }: { itinerary: ItineraryView }) {
               <h2 className="text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">
                 {day.theme}
               </h2>
+              {day.area && (
+                <p className="text-sm text-[#5a5d61]">
+                  {day.mode === 'day_trip' ? 'Day trip area' : 'Base area'}:{' '}
+                  {day.area}
+                </p>
+              )}
             </div>
 
             <ol className="mt-6 space-y-3">
@@ -134,6 +163,8 @@ export function ItineraryPlanner({ tripId }: { tripId: string }) {
   const [destinationInput, setDestinationInput] = useState('');
   const [suggestionScope, setSuggestionScope] = useState<string | null>(null);
   const [suggestionHistory, setSuggestionHistory] = useState<string[]>([]);
+  const [explorationPreference, setExplorationPreference] =
+    useState<ExplorationPreference>('nearby_day_trips');
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -146,6 +177,7 @@ export function ItineraryPlanner({ tripId }: { tripId: string }) {
       );
       setData(payload);
       setDestinationInput(payload.trip.destinationInput ?? '');
+      setExplorationPreference(payload.trip.explorationPreference);
       setScreen('ready');
     } catch (loadError) {
       setError(
@@ -245,7 +277,10 @@ export function ItineraryPlanner({ tripId }: { tripId: string }) {
     try {
       const payload = await phase2Fetch<ItineraryPageData>(
         `/api/trips/${tripId}/itinerary`,
-        { method: 'POST' },
+        {
+          method: 'POST',
+          body: JSON.stringify({ explorationPreference }),
+        },
       );
       setData(payload);
     } catch (actionError) {
@@ -436,6 +471,46 @@ export function ItineraryPlanner({ tripId }: { tripId: string }) {
           >
             <AlertDescription>{error}</AlertDescription>
           </Alert>
+        )}
+
+        {data.trip.destination && (
+          <fieldset className="mt-8 border-y border-[#35383d]/20 py-6">
+            <legend className="text-sm font-semibold text-[#35383d]">
+              How broad should this trip be?
+            </legend>
+            <p className="mt-2 text-sm leading-6 text-[#5a5d61]">
+              Your base remains {data.trip.destination}. We will only use
+              practical same-day excursions.
+            </p>
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              {EXPLORATION_OPTIONS.map((option) => {
+                const selected = explorationPreference === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setExplorationPreference(option.value)}
+                    disabled={pendingAction !== null}
+                    aria-pressed={selected}
+                    className={`border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f3237]/30 ${
+                      selected
+                        ? 'border-[#2f3237] bg-[#2f3237] text-[#f8f4e8]'
+                        : 'border-[#8b8170]/35 bg-[#fffdf8] text-[#35383d] hover:bg-[#f2eee1]'
+                    }`}
+                  >
+                    <span className="block font-semibold">{option.label}</span>
+                    <span
+                      className={`mt-1 block text-sm leading-5 ${
+                        selected ? 'text-[#f8f4e8]/80' : 'text-[#5a5d61]'
+                      }`}
+                    >
+                      {option.description}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
         )}
 
         <div className="mt-8 flex flex-wrap gap-3">

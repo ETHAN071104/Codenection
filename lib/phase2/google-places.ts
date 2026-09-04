@@ -160,7 +160,12 @@ export async function findPlaceCandidates(
 ) {
   const limitedSearches = searches.slice(0, 4);
   const results = await Promise.all(
-    limitedSearches.map((search) => searchPlaces(search, destination)),
+    limitedSearches.map(async (search) =>
+      (await searchPlaces(search, search.area ?? destination)).map((place) => ({
+        ...place,
+        sourceArea: search.area ?? destination,
+      })),
+    ),
   );
   const candidates = Array.from(
     new Map(

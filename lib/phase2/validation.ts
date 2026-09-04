@@ -1,5 +1,7 @@
 import type {
   DestinationSuggestion,
+  GeographicScope,
+  GeographicScopeDay,
   PlaceCandidate,
   SearchStrategy,
   SelectedItinerary,
@@ -58,16 +60,60 @@ export function parseSearchStrategy(value: unknown): SearchStrategy | null {
   return deduplicated.length > 0 ? { searches: deduplicated } : null;
 }
 
+export function parseGeographicScope(
+  value: unknown,
+  durationDays: number,
+): GeographicScope | null {
+  if (!isRecord(value) || !Array.isArray(value.days)) return null;
+  const baseDestination = cleanText(value.baseDestination, 120);
+  if (!baseDestination) return null;
+
+  const seenDays = new Set<number>();
+  const days = value.days
+    .map((entry) => {
+      if (!isRecord(entry)) return null;
+      const day = Number(entry.day);
+      const area = cleanText(entry.area, 120);
+      const mode = entry.mode;
+      if (
+        !Number.isInteger(day) ||
+        day < 1 ||
+        day > durationDays ||
+        seenDays.has(day) ||
+        !area ||
+        (mode !== 'base' && mode !== 'day_trip')
+      ) {
+        return null;
+      }
+      seenDays.add(day);
+      return { day, area, mode } satisfies GeographicScopeDay;
+    })
+    .filter((day): day is GeographicScopeDay => day !== null)
+    .sort((a, b) => a.day - b.day);
+
+  if (
+    days.length !== durationDays ||
+    days.some((entry, index) => entry.day !== index + 1) ||
+    new Set(days.map((entry) => entry.area.toLocaleLowerCase())).size > 4
+  ) {
+    return null;
+  }
+
+  return { baseDestination, days };
+}
+
 export function parseSelectedItinerary(
   value: unknown,
   candidates: PlaceCandidate[],
   durationDays: number,
   maxStopsPerDay: number,
+  geographicScope?: GeographicScope,
 ): SelectedItinerary | null {
   if (!isRecord(value) || !Array.isArray(value.days)) return null;
 
-  const candidateIds = new Set(
-    candidates.map((candidate) => candidate.externalPlaceId),
+  const candidateIds = new Set(candidates.map((candidate) => candidate.externalPlaceId));
+  const candidatesById = new Map(
+    candidates.map((candidate) => [candidate.externalPlaceId, candidate]),
   );
   const seenDays = new Set<number>();
   const days = value.days
@@ -100,6 +146,10 @@ export function parseSelectedItinerary(
           if (
             !externalPlaceId ||
             !candidateIds.has(externalPlaceId) ||
+            (geographicScope &&
+              candidatesById.get(externalPlaceId)?.sourceArea !==
+                geographicScope.days.find((scopeDay) => scopeDay.day === day)
+                  ?.area) ||
             !Number.isInteger(estimatedDurationMinutes) ||
             estimatedDurationMinutes < 15 ||
             estimatedDurationMinutes > 720 ||

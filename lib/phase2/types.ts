@@ -1,10 +1,27 @@
 export type PlanningContext = {
   destination: string;
   durationDays: number;
+  explorationPreference: ExplorationPreference;
   finiteBudgetAverage: number | null;
   unlimitedMembers: number;
   averagePace: number;
   topInterests: { key: string; label: string; rating: number }[];
+};
+
+export type ExplorationPreference =
+  | 'stay_local'
+  | 'nearby_day_trips'
+  | 'explore_freely';
+
+export type GeographicScopeDay = {
+  day: number;
+  area: string;
+  mode: 'base' | 'day_trip';
+};
+
+export type GeographicScope = {
+  baseDestination: string;
+  days: GeographicScopeDay[];
 };
 
 export type DestinationSuggestion = {
@@ -17,6 +34,7 @@ export type SearchRequest = {
   query: string;
   category: string;
   desiredCount: number;
+  area?: string;
 };
 
 export type SearchStrategy = {
@@ -33,6 +51,7 @@ export type PlaceCandidate = {
   ratingCount: number | null;
   priceLevel: string | null;
   types: string[];
+  sourceArea?: string;
 };
 
 export type SelectedItineraryItem = {
@@ -79,7 +98,13 @@ export type ItineraryItemView = {
 export type ItineraryView = {
   destination: string;
   durationDays: number;
-  days: { day: number; theme: string; items: ItineraryItemView[] }[];
+  days: {
+    day: number;
+    theme: string;
+    area: string | null;
+    mode: GeographicScopeDay['mode'] | null;
+    items: ItineraryItemView[];
+  }[];
 };
 
 export type ItineraryPageData = {
@@ -90,6 +115,8 @@ export type ItineraryPageData = {
     durationDays: number;
     startDate: string | null;
     endDate: string | null;
+    explorationPreference: ExplorationPreference;
+    geographicScope: GeographicScope | null;
   };
   itinerary: ItineraryView | null;
 };

@@ -3,10 +3,20 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/supabase/database.types';
 import type {
+  ExplorationPreference,
   ItineraryItemView,
   ItineraryPageData,
   ItineraryPlace,
 } from './types';
+import { parseGeographicScope } from './validation';
+
+function explorationPreference(value: string): ExplorationPreference {
+  return value === 'stay_local' ||
+    value === 'explore_freely' ||
+    value === 'nearby_day_trips'
+    ? value
+    : 'nearby_day_trips';
+}
 
 export async function loadItineraryPageData(
   supabase: SupabaseClient<Database>,
@@ -15,7 +25,7 @@ export async function loadItineraryPageData(
   const { data: trip, error: tripError } = await supabase
     .from('trips')
     .select(
-      'id, destination, destination_input, duration_days, start_date, end_date',
+      'id, destination, destination_input, duration_days, start_date, end_date, exploration_preference, geographic_scope',
     )
     .eq('id', tripId)
     .maybeSingle();
@@ -86,17 +96,24 @@ export async function loadItineraryPageData(
     ];
   });
   const durationDays = trip.duration_days ?? 3;
+  const geographicScope = parseGeographicScope(
+    trip.geographic_scope,
+    durationDays,
+  );
+  const tripData = {
+    id: trip.id,
+    destination: trip.destination,
+    destinationInput: trip.destination_input,
+    durationDays,
+    startDate: trip.start_date,
+    endDate: trip.end_date,
+    explorationPreference: explorationPreference(trip.exploration_preference),
+    geographicScope,
+  };
 
   if (items.length === 0 || !trip.destination) {
     return {
-      trip: {
-        id: trip.id,
-        destination: trip.destination,
-        destinationInput: trip.destination_input,
-        durationDays,
-        startDate: trip.start_date,
-        endDate: trip.end_date,
-      },
+      trip: tripData,
       itinerary: null,
     };
   }
@@ -108,6 +125,12 @@ export async function loadItineraryPageData(
         {
           day: item.day,
           theme: item.dayTheme,
+          area:
+            geographicScope?.days.find((scopeDay) => scopeDay.day === item.day)
+              ?.area ?? null,
+          mode:
+            geographicScope?.days.find((scopeDay) => scopeDay.day === item.day)
+              ?.mode ?? null,
           items: items.filter((candidate) => candidate.day === item.day),
         },
       ]),
@@ -115,14 +138,7 @@ export async function loadItineraryPageData(
   ).sort((a, b) => a.day - b.day);
 
   return {
-    trip: {
-      id: trip.id,
-      destination: trip.destination,
-      destinationInput: trip.destination_input,
-      durationDays,
-      startDate: trip.start_date,
-      endDate: trip.end_date,
-    },
+    trip: tripData,
     itinerary: {
       destination: trip.destination,
       durationDays,

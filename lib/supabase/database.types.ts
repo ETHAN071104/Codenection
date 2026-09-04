@@ -19,6 +19,8 @@ type TripRow = {
   created_by: string;
   destination: string | null;
   destination_input: string | null;
+  exploration_preference: string;
+  geographic_scope: Json | null;
   start_date: string | null;
   end_date: string | null;
   duration_days: number | null;
@@ -32,6 +34,8 @@ type TripInsert = {
   created_by: string;
   destination?: string | null;
   destination_input?: string | null;
+  exploration_preference?: string;
+  geographic_scope?: Json | null;
   start_date?: string | null;
   end_date?: string | null;
   duration_days?: number | null;
@@ -234,6 +238,16 @@ export type Database = {
           p_item_ids: string[];
         };
         Returns: { item_id: string; sort_order: number }[];
+      };
+      adjust_itinerary_schedule: {
+        Args: {
+          p_trip_id: string;
+          p_day_number: number;
+          p_current_item_id: string;
+          p_change_type: string;
+          p_minutes: number;
+        };
+        Returns: { item_id: string; planned_time: string }[];
       };
       reschedule_itinerary_day: {
         Args: {

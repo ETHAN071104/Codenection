@@ -8,6 +8,15 @@ import {
 import { generateGroundedItinerary } from '@/lib/phase2/planning';
 import { loadItineraryPageData } from '@/lib/phase2/storage';
 import { INTERESTS, parseAverageInterests } from '@/lib/preferences/model';
+import type { ExplorationPreference } from '@/lib/phase2/types';
+
+function parseExplorationPreference(value: unknown): ExplorationPreference | null {
+  return value === 'stay_local' ||
+    value === 'nearby_day_trips' ||
+    value === 'explore_freely'
+    ? value
+    : null;
+}
 
 export async function GET(
   request: Request,
@@ -34,14 +43,33 @@ export async function POST(
 
   try {
     const { id } = await context.params;
+    const body = (await request.json().catch(() => ({}))) as {
+      explorationPreference?: unknown;
+    };
     const { data: trip, error: tripError } = await authenticated.supabase
       .from('trips')
-      .select('id, destination, duration_days')
+      .select('id, destination, duration_days, exploration_preference')
       .eq('id', id)
       .maybeSingle();
     if (tripError) throw tripError;
     if (!trip) return unavailableTripResponse();
     if (!trip.destination) throw new Error('DESTINATION_REQUIRED');
+    const explorationPreference =
+      body.explorationPreference === undefined
+        ? parseExplorationPreference(trip.exploration_preference) ??
+          'nearby_day_trips'
+        : parseExplorationPreference(body.explorationPreference);
+    if (!explorationPreference) {
+      return Response.json(
+        {
+          error: {
+            code: 'INVALID_EXPLORATION_PREFERENCE',
+            message: 'Choose how broadly this itinerary should explore.',
+          },
+        },
+        { status: 400 },
+      );
+    }
 
     const durationDays = trip.duration_days ?? 3;
     if (
@@ -75,6 +103,7 @@ export async function POST(
     const generated = await generateGroundedItinerary({
       destination: trip.destination,
       durationDays,
+      explorationPreference,
       finiteBudgetAverage:
         summary.finite_budget_average === null
           ? null
@@ -95,6 +124,15 @@ export async function POST(
     if (Number(saveRows?.[0]?.saved_items) !== generated.items.length) {
       throw new Error('ITINERARY_SAVE_FAILED');
     }
+
+    const { error: scopeSaveError } = await authenticated.supabase
+      .from('trips')
+      .update({
+        exploration_preference: explorationPreference,
+        geographic_scope: generated.geographicScope as unknown as Json,
+      })
+      .eq('id', id);
+    if (scopeSaveError) throw scopeSaveError;
 
     const data = await loadItineraryPageData(authenticated.supabase, id);
     if (!data?.itinerary) throw new Error('ITINERARY_SAVE_FAILED');

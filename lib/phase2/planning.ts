@@ -8,12 +8,13 @@ import {
 import { findPlaceCandidates } from './google-places';
 import type {
   DestinationSuggestion,
+  GeographicScope,
   PersistedItineraryItem,
   PlanningContext,
 } from './types';
 import {
   parseDestinationSuggestion,
-  parseSearchStrategy,
+  parseGeographicScope,
   parseSelectedItinerary,
 } from './validation';
 
@@ -44,26 +45,27 @@ const destinationSchema = {
   additionalProperties: false,
 };
 
-const searchStrategySchema = {
+const geographicScopeSchema = {
   type: 'object',
   properties: {
-    searches: {
+    baseDestination: { type: 'string', minLength: 3, maxLength: 120 },
+    days: {
       type: 'array',
       minItems: 1,
-      maxItems: 4,
+      maxItems: 30,
       items: {
         type: 'object',
         properties: {
-          query: { type: 'string', minLength: 3, maxLength: 120 },
-          category: { type: 'string', minLength: 2, maxLength: 40 },
-          desiredCount: { type: 'integer', minimum: 3, maximum: 8 },
+          day: { type: 'integer', minimum: 1, maximum: 30 },
+          area: { type: 'string', minLength: 3, maxLength: 120 },
+          mode: { type: 'string', enum: ['base', 'day_trip'] },
         },
-        required: ['query', 'category', 'desiredCount'],
+        required: ['day', 'area', 'mode'],
         additionalProperties: false,
       },
     },
   },
-  required: ['searches'],
+  required: ['baseDestination', 'days'],
   additionalProperties: false,
 };
 
@@ -135,6 +137,24 @@ function destinationKey(value: string) {
     .trim();
 }
 
+function geographicSearches(context: PlanningContext, scope: GeographicScope) {
+  const areas = Array.from(
+    new Map(
+      scope.days.map((day) => [day.area.toLocaleLowerCase(), day.area]),
+    ).values(),
+  ).slice(0, 4);
+
+  return areas.map((area, index) => {
+    const interest = context.topInterests[index % context.topInterests.length];
+    return {
+      query: interest ? `${interest.label} highlights` : 'essential sights',
+      category: interest?.key ?? 'sights',
+      desiredCount: 8,
+      area,
+    };
+  });
+}
+
 export async function recommendDestination(context: {
   durationDays: number;
   finiteBudgetAverage: number | null;
@@ -182,21 +202,35 @@ export async function recommendDestination(context: {
 }
 
 export async function generateGroundedItinerary(context: PlanningContext) {
-  const strategyRaw = await requestStructuredJson({
-    schemaName: 'place_search_strategy',
-    schema: searchStrategySchema,
+  const scopeRaw = await requestStructuredJson({
+    schemaName: 'geographic_scope',
+    schema: geographicScopeSchema,
     system:
-      'Create a compact search strategy for Google Places Text Search. Return structured data only. Use no more than four distinct searches and focus on the strongest group interests.',
-    prompt: `Create Google Places search concepts for this trip:\n${JSON.stringify(context)}\nQueries must describe a single useful place category without repeating the destination because the server appends it. Avoid weak interests and duplicate searches.`,
+      'Plan the geographic scope of one hotel-base itinerary. Return structured data only. Keep the supplied base destination unchanged. A day_trip is a same-day nearby excursion, never an overnight second base. Avoid impractical travel. Stay local means every day is base. Nearby day trips allows a sensible nearby excursion based on duration. Explore freely still uses one hotel base and only reasonable day trips. For 1 to 2 days keep all activities local. For 3 days use at most one nearby excursion. For 4 days one nearby day trip is normal. For 5 to 6 days allow one or two. For 7 or more days allow several only when practical. Pace 1 to 2 may cover broader nearby areas; pace 4 to 5 should remain calmer and more local. Use at most four distinct areas total.',
+    prompt: `Plan the day-by-day geographic scope using only this trip context:\n${JSON.stringify({
+      baseDestination: context.destination,
+      durationDays: context.durationDays,
+      pace: context.averagePace,
+      budget: {
+        finiteBudgetAverage: context.finiteBudgetAverage,
+        unlimitedMembers: context.unlimitedMembers,
+      },
+      topInterests: context.topInterests,
+      explorationPreference: context.explorationPreference,
+    })}\nReturn exactly one entry for every numbered day.`,
     maxTokens: 900,
   });
-  const strategy = parseSearchStrategy(strategyRaw);
-  if (!strategy) {
+  const parsedScope = parseGeographicScope(scopeRaw, context.durationDays);
+  if (!parsedScope) {
     throw new Phase2ProviderError('OPENROUTER_INVALID_RESPONSE');
   }
+  const geographicScope = {
+    ...parsedScope,
+    baseDestination: context.destination,
+  };
 
   const { candidates, callCount: googlePlacesCalls } =
-    await findPlaceCandidates(strategy.searches, context.destination);
+    await findPlaceCandidates(geographicSearches(context, geographicScope), context.destination);
   const maxStopsPerDay = stopsForPace(context.averagePace);
   const selectionRaw = await requestStructuredJson({
     schemaName: 'grounded_itinerary',
@@ -205,6 +239,7 @@ export async function generateGroundedItinerary(context: PlanningContext) {
       'Arrange an itinerary using only the supplied Google Place candidate IDs. Never invent, alter, or autocomplete an externalPlaceId. Return structured data only.',
     prompt: `Arrange this aggregate group plan:\n${JSON.stringify({
       context,
+      geographicScope,
       maxStopsPerDay,
       candidates,
     })}\nReturn exactly ${context.durationDays} numbered days. Use only externalPlaceId values from candidates. Keep each day realistic for the pace. Cost is an estimate: use null whenever confidence is low. Reasons should explain fit without claiming unverifiable facts.`,
@@ -215,6 +250,7 @@ export async function generateGroundedItinerary(context: PlanningContext) {
     candidates,
     context.durationDays,
     maxStopsPerDay,
+    geographicScope,
   );
   if (!itinerary) {
     throw new Phase2ProviderError('OPENROUTER_INVALID_RESPONSE');
@@ -241,6 +277,7 @@ export async function generateGroundedItinerary(context: PlanningContext) {
   return {
     places: selectedPlaces,
     items,
+    geographicScope,
     metrics: {
       model: getOpenRouterModel(),
       openRouterCalls: 2,

@@ -13,6 +13,8 @@ import {
   WalletCards,
 } from 'lucide-react';
 import { AtlasShell } from '@/components/travel-dna/atlas-shell';
+import { ChangeBar } from '@/components/live/change-bar';
+import { ActivityWeatherTimeline } from '@/components/live/activity-weather-timeline';
 import {
   Map as Mapcn,
   MapControls,
@@ -26,6 +28,10 @@ import type { ItineraryItemView, ItineraryPageData } from '@/lib/phase2/types';
 import type { WeatherAtStop, WeatherDayResponse } from '@/lib/planner/types';
 import type { RouteSegment, TripRoute } from '@/lib/routing/types';
 import { useTripRealtime } from '@/lib/realtime/use-trip-realtime';
+import type { LiveTripMember } from '@/lib/live/trip-change';
+import type { TripChangeEvent } from '@/lib/live/trip-change';
+import { ensureAnonymousUser } from '@/lib/supabase/auth';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 
 function toMinutes(value: string) {
@@ -206,6 +212,8 @@ export function LiveTrip({ tripId }: { tripId: string }) {
   const [data, setData] = useState<ItineraryPageData | null>(null);
   const [route, setRoute] = useState<TripRoute | null>(null);
   const [weather, setWeather] = useState(new Map<string, WeatherAtStop>());
+  const [weatherAvailable, setWeatherAvailable] = useState(false);
+  const [members, setMembers] = useState<LiveTripMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
@@ -237,6 +245,34 @@ export function LiveTrip({ tripId }: { tripId: string }) {
   }, [load]);
 
   useEffect(() => {
+    let cancelled = false;
+    async function loadMembers() {
+      try {
+        await ensureAnonymousUser();
+        const { data: memberRows } = await getSupabaseBrowserClient()
+          .from('trip_members')
+          .select('id, display_name')
+          .eq('trip_id', tripId)
+          .order('joined_at', { ascending: true });
+        if (!cancelled) {
+          setMembers(
+            (memberRows ?? []).map((member) => ({
+              id: member.id,
+              displayName: member.display_name,
+            })),
+          );
+        }
+      } catch {
+        if (!cancelled) setMembers([]);
+      }
+    }
+    void loadMembers();
+    return () => {
+      cancelled = true;
+    };
+  }, [tripId]);
+
+  useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
@@ -249,39 +285,50 @@ export function LiveTrip({ tripId }: { tripId: string }) {
 
   const activeDay = resolveActiveDay(data, now);
   const activeDayNumber = activeDay?.day ?? null;
-  const activeDayRevision =
+  const routeRevision =
     activeDay?.items
-      .map((item) => `${item.id}:${item.sortOrder}:${item.plannedTime}`)
+      .map((item) => `${item.id}:${item.sortOrder}`)
+      .join('|') ?? '';
+  const weatherRevision =
+    activeDay?.items
+      .map((item) => `${item.id}:${item.plannedTime}`)
       .join('|') ?? '';
 
   useEffect(() => {
     let cancelled = false;
     if (activeDayNumber === null) return;
-    Promise.all([
-      phase2Fetch<TripRoute>(
-        `/api/trips/${tripId}/route?day=${activeDayNumber}`,
-      ),
-      phase2Fetch<WeatherDayResponse>(
-        `/api/trips/${tripId}/weather?day=${activeDayNumber}`,
-      ),
-    ])
-      .then(([nextRoute, nextWeather]) => {
+    phase2Fetch<TripRoute>(`/api/trips/${tripId}/route?day=${activeDayNumber}`)
+      .then((nextRoute) => {
         if (cancelled) return;
         setRoute(nextRoute);
-        setWeather(
-          new Map(nextWeather.stops.map((stop) => [stop.itemId, stop])),
-        );
       })
       .catch(() => {
-        if (!cancelled) {
-          setRoute(null);
-          setWeather(new Map());
-        }
+        if (!cancelled) setRoute(null);
       });
     return () => {
       cancelled = true;
     };
-  }, [activeDayNumber, activeDayRevision, tripId]);
+  }, [activeDayNumber, routeRevision, tripId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (activeDayNumber === null) return;
+    phase2Fetch<WeatherDayResponse>(
+      `/api/trips/${tripId}/weather?day=${activeDayNumber}`,
+    )
+      .then((nextWeather) => {
+        if (!cancelled) {
+          setWeather(new Map(nextWeather.stops.map((stop) => [stop.itemId, stop])));
+          setWeatherAvailable(nextWeather.stops.some((stop) => stop.temperatureC !== null));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) { setWeather(new Map()); setWeatherAvailable(false); }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeDayNumber, tripId, weatherRevision]);
 
   if (loading) {
     return (
@@ -350,6 +397,21 @@ export function LiveTrip({ tripId }: { tripId: string }) {
     (item) => item.estimatedCost === null,
   );
   const nextWeather = next ? (weather.get(next.id) ?? null) : null;
+  const weatherContext =
+    nextWeather && nextWeather.temperatureC !== null
+      ? `${nextWeather.condition}, ${Math.round(nextWeather.temperatureC)}°C${
+          nextWeather.precipitationProbability !== null
+            ? `, ${Math.round(nextWeather.precipitationProbability)}% rain`
+            : ''
+        }`
+      : null;
+  const weatherDisruptions = remaining.flatMap((item) => {
+    const stopWeather = weather.get(item.id);
+    const code = stopWeather?.weatherCode ?? null;
+    const disruptiveCode = code !== null && ((code >= 51 && code <= 67) || (code >= 80 && code <= 82) || code >= 95);
+    if (!stopWeather || (!disruptiveCode && (stopWeather.precipitationProbability ?? 0) < 60)) return [];
+    return [{ item, weather: stopWeather }];
+  });
   const minutesUntilNext = next
     ? toMinutes(next.plannedTime) - nowMinutes
     : null;
@@ -359,6 +421,44 @@ export function LiveTrip({ tripId }: { tripId: string }) {
       : minutesUntilNext !== null && minutesUntilNext > 0 && minutesUntilNext < 90
         ? `${next?.place.name} begins in ${minutesUntilNext} minutes.`
         : 'Your saved route and schedule are ready for the day.';
+
+  async function applyScheduleChange(
+    event: Extract<
+      TripChangeEvent,
+      { type: 'stay_longer' | 'running_late' }
+    >,
+  ) {
+    if (!current || activeDayNumber === null) {
+      throw new Error('We could not identify the current stop safely.');
+    }
+    const updated = await phase2Fetch<ItineraryPageData>(
+      `/api/trips/${tripId}/schedule-adjustment`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          day: activeDayNumber,
+          currentItemId: current?.id,
+          type: event.type,
+          minutes: event.minutes,
+        }),
+      },
+    );
+    setData(updated);
+  }
+
+  async function delayWeatherStop(item: ItineraryItemView, minutes: number) {
+    if (activeDayNumber === null) throw new Error('We could not identify this day safely.');
+    const updated = await phase2Fetch<ItineraryPageData>(
+      `/api/trips/${tripId}/schedule-adjustment`,
+      { method: 'POST', body: JSON.stringify({ day: activeDayNumber, currentItemId: item.id, type: 'running_late', minutes }) },
+    );
+    setData(updated);
+  }
+
+  async function skipWeatherStop(item: ItineraryItemView) {
+    await phase2Fetch(`/api/trips/${tripId}/items`, { method: 'DELETE', body: JSON.stringify({ itemId: item.id }) });
+    await load(false);
+  }
 
   return (
     <AtlasShell tripId={tripId} sectionLabel="LIVE TRIP">
@@ -500,6 +600,29 @@ export function LiveTrip({ tripId }: { tripId: string }) {
             </div>
           </aside>
         </div>
+        <div className="mt-5 flex justify-start">
+          <ChangeBar
+            members={members}
+            weatherContext={weatherContext}
+            weatherDisruptions={weatherDisruptions}
+            weatherAvailable={weatherAvailable}
+            schedule={
+              current
+                ? { day: activeDay.day, current, later: remaining.slice(1) }
+                : null
+            }
+            onScheduleApply={applyScheduleChange}
+            onWeatherDelay={delayWeatherStop}
+            onWeatherSkip={skipWeatherStop}
+          />
+        </div>
+        <ActivityWeatherTimeline
+          items={activeDay.items}
+          route={route}
+          weather={weather}
+          nowMinutes={nowMinutes}
+          isToday={tripDate === todayIso}
+        />
       </section>
     </AtlasShell>
   );
