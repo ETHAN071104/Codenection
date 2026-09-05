@@ -101,6 +101,48 @@ type ItineraryItemRow = {
   updated_at: string;
 };
 
+export type MalaysiaPlaceRow = {
+  id: string;
+  google_place_id: string | null;
+  name: string;
+  country: string;
+  state: string | null;
+  city: string | null;
+  area: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  category: string | null;
+  subcategories: string[];
+  estimated_duration_minutes: number | null;
+  indoor_outdoor: string | null;
+  best_time_of_day: string | null;
+  culture_score: number | null;
+  food_score: number | null;
+  nature_score: number | null;
+  shopping_score: number | null;
+  adventure_score: number | null;
+  nightlife_score: number | null;
+  photography_score: number | null;
+  budget_score: number | null;
+  google_rating: number | null;
+  google_rating_count: number | null;
+  price_level: string | null;
+  source: string;
+  last_verified_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TripPlaceVoteRow = {
+  id: string;
+  trip_id: string;
+  place_id: string;
+  user_id: string;
+  selected: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -174,6 +216,28 @@ export type Database = {
           updated_at?: string;
         },
         Partial<ItineraryItemRow>
+      >;
+      malaysia_places: Table<
+        MalaysiaPlaceRow,
+        Omit<MalaysiaPlaceRow, 'id' | 'created_at' | 'updated_at'> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        },
+        Partial<MalaysiaPlaceRow>
+      >;
+      trip_place_votes: Table<
+        TripPlaceVoteRow,
+        {
+          id?: string;
+          trip_id: string;
+          place_id: string;
+          user_id: string;
+          selected?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        },
+        { selected?: boolean; updated_at?: string }
       >;
     };
     Views: Record<string, never>;

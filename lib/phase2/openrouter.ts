@@ -1,4 +1,6 @@
 import 'server-only';
+import { Phase2ProviderError } from './provider-error';
+export { Phase2ProviderError } from './provider-error';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 export const DEFAULT_OPENROUTER_MODEL = 'openai/gpt-4o-mini';
@@ -12,18 +14,6 @@ type OpenRouterOptions = {
   prompt: string;
   maxTokens?: number;
 };
-
-export class Phase2ProviderError extends Error {
-  constructor(
-    public readonly code:
-      | 'OPENROUTER_UNAVAILABLE'
-      | 'OPENROUTER_INVALID_RESPONSE'
-      | 'GOOGLE_PLACES_UNAVAILABLE'
-      | 'NO_PLACE_CANDIDATES',
-  ) {
-    super(code);
-  }
-}
 
 export function getOpenRouterModel() {
   return process.env.OPENROUTER_MODEL?.trim() || DEFAULT_OPENROUTER_MODEL;

@@ -49,6 +49,11 @@ function formatTravel(seconds: number) {
   return `${Math.max(1, Math.round(seconds / 60))} min`;
 }
 
+function addMinutesToTime(time: string, minutes: number) {
+  const total = (toMinutes(time) + minutes) % 1_440;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
 function estimateStopCost(item: ItineraryItemView) {
   if (item.estimatedCost !== null) return item.estimatedCost;
   const types = new Set(item.place.types);
@@ -460,147 +465,256 @@ export function LiveTrip({ tripId }: { tripId: string }) {
     await load(false);
   }
 
+  const currentWeather = current ? (weather.get(current.id) ?? null) : null;
+
   return (
-    <AtlasShell tripId={tripId} sectionLabel="LIVE TRIP">
-      <section className="w-full py-2">
-        <div className="flex flex-col gap-4 border-b border-[#35383d]/30 pb-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold tracking-[0.08em]">
-              DAY {activeDay.day} IN PROGRESS
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-[-0.045em] sm:text-4xl">
-              {data.itinerary.destination}
-            </h1>
-          </div>
+    <main className="atlas-page min-h-[100dvh] bg-parchment text-ink">
+      <header className="bg-ink text-paper">
+        <div className="mx-auto flex h-16 w-full max-w-[1240px] items-center justify-between gap-4 px-4 sm:px-8">
           <Link
             href={`/trip/${tripId}/plan`}
-            className="inline-flex items-center gap-2 text-sm font-semibold underline-offset-4 hover:underline"
+            className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold outline-none transition-opacity hover:opacity-70 focus-visible:ring-2 focus-visible:ring-paper/70"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
-            Back to planner
+            <span className="hidden sm:inline">Back to planner</span>
+            <span className="sm:hidden">Planner</span>
           </Link>
+
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-2 rounded-full border border-paper/25 px-3 py-1.5 text-[11px] font-bold tracking-[0.16em]">
+              <span className="size-2 rounded-full bg-[#d6a77a] shadow-[0_0_0_4px_rgb(214_167_122/14%)]" />
+              LIVE
+            </span>
+            <span className="hidden text-sm text-paper/70 sm:inline">
+              Day {activeDay.day} in progress
+            </span>
+          </div>
+
+          <div className="min-w-16 text-right text-xs text-paper/65 sm:text-sm">
+            {currentWeather?.temperatureC !== null && currentWeather ? (
+              <span>{Math.round(currentWeather.temperatureC)}°C</span>
+            ) : (
+              <span>Day {activeDay.day}</span>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto w-full max-w-[1240px] px-4 pb-28 pt-7 sm:px-8 sm:pb-12 sm:pt-10">
+        <div className="mb-6 sm:mb-8">
+          <p className="text-xs font-semibold tracking-[0.16em] text-brown-accent">
+            TODAY&apos;S JOURNEY
+          </p>
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <h1 className="font-editorial text-4xl leading-none font-semibold tracking-[-0.04em] sm:text-5xl">
+              {data.itinerary.destination}
+            </h1>
+            <p className="text-sm text-warm-muted">
+              {remaining.length} stop{remaining.length === 1 ? '' : 's'} remaining
+            </p>
+          </div>
         </div>
 
-        <div className="mt-5 grid overflow-hidden border border-[#35383d]/30 bg-[#fffdf8] lg:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
-          <div className="min-h-[360px] bg-[#e7e0cd] lg:min-h-[calc(100dvh-220px)]">
-            <LiveMap items={remaining} route={route} />
-          </div>
-          <aside className="max-h-none overflow-y-auto lg:max-h-[calc(100dvh-220px)]">
-            <div className="border-b border-[#35383d]/20 bg-[#f2eee1] p-5">
-              <div className="flex items-start gap-3">
-                <Navigation
-                  className="mt-0.5 size-4 shrink-0"
-                  aria-hidden="true"
-                />
-                <p className="text-sm leading-6">{contextMessage}</p>
-              </div>
-            </div>
-
-            {current ? (
-              <div className="p-5 sm:p-6">
-                <p className="text-xs font-semibold tracking-[0.12em]">NOW</p>
-                <div className="mt-3 border-l-2 border-[#2f3237] pl-4">
-                  <div className="flex items-baseline justify-between gap-4">
-                    <h2 className="text-xl font-semibold">
-                      {current.place.name}
-                    </h2>
-                    <time className="font-mono text-sm">
-                      {current.plannedTime}
-                    </time>
-                  </div>
-                  <p className="mt-2 text-sm text-[#5a5d61]">
-                    {current.estimatedDurationMinutes} min planned
+        {current ? (
+          <>
+            <section
+              aria-labelledby="live-now-heading"
+              className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:gap-5"
+            >
+              <article className="flex min-h-[340px] flex-col rounded-2xl border border-warm-border bg-paper p-6 shadow-editorial sm:p-8 lg:min-h-[390px]">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="inline-flex items-center gap-2 text-xs font-bold tracking-[0.18em] text-brown-accent">
+                    <span className="size-2 rounded-full bg-brown-accent" />
+                    NOW
                   </p>
-                  <div className="mt-2">
-                    <WeatherLine weather={weather.get(current.id) ?? null} />
+                  <time className="text-sm font-semibold text-warm-muted">
+                    {current.plannedTime}
+                  </time>
+                </div>
+
+                <div className="my-auto py-8">
+                  <h2
+                    id="live-now-heading"
+                    className="max-w-2xl font-editorial text-4xl leading-[1.02] font-semibold tracking-[-0.045em] sm:text-5xl lg:text-6xl"
+                  >
+                    {current.place.name}
+                  </h2>
+                  <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3 text-sm text-warm-muted">
+                    <span className="inline-flex items-center gap-2">
+                      <Clock3 className="size-4" aria-hidden="true" />
+                      {current.estimatedDurationMinutes} min · leave by{' '}
+                      {addMinutesToTime(
+                        current.plannedTime,
+                        current.estimatedDurationMinutes,
+                      )}
+                    </span>
+                    <WeatherLine weather={currentWeather} />
                   </div>
                 </div>
 
-                {next && (
-                  <div className="mt-8 border-t border-[#35383d]/25 pt-5">
-                    <p className="text-xs font-semibold tracking-[0.12em]">
+                <div className="flex flex-col gap-4 border-t border-warm-border pt-5 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="inline-flex max-w-xl items-start gap-2 text-sm leading-6 text-warm-muted">
+                    <Navigation
+                      className="mt-1 size-4 shrink-0 text-brown-accent"
+                      aria-hidden="true"
+                    />
+                    {contextMessage}
+                  </p>
+                  <div className="flex shrink-0 items-center gap-2 text-sm">
+                    <WalletCards
+                      className="size-4 text-brown-accent"
+                      aria-hidden="true"
+                    />
+                    <span className="font-semibold">RM {Math.round(estimatedToday)}</span>
+                    <span className="text-warm-muted">today</span>
+                  </div>
+                </div>
+                {includesCategoryEstimates && (
+                  <p className="mt-2 text-right text-[11px] text-warm-muted">
+                    Includes category estimates
+                  </p>
+                )}
+              </article>
+
+              <div className="relative min-h-[300px] overflow-hidden rounded-2xl border border-warm-border bg-[#e7e0cd] shadow-editorial lg:min-h-[390px]">
+                <LiveMap items={remaining} route={route} />
+                <div className="pointer-events-none absolute inset-x-4 bottom-4 rounded-xl bg-ink/90 px-4 py-3 text-paper shadow-lg backdrop-blur-sm">
+                  <p className="text-xs font-semibold tracking-[0.12em] text-paper/65">
+                    LIVE ROUTE
+                  </p>
+                  <p className="mt-1 text-sm">
+                    {nextSegment
+                      ? `${formatTravel(nextSegment.durationSeconds)} to ${next?.place.name ?? 'your next stop'}`
+                      : 'Your saved route is ready.'}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {next && (
+              <section
+                aria-labelledby="live-next-heading"
+                className="mt-5 rounded-2xl border border-warm-border bg-paper p-5 shadow-editorial sm:p-6"
+              >
+                <div className="grid gap-4 sm:grid-cols-[90px_minmax(0,1fr)_auto] sm:items-center sm:gap-6">
+                  <div>
+                    <p className="text-xs font-bold tracking-[0.18em] text-brown-accent">
                       NEXT
                     </p>
-                    <div className="mt-3 flex items-start justify-between gap-4">
-                      <div>
-                        <h3 className="font-semibold">{next.place.name}</h3>
-                        <div className="mt-2">
-                          <WeatherLine weather={weather.get(next.id) ?? null} />
-                        </div>
-                      </div>
-                      <time className="font-mono text-sm">
-                        {next.plannedTime}
-                      </time>
-                    </div>
-                    {nextSegment && (
-                      <p className="mt-3 inline-flex items-center gap-2 text-sm text-[#5a5d61]">
-                        <MapPin className="size-4" aria-hidden="true" />
-                        {formatTravel(nextSegment.durationSeconds)} travel,{' '}
-                        {formatDistance(nextSegment.distanceMeters)}
-                      </p>
-                    )}
+                    <time className="mt-2 block text-2xl font-semibold tracking-[-0.03em]">
+                      {next.plannedTime}
+                    </time>
                   </div>
-                )}
-
-                {later.length > 0 && (
-                  <div className="mt-8 border-t border-[#35383d]/25 pt-5">
-                    <p className="text-xs font-semibold tracking-[0.12em]">
-                      LATER
-                    </p>
-                    <div className="mt-3 space-y-4">
-                      {later.map((item) => (
-                        <div
-                          key={item.id}
-                          className="flex items-start justify-between gap-4"
-                        >
-                          <div>
-                            <p className="text-sm font-semibold">
-                              {item.place.name}
-                            </p>
-                            <WeatherLine
-                              weather={weather.get(item.id) ?? null}
-                            />
-                          </div>
-                          <time className="font-mono text-sm">
-                            {item.plannedTime}
-                          </time>
-                        </div>
-                      ))}
+                  <div className="border-warm-border sm:border-l sm:pl-6">
+                    <h2
+                      id="live-next-heading"
+                      className="font-editorial text-2xl font-semibold tracking-[-0.03em] sm:text-3xl"
+                    >
+                      {next.place.name}
+                    </h2>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2">
+                      <span className="text-sm text-warm-muted">
+                        {next.estimatedDurationMinutes} min planned
+                      </span>
+                      <WeatherLine weather={nextWeather} />
                     </div>
                   </div>
-                )}
-              </div>
-            ) : (
-              <div className="p-8 text-center">
-                <Clock3 className="mx-auto size-5" aria-hidden="true" />
-                <h2 className="mt-3 text-xl font-semibold">Day complete</h2>
-                <p className="mt-2 text-sm text-[#5a5d61]">
-                  All scheduled stops for today have passed.
-                </p>
-              </div>
-            )}
-
-            <div className="border-t border-[#35383d]/25 bg-[#f7f3e8] p-5 sm:p-6">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold tracking-[0.1em]">
-                    ESTIMATED TODAY
-                  </p>
-                  <p className="mt-1 text-2xl font-semibold">
-                    RM {Math.round(estimatedToday)}
-                  </p>
-                  {includesCategoryEstimates && (
-                    <p className="mt-1 text-xs text-[#5a5d61]">
-                      Includes category estimates
+                  {nextSegment && (
+                    <p className="inline-flex items-center gap-2 text-sm text-warm-muted sm:justify-self-end">
+                      <MapPin className="size-4 text-brown-accent" aria-hidden="true" />
+                      {formatTravel(nextSegment.durationSeconds)} ·{' '}
+                      {formatDistance(nextSegment.distanceMeters)}
                     </p>
                   )}
                 </div>
-                <WalletCards className="size-6" aria-hidden="true" />
-              </div>
-            </div>
-          </aside>
-        </div>
-        <div className="mt-5 flex justify-start">
+              </section>
+            )}
+
+            {later.length > 0 && (
+              <section aria-labelledby="live-later-heading" className="mt-9 sm:mt-11">
+                <div className="flex items-end justify-between gap-4 border-b border-warm-border pb-4">
+                  <div>
+                    <p className="text-xs font-bold tracking-[0.18em] text-brown-accent">
+                      LATER TODAY
+                    </p>
+                    <h2
+                      id="live-later-heading"
+                      className="mt-1 font-editorial text-3xl font-semibold tracking-[-0.035em]"
+                    >
+                      What&apos;s ahead
+                    </h2>
+                  </div>
+                  <span className="text-sm text-warm-muted">
+                    {later.length} more
+                  </span>
+                </div>
+
+                <ol className="divide-y divide-warm-border">
+                  {later.map((item, index) => {
+                    const remainingIndex = index + 2;
+                    const previous = remaining[remainingIndex - 1];
+                    const segment = previous
+                      ? (route?.segments.find(
+                          (candidate) =>
+                            candidate.fromItemId === previous.id &&
+                            candidate.toItemId === item.id,
+                        ) ?? null)
+                      : null;
+                    return (
+                      <li
+                        key={item.id}
+                        className="grid grid-cols-[64px_16px_minmax(0,1fr)] gap-3 py-5 sm:grid-cols-[76px_20px_minmax(0,1fr)_auto] sm:gap-4"
+                      >
+                        <time className="pt-0.5 text-sm font-semibold">
+                          {item.plannedTime}
+                        </time>
+                        <div className="relative flex justify-center">
+                          <span className="mt-1.5 size-2.5 rounded-full border-2 border-paper bg-brown-accent ring-1 ring-brown-accent" />
+                          {index < later.length - 1 && (
+                            <span className="absolute top-4 bottom-[-1.25rem] w-px bg-warm-border" />
+                          )}
+                        </div>
+                        <div>
+                          <h3 className="font-editorial text-xl font-semibold tracking-[-0.02em]">
+                            {item.place.name}
+                          </h3>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-warm-muted">
+                            <span>{item.estimatedDurationMinutes} min</span>
+                            <WeatherLine weather={weather.get(item.id) ?? null} />
+                          </div>
+                        </div>
+                        {segment && (
+                          <span className="col-start-3 inline-flex items-center gap-1.5 text-xs text-warm-muted sm:col-start-auto sm:self-center">
+                            <Navigation className="size-3.5" aria-hidden="true" />
+                            {formatTravel(segment.durationSeconds)} travel
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ol>
+              </section>
+            )}
+          </>
+        ) : (
+          <section className="rounded-2xl border border-warm-border bg-paper p-10 text-center shadow-editorial">
+            <Clock3 className="mx-auto size-6 text-brown-accent" aria-hidden="true" />
+            <h2 className="mt-4 font-editorial text-3xl font-semibold">Day complete</h2>
+            <p className="mt-2 text-sm text-warm-muted">
+              All scheduled stops for today have passed.
+            </p>
+          </section>
+        )}
+
+        <section className="fixed inset-x-3 bottom-3 z-20 rounded-2xl border border-ink/10 bg-ink p-4 text-paper shadow-[0_18px_55px_-24px_rgb(36_32_28/75%)] sm:static sm:mt-11 sm:flex sm:items-center sm:justify-between sm:p-6">
+          <div className="mb-4 sm:mb-0">
+            <p className="text-xs font-bold tracking-[0.16em] text-paper/55">
+              PLANS CAN CHANGE
+            </p>
+            <h2 className="mt-1 font-editorial text-2xl font-semibold tracking-[-0.03em]">
+              Need to adjust the day?
+            </h2>
+          </div>
           <ChangeBar
             members={members}
             weatherContext={weatherContext}
@@ -615,15 +729,29 @@ export function LiveTrip({ tripId }: { tripId: string }) {
             onWeatherDelay={delayWeatherStop}
             onWeatherSkip={skipWeatherStop}
           />
-        </div>
-        <ActivityWeatherTimeline
-          items={activeDay.items}
-          route={route}
-          weather={weather}
-          nowMinutes={nowMinutes}
-          isToday={tripDate === todayIso}
-        />
-      </section>
-    </AtlasShell>
+        </section>
+
+        <details className="group mt-5 rounded-2xl border border-warm-border bg-paper shadow-editorial">
+          <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-5 text-sm font-semibold marker:hidden sm:px-6">
+            Full day weather timeline
+            <span className="text-xs font-normal text-warm-muted group-open:hidden">
+              Show
+            </span>
+            <span className="hidden text-xs font-normal text-warm-muted group-open:inline">
+              Hide
+            </span>
+          </summary>
+          <div className="border-t border-warm-border px-1 pb-1">
+            <ActivityWeatherTimeline
+              items={activeDay.items}
+              route={route}
+              weather={weather}
+              nowMinutes={nowMinutes}
+              isToday={tripDate === todayIso}
+            />
+          </div>
+        </details>
+      </div>
+    </main>
   );
 }

@@ -10,6 +10,14 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-geist-sans);
+  --font-editorial: var(--font-lora);
+  --color-parchment: var(--journey-parchment);
+  --color-paper: var(--journey-paper);
+  --color-ink: var(--journey-ink);
+  --color-warm-muted: var(--journey-muted);
+  --color-brown-accent: var(--journey-accent);
+  --color-warm-border: var(--journey-border);
+  --shadow-editorial: var(--journey-shadow);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-primary: var(--primary);
@@ -49,6 +57,13 @@
   --input: oklch(0.88 0.028 84);
   --ring: oklch(0.3 0.018 250);
   --radius: 0.9rem;
+  --journey-parchment: #f7f3ec;
+  --journey-paper: #fffdf9;
+  --journey-ink: #24201c;
+  --journey-muted: #756d64;
+  --journey-accent: #8c6b51;
+  --journey-border: #e5ddd4;
+  --journey-shadow: 0 18px 50px -38px rgb(55 43 34 / 35%);
 }
 
 .dark {

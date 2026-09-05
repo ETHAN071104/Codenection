@@ -11,6 +11,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint",
+    "seed:malaysia-places": "tsx scripts/seed-malaysia-places.ts",
+    "enrich:malaysia-place-areas": "tsx scripts/enrich-malaysia-place-areas.ts",
     "format": "oxfmt"
   },
   "dependencies": {
@@ -42,6 +44,7 @@
     "oxlint": "1.76.0",
     "oxlint-tsgolint": "7.0.2001",
     "tailwindcss": "4.2.1",
+    "tsx": "^4.21.0",
     "typescript": "5.9.3"
   },
   "type": "module"

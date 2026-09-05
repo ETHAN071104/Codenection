@@ -52,6 +52,13 @@ export type PlaceCandidate = {
   priceLevel: string | null;
   types: string[];
   sourceArea?: string;
+  addressComponents?: GoogleAddressComponent[];
+};
+
+export type GoogleAddressComponent = {
+  longText?: string;
+  shortText?: string;
+  types?: string[];
 };
 
 export type SelectedItineraryItem = {

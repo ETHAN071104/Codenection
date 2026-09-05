@@ -10,14 +10,15 @@ import {
 } from 'react';
 import Link from 'next/link';
 import {
+  ArrowLeft,
+  ArrowRight,
   Bot,
   CloudSun,
-  Clock3,
   GripVertical,
   LoaderCircle,
   MapPin,
-  Play,
   Plus,
+  Route,
   Star,
   Trash2,
 } from 'lucide-react';
@@ -85,7 +86,10 @@ function hasValidCoordinates(item: ItineraryItemView) {
 }
 
 function formatDuration(minutes: number) {
-  return `${minutes} min`;
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
 }
 
 function formatRouteDistance(meters: number) {
@@ -163,13 +167,10 @@ function MapCanvas({
 
   if (!initialItem) {
     return (
-      <div className="flex h-full min-h-[360px] items-center justify-center bg-[#e7e0cd] p-8 text-center text-[#5a5d61]">
+      <div className="flex h-full min-h-[360px] items-center justify-center bg-[#e7e0cd] p-8 text-center text-warm-muted">
         <div>
-          <MapPin
-            className="mx-auto size-6 text-[#2f3237]"
-            aria-hidden="true"
-          />
-          <p className="mt-3 font-semibold text-[#25282d]">Map unavailable</p>
+          <MapPin className="mx-auto size-6 text-ink" aria-hidden="true" />
+          <p className="mt-3 font-semibold text-ink">Map unavailable</p>
           <p className="mt-2 text-sm leading-6">
             This itinerary has no valid saved coordinates yet.
           </p>
@@ -190,9 +191,9 @@ function MapCanvas({
         <MapRoute
           id="saved-driving-route"
           coordinates={route.geometry.coordinates}
-          color="#2f3237"
+          color="#24201c"
           width={4}
-          opacity={0.78}
+          opacity={0.72}
           interactive={false}
         />
       )}
@@ -211,24 +212,24 @@ function MapCanvas({
                 type="button"
                 aria-label={`${index + 1}. ${item.place.name}`}
                 className={cn(
-                  'flex size-9 items-center justify-center rounded-full border-2 border-[#f8f4e8] text-sm font-bold shadow-[0_6px_16px_rgb(37_40_45/35%)] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f3237] focus-visible:ring-offset-2',
+                  'flex size-9 items-center justify-center rounded-full border-2 border-paper text-sm font-bold shadow-[0_6px_16px_rgb(55_43_34/28%)] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent focus-visible:ring-offset-2',
                   selected
-                    ? 'scale-125 bg-[#1f2227] text-[#f8f4e8]'
-                    : 'bg-[#2f3237] text-[#f8f4e8] hover:scale-110',
+                    ? 'scale-125 bg-brown-accent text-paper'
+                    : 'bg-ink text-paper hover:scale-110',
                 )}
               >
                 {index + 1}
               </button>
             </MarkerContent>
             <MarkerPopup closeButton>
-              <div className="min-w-48 p-1 text-[#25282d]">
+              <div className="min-w-48 p-1 text-ink">
                 <p className="font-semibold">{item.place.name}</p>
-                <p className="mt-2 text-sm text-[#5a5d61]">
+                <p className="mt-2 text-sm text-warm-muted">
                   {item.plannedTime} ·{' '}
                   {formatDuration(item.estimatedDurationMinutes)}
                 </p>
                 {item.place.rating !== null && (
-                  <p className="mt-2 inline-flex items-center gap-1 text-sm text-[#2f3237]">
+                  <p className="mt-2 inline-flex items-center gap-1 text-sm text-ink">
                     <Star
                       className="size-3.5 fill-current"
                       aria-hidden="true"
@@ -267,10 +268,10 @@ function ItineraryCard({
   return (
     <div
       className={cn(
-        'flex border-b border-[#35383d]/20 transition-colors',
+        'group flex border-b border-warm-border/80 bg-white transition-colors',
         selected
-          ? 'bg-[#2f3237] text-[#f8f4e8]'
-          : 'bg-[#f7f3e8] hover:bg-[#e7e0cd]',
+          ? 'shadow-[inset_3px_0_0_#8c6b51] bg-[#fbf7f0]'
+          : 'hover:bg-[#fcfaf6]',
       )}
     >
       {dragHandle}
@@ -278,63 +279,40 @@ function ItineraryCard({
         ref={cardRef}
         type="button"
         onClick={onSelect}
-        className="min-w-0 flex-1 p-5 text-left outline-none focus-visible:ring-2 focus-visible:ring-[#2f3237] focus-visible:ring-inset"
+        className="min-w-0 flex-1 py-4 pr-2 text-left text-ink outline-none focus-visible:ring-2 focus-visible:ring-brown-accent focus-visible:ring-inset sm:py-5"
         aria-pressed={selected}
         aria-label={`${index + 1}. ${item.place.name}, ${item.plannedTime}`}
       >
         <span className="flex items-start gap-3">
-          <span
-            className={cn(
-              'flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
-              selected
-                ? 'bg-[#f8f4e8] text-[#2f3237]'
-                : 'bg-[#2f3237] text-[#f8f4e8]',
-            )}
-          >
+          <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-ink text-[0.65rem] font-semibold text-paper">
             {index + 1}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="flex items-baseline justify-between gap-3">
-              <span className="text-sm font-semibold">{item.place.name}</span>
-              <time
-                className={cn(
-                  'shrink-0 text-xs font-medium',
-                  selected ? 'text-[#f8f4e8]/75' : 'text-[#5a5d61]',
-                )}
-              >
-                {item.plannedTime}
-              </time>
+            <time className="block text-[0.68rem] font-semibold uppercase tracking-[0.13em] text-brown-accent">
+              {item.plannedTime}
+            </time>
+            <span className="mt-1 block font-editorial text-[1.08rem] font-medium leading-snug tracking-[-0.02em] text-ink">
+              {item.place.name}
             </span>
-            <span
-              className={cn(
-                'mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs',
-                selected ? 'text-[#f8f4e8]/80' : 'text-[#5a5d61]',
-              )}
-            >
+            <span className="mt-1.5 block text-xs font-medium text-warm-muted">
+              {formatDuration(item.estimatedDurationMinutes)}
+            </span>
+            <span className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 text-[0.7rem] leading-5 text-warm-muted">
               {item.place.rating !== null && (
                 <span className="inline-flex items-center gap-1">
                   <Star className="size-3 fill-current" aria-hidden="true" />
                   {item.place.rating.toFixed(1)}
                 </span>
               )}
-              <span className="inline-flex items-center gap-1">
-                <Clock3 className="size-3" aria-hidden="true" />
-                {formatDuration(item.estimatedDurationMinutes)}
-              </span>
+              {weather && weather.temperatureC !== null && (
+                <span className="inline-flex items-center gap-1.5">
+                  <CloudSun className="size-3.5" aria-hidden="true" />
+                  {weather.condition}, {Math.round(weather.temperatureC)}°C
+                  {weather.precipitationProbability !== null &&
+                    `, ${Math.round(weather.precipitationProbability)}% rain`}
+                </span>
+              )}
             </span>
-            {weather && weather.temperatureC !== null && (
-              <span
-                className={cn(
-                  'mt-2 inline-flex items-center gap-1.5 text-xs',
-                  selected ? 'text-[#f8f4e8]/80' : 'text-[#5a5d61]',
-                )}
-              >
-                <CloudSun className="size-3.5" aria-hidden="true" />
-                {weather.condition}, {Math.round(weather.temperatureC)}°C
-                {weather.precipitationProbability !== null &&
-                  `, ${Math.round(weather.precipitationProbability)}% rain`}
-              </span>
-            )}
           </span>
         </span>
       </button>
@@ -394,7 +372,7 @@ function SortableItineraryCard({
         dragHandle={
           <button
             type="button"
-            className="flex w-9 shrink-0 cursor-grab items-center justify-center text-[#5a5d61] outline-none hover:text-[#2f3237] focus-visible:ring-2 focus-visible:ring-[#2f3237] focus-visible:ring-inset active:cursor-grabbing disabled:cursor-default disabled:opacity-45"
+            className="flex w-8 shrink-0 cursor-grab items-center justify-center text-warm-muted/45 outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-brown-accent focus-visible:ring-inset active:cursor-grabbing disabled:cursor-default disabled:opacity-35 sm:w-9"
             aria-label={`Drag ${item.place.name}`}
             title="Drag to reorder"
             disabled={disabled}
@@ -411,12 +389,7 @@ function SortableItineraryCard({
             title="Remove stop"
             disabled={disabled}
             onClick={onRemove}
-            className={cn(
-              'flex w-10 shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-[#2f3237] focus-visible:ring-inset disabled:opacity-45',
-              selected
-                ? 'text-[#f8f4e8]/70 hover:text-[#f8f4e8]'
-                : 'text-[#5a5d61] hover:text-[#a84a3f]',
-            )}
+            className="flex w-9 shrink-0 items-center justify-center text-warm-muted/45 outline-none transition-colors hover:text-[#a84a3f] focus-visible:ring-2 focus-visible:ring-brown-accent focus-visible:ring-inset disabled:opacity-35 sm:w-10"
           >
             <Trash2 className="size-4" aria-hidden="true" />
           </button>
@@ -432,13 +405,8 @@ function TravelSegment({ segment }: { segment: RouteSegment | null }) {
   if (!segment) return null;
 
   return (
-    <div className="flex items-center gap-3 border-b border-[#35383d]/20 bg-[#f2eee1] px-5 py-3 text-xs text-[#5a5d61]">
-      <span
-        className="text-base leading-none text-[#2f3237]"
-        aria-hidden="true"
-      >
-        ↓
-      </span>
+    <div className="flex items-center gap-3 border-b border-warm-border/80 bg-parchment/55 px-10 py-2 text-[0.68rem] text-warm-muted">
+      <span className="h-5 w-px bg-warm-border" aria-hidden="true" />
       <span>
         {formatRouteDuration(segment.durationSeconds)} ·{' '}
         {formatRouteDistance(segment.distanceMeters)}
@@ -835,116 +803,93 @@ export function MapPlanner({ tripId }: { tripId: string }) {
   }
 
   return (
-    <AtlasShell tripId={tripId} sectionLabel="MAP PLAN">
-      <section className="w-full py-2">
-        <div className="mb-6 flex flex-col gap-4 border-b border-[#35383d]/30 pb-6 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold tracking-[0.08em] text-[#2f3237]">
-              SAVED ITINERARY MAP
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-[-0.045em] sm:text-4xl">
-              {data.itinerary.destination}
-            </h1>
-          </div>
-          <div className="flex flex-wrap items-center gap-4">
-            <Link
-              href={`/trip/${tripId}/itinerary`}
-              className="text-sm font-semibold text-[#2f3237] underline-offset-4 hover:underline"
-            >
-              View full itinerary
-            </Link>
-            <Link
-              href={`/trip/${tripId}/live`}
-              className={buttonVariants({
-                className:
-                  'h-10 rounded-none bg-[#2f3237] px-4 text-[#f8f4e8] hover:bg-[#1f2227]',
-              })}
-            >
-              <Play className="size-4" aria-hidden="true" />
-              Start Live Trip
-            </Link>
-          </div>
-        </div>
-
-        <div
-          className="mb-5 flex flex-wrap gap-2"
-          role="tablist"
-          aria-label="Itinerary days"
+    <main className="min-h-[100dvh] bg-parchment text-ink lg:h-[100dvh] lg:overflow-hidden">
+      <header className="grid min-h-16 grid-cols-[1fr_auto_1fr] items-center border-b border-warm-border bg-white px-4 sm:px-6">
+        <Link
+          href={`/trip/${tripId}`}
+          className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-ink transition-colors hover:text-brown-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/35 focus-visible:ring-offset-4 focus-visible:ring-offset-white"
         >
-          {days.map((day) => {
-            const active = day.day === activeDay.day;
-            return (
-              <button
-                key={day.day}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => {
-                  setSelectedDay(day.day);
-                  setSelectedItemId(null);
-                }}
-                className={cn(
-                  'h-10 border px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f3237] focus-visible:ring-offset-2 focus-visible:ring-offset-[#f2eee1]',
-                  active
-                    ? 'border-[#2f3237] bg-[#2f3237] text-[#f8f4e8]'
-                    : 'border-[#35383d]/35 bg-[#f7f3e8] text-[#25282d] hover:bg-[#e7e0cd]',
-                )}
-              >
-                Day {day.day}
-              </button>
-            );
-          })}
+          <ArrowLeft className="size-4" aria-hidden="true" />
+          Trip room
+        </Link>
+        <div className="text-center text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-warm-muted sm:text-xs">
+          Map plan
         </div>
+        <Link
+          href={`/trip/${tripId}/itinerary`}
+          className="justify-self-end text-xs font-semibold text-warm-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
+        >
+          Full itinerary
+        </Link>
+      </header>
 
-        <div className="grid overflow-hidden border border-[#35383d]/30 bg-[#35383d]/30 lg:grid-cols-[minmax(0,7fr)_minmax(288px,3fr)]">
-          <div className="min-h-[420px] bg-[#e7e0cd] lg:min-h-[calc(100dvh-245px)]">
-            <MapCanvas
-              items={activeDay.items}
-              route={route}
-              selectedItemId={selectedItemId}
-              onSelect={selectItem}
-            />
-          </div>
-          <aside className="max-h-[45dvh] overflow-y-auto bg-[#f7f3e8] lg:max-h-[calc(100dvh-245px)]">
-            <div className="sticky top-0 z-10 border-b border-[#35383d]/20 bg-[#f7f3e8] px-5 py-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold tracking-[0.1em] text-[#2f3237]">
-                    DAY {activeDay.day}
-                  </p>
-                  <h2 className="mt-1 font-semibold">{activeDay.theme}</h2>
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  <button
-                    type="button"
-                    disabled={isSaving}
-                    onClick={() => {
-                      setAiEditOpen((open) => !open);
-                      setAddPlaceOpen(false);
-                    }}
-                    aria-expanded={aiEditOpen}
-                    className="inline-flex size-9 items-center justify-center border border-[#35383d]/40 bg-[#fffdf8] outline-none hover:bg-[#e7e0cd] focus-visible:ring-2 focus-visible:ring-[#2f3237] disabled:opacity-45"
-                    aria-label="Open AI itinerary editor"
-                    title="AI itinerary editor"
-                  >
-                    <Bot className="size-4" aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isSaving}
-                    onClick={() => {
-                      setAddPlaceOpen((open) => !open);
-                      setAiEditOpen(false);
-                    }}
-                    aria-expanded={addPlaceOpen}
-                    className="inline-flex h-9 items-center gap-1.5 border border-[#35383d]/40 bg-[#fffdf8] px-3 text-xs font-semibold outline-none hover:bg-[#e7e0cd] focus-visible:ring-2 focus-visible:ring-[#2f3237] disabled:opacity-45"
-                  >
-                    <Plus className="size-3.5" aria-hidden="true" />
-                    Add Place
-                  </button>
-                </div>
+      <div className="lg:grid lg:h-[calc(100dvh-4rem)] lg:grid-cols-[minmax(0,7fr)_minmax(340px,3fr)]">
+        <section
+          aria-label={`${data.itinerary.destination} map`}
+          className="relative h-[48dvh] min-h-[360px] overflow-hidden bg-[#e7e0cd] lg:h-full lg:min-h-0"
+        >
+          <MapCanvas
+            items={activeDay.items}
+            route={route}
+            selectedItemId={selectedItemId}
+            onSelect={selectItem}
+          />
+        </section>
+
+        <aside className="relative z-10 -mt-5 flex min-h-[52dvh] flex-col overflow-hidden rounded-t-[1.75rem] border border-warm-border bg-white shadow-editorial lg:mt-0 lg:h-full lg:min-h-0 lg:rounded-none lg:border-y-0 lg:border-r-0 lg:shadow-none">
+          <div className="border-b border-warm-border px-5 pb-5 pt-6 sm:px-6 lg:pt-7">
+            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-brown-accent">
+              Your itinerary
+            </p>
+            <div className="mt-2 flex items-end justify-between gap-4">
+              <div className="min-w-0">
+                <h1 className="truncate font-editorial text-2xl font-medium tracking-[-0.035em] text-ink">
+                  {data.itinerary.destination}
+                </h1>
+                <p className="mt-1 text-xs leading-5 text-warm-muted">
+                    Day {activeDay.day} · {activeDay.theme.replace(/^Day\s+\d+:\s*/i, "")}
+                </p>
               </div>
-              <p className="mt-1 text-xs text-[#5a5d61]">
+              <span className="shrink-0 rounded-full bg-parchment px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-warm-muted">
+                {days.length} {days.length === 1 ? 'day' : 'days'}
+              </span>
+            </div>
+          </div>
+
+          <div
+            className="flex gap-2 overflow-x-auto border-b border-warm-border px-5 py-3 sm:px-6"
+            role="tablist"
+            aria-label="Itinerary days"
+          >
+            {days.map((day) => {
+              const active = day.day === activeDay.day;
+              return (
+                <button
+                  key={day.day}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => {
+                    setSelectedDay(day.day);
+                    setSelectedItemId(null);
+                  }}
+                  className={cn(
+                    'h-8 shrink-0 rounded-full border px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/45 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
+                    active
+                      ? 'border-ink bg-ink text-paper'
+                      : 'border-warm-border bg-parchment text-warm-muted hover:border-brown-accent/45 hover:text-ink',
+                  )}
+                >
+                  Day {day.day}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="border-b border-warm-border bg-[#fcfaf6] px-5 py-3 sm:px-6">
+            <div className="flex items-center gap-2 text-xs text-warm-muted">
+              <Route className="size-3.5 shrink-0 text-brown-accent" aria-hidden="true" />
+              <span>
                 {activeDay.items.length} stops
                 {route && route.totalDistanceMeters > 0 && (
                   <>
@@ -953,48 +898,36 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                     {formatRouteDuration(route.totalDurationSeconds)} travel
                   </>
                 )}
-              </p>
-              {routeStatus === 'loading' && (
-                <p className="mt-2 text-xs text-[#5a5d61]">
-                  Calculating route…
-                </p>
-              )}
-              {routeStatus === 'error' && (
-                <p className="mt-2 text-xs text-[#a84a3f]">Route unavailable</p>
-              )}
-              {isSaving && (
-                <p className="mt-2 text-xs text-[#5a5d61]">
-                  Updating route and schedule...
-                </p>
-              )}
-              {plannerError && (
-                <p className="mt-2 text-xs text-[#a84a3f]">{plannerError}</p>
-              )}
-              {activeEditor && activeEditorPlace && (
-                <p className="mt-2 text-xs font-medium text-[#2f3237]">
-                  {activeEditor.displayName} is editing {activeEditorPlace}
-                </p>
-              )}
+              </span>
             </div>
-            {addPlaceOpen && (
-              <AddPlacePanel
-                tripId={tripId}
-                day={activeDay.day}
-                disabled={isSaving}
-                onAdd={handleAddPlace}
-                onClose={() => setAddPlaceOpen(false)}
-              />
+            {routeStatus === 'loading' && (
+              <p className="mt-1.5 text-[0.68rem] text-warm-muted">
+                Calculating route…
+              </p>
             )}
-            {aiEditOpen && (
-              <AiEditPanel
-                tripId={tripId}
-                day={activeDay.day}
-                disabled={isSaving}
-                onApplied={(result) => applyPlannerMutation(result)}
-                onApplyStateChange={setIsSaving}
-                onClose={() => setAiEditOpen(false)}
-              />
+            {routeStatus === 'error' && (
+              <p className="mt-1.5 text-[0.68rem] text-[#a84a3f]">
+                Route unavailable
+              </p>
             )}
+            {isSaving && (
+              <p className="mt-1.5 text-[0.68rem] text-warm-muted">
+                Updating route and schedule…
+              </p>
+            )}
+            {plannerError && (
+              <p className="mt-1.5 text-[0.68rem] text-[#a84a3f]">
+                {plannerError}
+              </p>
+            )}
+            {activeEditor && activeEditorPlace && (
+              <p className="mt-1.5 text-[0.68rem] font-medium text-ink">
+                {activeEditor.displayName} is editing {activeEditorPlace}
+              </p>
+            )}
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             <div role="tabpanel" aria-label={`Day ${activeDay.day} itinerary`}>
               <DndContext
                 sensors={sensors}
@@ -1031,9 +964,79 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                 </SortableContext>
               </DndContext>
             </div>
-          </aside>
-        </div>
-      </section>
-    </AtlasShell>
+
+            <div className="grid grid-cols-2 gap-2 border-b border-warm-border bg-[#fcfaf6] p-4 sm:px-5">
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={() => {
+                  setAiEditOpen((open) => !open);
+                  setAddPlaceOpen(false);
+                }}
+                aria-expanded={aiEditOpen}
+                aria-label="Adjust itinerary with AI"
+                className={cn(
+                  'inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brown-accent/40 disabled:opacity-45',
+                  aiEditOpen
+                    ? 'border-ink bg-ink text-paper'
+                    : 'border-warm-border bg-white text-warm-muted hover:text-ink',
+                )}
+              >
+                <Bot className="size-3.5" aria-hidden="true" />
+                Adjust with AI
+              </button>
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={() => {
+                  setAddPlaceOpen((open) => !open);
+                  setAiEditOpen(false);
+                }}
+                aria-expanded={addPlaceOpen}
+                className={cn(
+                  'inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brown-accent/40 disabled:opacity-45',
+                  addPlaceOpen
+                    ? 'border-ink bg-ink text-paper'
+                    : 'border-warm-border bg-white text-warm-muted hover:text-ink',
+                )}
+              >
+                <Plus className="size-3.5" aria-hidden="true" />
+                Add place
+              </button>
+            </div>
+
+            {addPlaceOpen && (
+              <AddPlacePanel
+                tripId={tripId}
+                day={activeDay.day}
+                disabled={isSaving}
+                onAdd={handleAddPlace}
+                onClose={() => setAddPlaceOpen(false)}
+              />
+            )}
+            {aiEditOpen && (
+              <AiEditPanel
+                tripId={tripId}
+                day={activeDay.day}
+                disabled={isSaving}
+                onApplied={(result) => applyPlannerMutation(result)}
+                onApplyStateChange={setIsSaving}
+                onClose={() => setAiEditOpen(false)}
+              />
+            )}
+          </div>
+
+          <div className="border-t border-warm-border bg-white p-4 sm:px-5">
+            <Link
+              href={`/trip/${tripId}/live`}
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink px-5 text-sm font-semibold text-paper shadow-sm transition-colors hover:bg-ink/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/45 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+            >
+              Start Live Trip
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+          </div>
+        </aside>
+      </div>
+    </main>
   );
 }
