@@ -36,31 +36,58 @@ export function AtlasShell({
   children,
   step,
   sectionLabel = 'TRAVEL DNA',
+  variant = 'default',
 }: {
   tripId: string;
   children: ReactNode;
   step?: number;
   sectionLabel?: string;
+  variant?: 'default' | 'travel-dna';
 }) {
-  return (
-    <main className="atlas-page relative min-h-[100dvh] overflow-hidden bg-[#f2eee1] text-[#25282d]">
-      <div className="absolute inset-0 opacity-[0.14]">
-        <MapLineDecoration />
-      </div>
-      <div className="atlas-paper-noise pointer-events-none absolute inset-0" />
+  const isTravelDna = variant === 'travel-dna';
 
-      <div className="relative mx-auto flex min-h-[100dvh] w-full max-w-[1400px] flex-col px-4 py-5 sm:px-8 sm:py-7 lg:px-12">
-        <header className="flex min-h-14 items-center justify-between border-b border-[#35383d]/30">
+  return (
+    <main
+      className={`atlas-page relative min-h-[100dvh] overflow-hidden ${
+        isTravelDna ? 'bg-parchment text-ink' : 'bg-[#f2eee1] text-[#25282d]'
+      }`}
+    >
+      {!isTravelDna && (
+        <>
+          <div className="absolute inset-0 opacity-[0.14]">
+            <MapLineDecoration />
+          </div>
+          <div className="atlas-paper-noise pointer-events-none absolute inset-0" />
+        </>
+      )}
+
+      <div
+        className={`relative mx-auto flex min-h-[100dvh] w-full flex-col px-5 py-5 sm:px-8 sm:py-7 lg:px-12 ${
+          isTravelDna ? 'max-w-[1180px]' : 'max-w-[1400px]'
+        }`}
+      >
+        <header
+          className={`flex min-h-14 items-center justify-between border-b ${
+            isTravelDna ? 'border-warm-border' : 'border-[#35383d]/30'
+          }`}
+        >
           <Link
             href={`/trip/${tripId}`}
-            className="inline-flex items-center gap-2 text-sm font-semibold tracking-[-0.01em] outline-none transition-opacity hover:opacity-65 focus-visible:ring-2 focus-visible:ring-[#2f3237] focus-visible:ring-offset-4 focus-visible:ring-offset-[#f2eee1]"
+            className={`inline-flex items-center gap-2 text-sm font-semibold tracking-[-0.01em] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-offset-4 ${
+              isTravelDna
+                ? 'text-ink hover:text-brown-accent focus-visible:ring-brown-accent/35 focus-visible:ring-offset-parchment'
+                : 'transition-opacity hover:opacity-65 focus-visible:ring-[#2f3237] focus-visible:ring-offset-[#f2eee1]'
+            }`}
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
             Trip room
           </Link>
 
-          <div className="flex items-center gap-2 text-sm font-semibold tracking-[0.08em]">
-            <Plane className="size-4" aria-hidden="true" />
+          <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.14em] sm:text-sm">
+            <Plane
+              className={`size-4 ${isTravelDna ? 'text-brown-accent' : ''}`}
+              aria-hidden="true"
+            />
             {sectionLabel}
           </div>
 
@@ -72,8 +99,14 @@ export function AtlasShell({
               {[1, 2, 3].map((item) => (
                 <span
                   key={item}
-                  className={`h-1.5 w-5 border border-[#2f3237] transition-colors ${
-                    item <= step ? 'bg-[#2f3237]' : 'bg-transparent'
+                  className={`h-1.5 w-5 rounded-full border transition-colors ${
+                    isTravelDna ? 'border-warm-border' : 'border-[#2f3237]'
+                  } ${
+                    item <= step
+                      ? isTravelDna
+                        ? 'border-brown-accent bg-brown-accent'
+                        : 'bg-[#2f3237]'
+                      : 'bg-transparent'
                   }`}
                 />
               ))}
@@ -84,7 +117,11 @@ export function AtlasShell({
           )}
         </header>
 
-        <div className="flex flex-1 items-center py-10 sm:py-14">
+        <div
+          className={`flex flex-1 items-center ${
+            isTravelDna ? 'py-8 sm:py-12 lg:py-16' : 'py-10 sm:py-14'
+          }`}
+        >
           {children}
         </div>
       </div>

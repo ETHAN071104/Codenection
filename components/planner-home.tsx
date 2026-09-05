@@ -9,16 +9,9 @@ import {
 } from 'react';
 import { useRouter } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
-import { ArrowRight, LoaderCircle, Plane } from 'lucide-react';
+import { ArrowRight, LoaderCircle, MapPin, Plane, UsersRound } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ensureAnonymousUser } from '@/lib/supabase/auth';
 import {
@@ -148,73 +141,79 @@ export function PlannerHome() {
   const selectedCustomDays = parseTripDuration(customTripDays);
 
   return (
-    <main className="homepage-page mx-auto flex min-h-[100dvh] w-full max-w-[1400px] items-center px-5 py-8 sm:px-8 sm:py-10 lg:px-12">
-      <div className="grid w-full items-center gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(520px,1.2fr)] lg:gap-12">
+    <main className="homepage-page min-h-[100dvh] bg-parchment text-ink">
+      <div className="mx-auto grid min-h-[100dvh] w-full max-w-[1400px] items-center gap-10 px-5 py-8 sm:px-8 sm:py-12 lg:grid-cols-[minmax(0,0.86fr)_minmax(520px,1.14fr)] lg:gap-16 lg:px-12 lg:py-14">
         <aside
-          className="relative order-2 hidden min-h-[590px] overflow-hidden lg:order-1 lg:block"
+          className="relative hidden min-h-[680px] overflow-hidden lg:block"
           aria-label="Travel inspiration"
         >
-          <div className="absolute left-1 top-8 z-10 max-w-[190px]">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-              Go somewhere together
+          <div className="relative z-10 max-w-md pt-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brown-accent">
+              Travel is better together
             </p>
-            <p className="mt-3 font-serif text-2xl leading-tight text-foreground/85">
-              A shared room for the places you’ll remember.
-            </p>
+            <h2 className="mt-4 text-balance font-editorial text-5xl leading-[0.98] font-semibold tracking-[-0.045em]">
+              A shared room for the places you&apos;ll remember.
+            </h2>
           </div>
-          <div className="absolute inset-x-2 bottom-8 top-28">
+          <div className="absolute inset-x-0 bottom-10 top-44">
             <div
               aria-hidden="true"
-              className="absolute left-0 top-12 h-64 w-44 rotate-[-5deg] rounded-[1.15rem] border-[5px] border-background bg-cover bg-center shadow-[0_20px_40px_-28px_rgba(27,65,60,0.7)]"
+              className="absolute left-0 top-14 h-64 w-44 rotate-[-5deg] rounded-2xl border-[5px] border-parchment bg-cover bg-center shadow-editorial"
               style={{ backgroundImage: `url(${COLLAGE_IMAGES[0].url})` }}
             />
             <div
               aria-hidden="true"
-              className="absolute right-8 top-1 h-44 w-64 rotate-[4deg] rounded-[1.15rem] border-[5px] border-background bg-cover bg-center shadow-[0_20px_40px_-28px_rgba(27,65,60,0.7)]"
+              className="absolute right-7 top-0 h-48 w-64 rotate-[4deg] rounded-2xl border-[5px] border-parchment bg-cover bg-center shadow-editorial"
               style={{ backgroundImage: `url(${COLLAGE_IMAGES[1].url})` }}
             />
             <div
               aria-hidden="true"
-              className="absolute left-28 top-48 h-44 w-60 rotate-[2deg] rounded-[1.15rem] border-[5px] border-background bg-cover bg-center shadow-[0_20px_40px_-28px_rgba(27,65,60,0.7)]"
+              className="absolute left-28 top-52 h-44 w-60 rotate-[2deg] rounded-2xl border-[5px] border-parchment bg-cover bg-center shadow-editorial"
               style={{ backgroundImage: `url(${COLLAGE_IMAGES[2].url})` }}
             />
             <div
               aria-hidden="true"
-              className="absolute bottom-2 left-2 h-44 w-60 rotate-[4deg] rounded-[1.15rem] border-[5px] border-background bg-cover bg-center shadow-[0_20px_40px_-28px_rgba(27,65,60,0.7)]"
+              className="absolute bottom-1 left-2 h-44 w-60 rotate-[4deg] rounded-2xl border-[5px] border-parchment bg-cover bg-center shadow-editorial"
               style={{ backgroundImage: `url(${COLLAGE_IMAGES[3].url})` }}
             />
             <div
               aria-hidden="true"
-              className="absolute bottom-10 right-0 h-56 w-40 rotate-[-6deg] rounded-[1.15rem] border-[5px] border-background bg-cover bg-center shadow-[0_20px_40px_-28px_rgba(27,65,60,0.7)]"
+              className="absolute right-0 bottom-8 h-56 w-40 rotate-[-6deg] rounded-2xl border-[5px] border-parchment bg-cover bg-center shadow-editorial"
               style={{ backgroundImage: `url(${COLLAGE_IMAGES[4].url})` }}
             />
-            <div className="pointer-events-none absolute inset-y-0 right-[-1px] w-20 bg-gradient-to-l from-background via-background/45 to-transparent" />
           </div>
-          <p className="absolute bottom-1 left-1 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+          <p className="absolute bottom-0 left-1 text-xs uppercase tracking-[0.18em] text-warm-muted">
             Five ways to wander
           </p>
         </aside>
 
-        <section className="order-1 flex justify-center lg:order-2">
-          <div className="w-full max-w-[620px]">
-            <h1 className="max-w-xl text-balance font-serif text-5xl font-semibold leading-[0.95] tracking-[-0.055em] text-foreground sm:text-6xl lg:text-7xl">
-              Collaborative
-              <br />
-              Travel Planner
+        <section className="flex justify-center">
+          <div className="w-full max-w-[650px]">
+            <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.18em] text-brown-accent">
+              <Plane className="size-4" aria-hidden="true" />
+              COLLABORATIVE TRAVEL PLANNER
+            </div>
+            <h1 className="mt-5 max-w-xl text-balance font-editorial text-5xl leading-[0.94] font-semibold tracking-[-0.055em] sm:text-6xl lg:text-7xl">
+              Plan your trip together.
             </h1>
-            <p className="mt-6 max-w-lg text-pretty text-base leading-7 text-muted-foreground sm:text-lg">
-              One room for your crew to choose a place, share a rhythm, and
-              start planning together.
+            <p className="mt-6 max-w-lg text-pretty text-base leading-7 text-warm-muted sm:text-lg">
+              One room for your crew to share a rhythm, choose the places that
+              matter, and build the day together.
             </p>
 
-            <Card className="mt-9 border border-white/70 bg-card/95 py-0 shadow-[0_28px_80px_-36px_oklch(0.35_0.015_250/45%)] ring-0 backdrop-blur-xl">
-              <CardHeader className="border-b border-border/80 px-6 py-6 sm:px-8">
-                <CardTitle className="text-xl">Start planning</CardTitle>
-                <CardDescription>
+            <div className="mt-8 overflow-hidden rounded-2xl border border-warm-border bg-paper shadow-editorial sm:mt-10">
+              <div className="border-b border-warm-border px-6 py-5 sm:px-8 sm:py-6">
+                <p className="text-xs font-semibold tracking-[0.16em] text-brown-accent">
+                  CREATE A TRIP
+                </p>
+                <h2 className="mt-2 font-editorial text-2xl font-semibold tracking-[-0.03em]">
+                  Start with your travel crew
+                </h2>
+                <p className="mt-1 text-sm text-warm-muted">
                   Enter the name your travel companions will see.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="px-6 py-6 sm:px-8 sm:py-8">
+                </p>
+              </div>
+              <div className="px-6 py-6 sm:px-8 sm:py-8">
                 <form onSubmit={createTrip} className="space-y-6">
                   <div className="space-y-2">
                     <label
@@ -231,7 +230,7 @@ export function PlannerHome() {
                       placeholder="Ethan"
                       value={displayName}
                       onChange={(event) => setDisplayName(event.target.value)}
-                      className="h-11 bg-background/70 px-3.5"
+                      className="h-12 border-warm-border bg-parchment/50 px-4 focus-visible:border-ink focus-visible:ring-ink/15"
                       disabled={isPending}
                     />
                   </div>
@@ -245,7 +244,7 @@ export function PlannerHome() {
                             key={days}
                             type="button"
                             aria-pressed={selected}
-                            className={`min-h-10 rounded-lg border px-2 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 ${selected ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background/70 text-foreground hover:border-primary/45 hover:bg-primary/5'}`}
+                            className={`min-h-11 rounded-lg border px-2 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-2 disabled:opacity-50 ${selected ? 'border-ink bg-ink text-paper' : 'border-warm-border bg-parchment/50 text-ink hover:border-brown-accent/55 hover:bg-parchment'}`}
                             onClick={() => {
                               setTripDays(days);
                               setCustomTripLength(false);
@@ -259,7 +258,7 @@ export function PlannerHome() {
                       <button
                         type="button"
                         aria-pressed={customTripLength}
-                        className={`min-h-10 rounded-lg border px-2 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 ${customTripLength ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background/70 text-foreground hover:border-primary/45 hover:bg-primary/5'}`}
+                        className={`min-h-11 rounded-lg border px-2 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-2 disabled:opacity-50 ${customTripLength ? 'border-ink bg-ink text-paper' : 'border-warm-border bg-parchment/50 text-ink hover:border-brown-accent/55 hover:bg-parchment'}`}
                         onClick={() => {
                           setCustomTripLength(true);
                           setError(null);
@@ -293,12 +292,12 @@ export function PlannerHome() {
                             }}
                             aria-invalid={selectedCustomDays === null}
                             aria-describedby="custom-trip-days-help"
-                            className="h-11 bg-background/70 px-3.5"
+                            className="h-12 border-warm-border bg-parchment/50 px-4 focus-visible:border-ink focus-visible:ring-ink/15"
                           />
                         </div>
                         <p
                           id="custom-trip-days-help"
-                          className="pb-3 text-sm text-muted-foreground"
+                          className="pb-3 text-sm text-warm-muted"
                         >
                           {selectedCustomDays === null
                             ? `Enter 1-${MAX_TRIP_DAYS} days.`
@@ -310,7 +309,7 @@ export function PlannerHome() {
                   <Button
                     type="submit"
                     size="lg"
-                    className="h-12 w-full text-sm shadow-[0_12px_25px_-18px_oklch(0.3_0.015_250/80%)]"
+                    className="h-12 w-full bg-ink text-sm text-paper shadow-[0_16px_30px_-22px_rgb(36_32_28/80%)] hover:bg-ink/85"
                     disabled={
                       isPending ||
                       !configured ||
@@ -327,56 +326,70 @@ export function PlannerHome() {
                     )}
                     Create Trip
                   </Button>
-                  <div className="flex items-center gap-3" aria-hidden="true">
-                    <span className="h-px flex-1 bg-border" />
-                    <span className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                      or join friends
-                    </span>
-                    <span className="h-px flex-1 bg-border" />
-                  </div>
-                  <div className="space-y-2">
-                    <label htmlFor="room-code" className="text-sm font-medium">
-                      Room code
-                    </label>
-                    <Input
-                      id="room-code"
-                      name="roomCode"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      maxLength={6}
-                      pattern="[0-9]{6}"
-                      placeholder="381527"
-                      value={roomCode}
-                      onChange={(event) =>
-                        setRoomCode(normalizeRoomCode(event.target.value))
-                      }
-                      className="h-11 bg-background/70 px-3.5 font-mono text-base tracking-[0.22em]"
-                      disabled={isPending}
-                    />
-                  </div>
-                  <div className="flex justify-end pt-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-auto rounded-none bg-transparent px-0 text-sm font-medium text-foreground hover:bg-transparent hover:text-primary"
-                      onClick={joinTrip}
-                      disabled={isPending || !configured}
-                    >
-                      {pendingAction === 'join' ? (
-                        <LoaderCircle
-                          className="animate-spin"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <ArrowRight aria-hidden="true" />
-                      )}
-                      Join Trip
-                    </Button>
+                  <div className="border-t border-warm-border pt-6">
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-parchment text-brown-accent">
+                        <UsersRound className="size-4" aria-hidden="true" />
+                      </span>
+                      <div>
+                        <h3 className="font-editorial text-xl font-semibold tracking-[-0.025em]">
+                          Join an existing trip
+                        </h3>
+                        <p className="mt-1 text-sm text-warm-muted">
+                          Use the six-digit code shared by a friend.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                      <div className="space-y-2">
+                        <label htmlFor="room-code" className="text-sm font-medium">
+                          Room code
+                        </label>
+                        <div className="relative">
+                          <MapPin
+                            className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-warm-muted"
+                            aria-hidden="true"
+                          />
+                          <Input
+                            id="room-code"
+                            name="roomCode"
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            maxLength={6}
+                            pattern="[0-9]{6}"
+                            placeholder="381527"
+                            value={roomCode}
+                            onChange={(event) =>
+                              setRoomCode(normalizeRoomCode(event.target.value))
+                            }
+                            className="h-12 border-warm-border bg-parchment/50 pl-11 font-mono text-base tracking-[0.22em] focus-visible:border-ink focus-visible:ring-ink/15"
+                            disabled={isPending}
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="lg"
+                        className="h-12 self-end border-warm-border bg-paper px-5 text-ink hover:border-ink/35 hover:bg-parchment"
+                        onClick={joinTrip}
+                        disabled={isPending || !configured}
+                      >
+                        {pendingAction === 'join' ? (
+                          <LoaderCircle
+                            className="animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <ArrowRight aria-hidden="true" />
+                        )}
+                        Join Trip
+                      </Button>
+                    </div>
                   </div>
                 </form>
                 {!configured && (
-                  <Alert className="mt-5 border-accent/60 bg-accent/20">
+                  <Alert className="mt-5 border-brown-accent/35 bg-parchment">
                     <AlertDescription>
                       Add your Supabase environment values to enable trip rooms.
                     </AlertDescription>
@@ -387,8 +400,8 @@ export function PlannerHome() {
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
             <div
               className="mt-8 grid grid-cols-3 gap-2 lg:hidden"
@@ -398,7 +411,7 @@ export function PlannerHome() {
                 <div
                   key={image.label}
                   aria-hidden="true"
-                  className={`h-24 rounded-xl border-4 border-background bg-cover bg-center ${index === 1 ? 'translate-y-2' : ''}`}
+                  className={`h-24 rounded-xl border-4 border-parchment bg-cover bg-center shadow-editorial ${index === 1 ? 'translate-y-2' : ''}`}
                   style={{ backgroundImage: `url(${image.url})` }}
                 />
               ))}
