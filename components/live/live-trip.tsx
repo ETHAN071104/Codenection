@@ -7,7 +7,6 @@ import {
   Clock3,
   CloudRain,
   CloudSun,
-  LoaderCircle,
   MapPin,
   Navigation,
   WalletCards,
@@ -15,6 +14,7 @@ import {
 import { AtlasShell } from '@/components/travel-dna/atlas-shell';
 import { ChangeBar } from '@/components/live/change-bar';
 import { ActivityWeatherTimeline } from '@/components/live/activity-weather-timeline';
+import { SystemLoading, SystemState } from '@/components/ui/system-state';
 import {
   Map as Mapcn,
   MapControls,
@@ -33,6 +33,8 @@ import type { TripChangeEvent } from '@/lib/live/trip-change';
 import { ensureAnonymousUser } from '@/lib/supabase/auth';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
+
+type ResourceStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 function toMinutes(value: string) {
   const [hours, minutes] = value.split(':').map(Number);
@@ -150,8 +152,20 @@ function LiveMap({
   const first = valid[0];
   if (!first) {
     return (
-      <div className="flex min-h-[320px] items-center justify-center bg-[#e7e0cd] text-sm text-[#5a5d61]">
-        Map unavailable for these stops
+      <div className="flex min-h-[320px] items-center justify-center bg-[#e7e0cd] p-6 text-center text-warm-muted">
+        <div className="max-w-xs rounded-2xl border border-warm-border bg-paper/95 p-6 shadow-editorial">
+          <MapPin
+            className="mx-auto size-6 text-brown-accent"
+            aria-hidden="true"
+          />
+          <p className="mt-3 font-semibold text-ink">
+            Map view is not available.
+          </p>
+          <p className="mt-2 text-sm leading-6">
+            These stops do not have saved coordinates. Today’s timeline is still
+            available.
+          </p>
+        </div>
       </div>
     );
   }
@@ -218,6 +232,8 @@ export function LiveTrip({ tripId }: { tripId: string }) {
   const [route, setRoute] = useState<TripRoute | null>(null);
   const [weather, setWeather] = useState(new Map<string, WeatherAtStop>());
   const [weatherAvailable, setWeatherAvailable] = useState(false);
+  const [routeStatus, setRouteStatus] = useState<ResourceStatus>('idle');
+  const [weatherStatus, setWeatherStatus] = useState<ResourceStatus>('idle');
   const [members, setMembers] = useState<LiveTripMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -291,9 +307,8 @@ export function LiveTrip({ tripId }: { tripId: string }) {
   const activeDay = resolveActiveDay(data, now);
   const activeDayNumber = activeDay?.day ?? null;
   const routeRevision =
-    activeDay?.items
-      .map((item) => `${item.id}:${item.sortOrder}`)
-      .join('|') ?? '';
+    activeDay?.items.map((item) => `${item.id}:${item.sortOrder}`).join('|') ??
+    '';
   const weatherRevision =
     activeDay?.items
       .map((item) => `${item.id}:${item.plannedTime}`)
@@ -302,13 +317,20 @@ export function LiveTrip({ tripId }: { tripId: string }) {
   useEffect(() => {
     let cancelled = false;
     if (activeDayNumber === null) return;
+    void Promise.resolve().then(() => {
+      if (!cancelled) setRouteStatus('loading');
+    });
     phase2Fetch<TripRoute>(`/api/trips/${tripId}/route?day=${activeDayNumber}`)
       .then((nextRoute) => {
         if (cancelled) return;
         setRoute(nextRoute);
+        setRouteStatus('ready');
       })
       .catch(() => {
-        if (!cancelled) setRoute(null);
+        if (!cancelled) {
+          setRoute(null);
+          setRouteStatus('error');
+        }
       });
     return () => {
       cancelled = true;
@@ -318,17 +340,29 @@ export function LiveTrip({ tripId }: { tripId: string }) {
   useEffect(() => {
     let cancelled = false;
     if (activeDayNumber === null) return;
+    void Promise.resolve().then(() => {
+      if (!cancelled) setWeatherStatus('loading');
+    });
     phase2Fetch<WeatherDayResponse>(
       `/api/trips/${tripId}/weather?day=${activeDayNumber}`,
     )
       .then((nextWeather) => {
         if (!cancelled) {
-          setWeather(new Map(nextWeather.stops.map((stop) => [stop.itemId, stop])));
-          setWeatherAvailable(nextWeather.stops.some((stop) => stop.temperatureC !== null));
+          setWeather(
+            new Map(nextWeather.stops.map((stop) => [stop.itemId, stop])),
+          );
+          setWeatherAvailable(
+            nextWeather.stops.some((stop) => stop.temperatureC !== null),
+          );
+          setWeatherStatus('ready');
         }
       })
       .catch(() => {
-        if (!cancelled) { setWeather(new Map()); setWeatherAvailable(false); }
+        if (!cancelled) {
+          setWeather(new Map());
+          setWeatherAvailable(false);
+          setWeatherStatus('error');
+        }
       });
     return () => {
       cancelled = true;
@@ -338,10 +372,10 @@ export function LiveTrip({ tripId }: { tripId: string }) {
   if (loading) {
     return (
       <AtlasShell tripId={tripId} sectionLabel="LIVE TRIP">
-        <div className="mx-auto flex items-center gap-3 text-[#5a5d61]">
-          <LoaderCircle className="size-5 animate-spin" aria-hidden="true" />
-          Preparing today&apos;s trip
-        </div>
+        <SystemLoading
+          title="Preparing today’s trip"
+          description="We’re loading the current stop, what comes next, and today’s live context."
+        />
       </AtlasShell>
     );
   }
@@ -349,21 +383,40 @@ export function LiveTrip({ tripId }: { tripId: string }) {
   if (error || !data?.itinerary || !activeDay) {
     return (
       <AtlasShell tripId={tripId} sectionLabel="LIVE TRIP">
-        <section className="mx-auto w-full max-w-xl border border-[#35383d]/30 bg-[#fffdf8] p-8">
-          <h1 className="text-3xl font-semibold tracking-[-0.04em]">
-            Live Trip unavailable
-          </h1>
-          <p className="mt-4 text-[#5a5d61]">
-            {error ?? 'Generate an itinerary before starting Live Trip.'}
-          </p>
-          <Link
-            href={`/trip/${tripId}/plan`}
-            className="mt-6 inline-flex items-center gap-2 font-semibold underline-offset-4 hover:underline"
-          >
-            <ArrowLeft className="size-4" aria-hidden="true" />
-            Back to planner
-          </Link>
-        </section>
+        <SystemState
+          role={error ? 'alert' : 'status'}
+          eyebrow="Live trip"
+          title={
+            error
+              ? 'We could not open Live Trip.'
+              : 'Live Trip needs a saved itinerary.'
+          }
+          description={
+            error
+              ? `${error} Your saved plan has not been changed.`
+              : 'Return to the planner to add and save the stops for this trip.'
+          }
+          actions={
+            <>
+              {error && (
+                <button
+                  type="button"
+                  onClick={() => void load(true)}
+                  className="inline-flex h-11 items-center justify-center rounded-xl bg-ink px-5 text-sm font-semibold text-paper hover:bg-ink/90"
+                >
+                  Try again
+                </button>
+              )}
+              <Link
+                href={`/trip/${tripId}/plan`}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-warm-border bg-paper px-5 text-sm font-semibold text-ink hover:bg-parchment"
+              >
+                <ArrowLeft className="size-4" aria-hidden="true" />
+                Back to planner
+              </Link>
+            </>
+          }
+        />
       </AtlasShell>
     );
   }
@@ -413,8 +466,14 @@ export function LiveTrip({ tripId }: { tripId: string }) {
   const weatherDisruptions = remaining.flatMap((item) => {
     const stopWeather = weather.get(item.id);
     const code = stopWeather?.weatherCode ?? null;
-    const disruptiveCode = code !== null && ((code >= 51 && code <= 67) || (code >= 80 && code <= 82) || code >= 95);
-    if (!stopWeather || (!disruptiveCode && (stopWeather.precipitationProbability ?? 0) < 60)) return [];
+    const disruptiveCode =
+      code !== null &&
+      ((code >= 51 && code <= 67) || (code >= 80 && code <= 82) || code >= 95);
+    if (
+      !stopWeather ||
+      (!disruptiveCode && (stopWeather.precipitationProbability ?? 0) < 60)
+    )
+      return [];
     return [{ item, weather: stopWeather }];
   });
   const minutesUntilNext = next
@@ -423,15 +482,14 @@ export function LiveTrip({ tripId }: { tripId: string }) {
   const contextMessage =
     nextWeather && (nextWeather.precipitationProbability ?? 0) >= 60
       ? `Rain is likely at ${next?.place.name}. Keep a covered option nearby.`
-      : minutesUntilNext !== null && minutesUntilNext > 0 && minutesUntilNext < 90
+      : minutesUntilNext !== null &&
+          minutesUntilNext > 0 &&
+          minutesUntilNext < 90
         ? `${next?.place.name} begins in ${minutesUntilNext} minutes.`
         : 'Your saved route and schedule are ready for the day.';
 
   async function applyScheduleChange(
-    event: Extract<
-      TripChangeEvent,
-      { type: 'stay_longer' | 'running_late' }
-    >,
+    event: Extract<TripChangeEvent, { type: 'stay_longer' | 'running_late' }>,
   ) {
     if (!current || activeDayNumber === null) {
       throw new Error('We could not identify the current stop safely.');
@@ -452,16 +510,28 @@ export function LiveTrip({ tripId }: { tripId: string }) {
   }
 
   async function delayWeatherStop(item: ItineraryItemView, minutes: number) {
-    if (activeDayNumber === null) throw new Error('We could not identify this day safely.');
+    if (activeDayNumber === null)
+      throw new Error('We could not identify this day safely.');
     const updated = await phase2Fetch<ItineraryPageData>(
       `/api/trips/${tripId}/schedule-adjustment`,
-      { method: 'POST', body: JSON.stringify({ day: activeDayNumber, currentItemId: item.id, type: 'running_late', minutes }) },
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          day: activeDayNumber,
+          currentItemId: item.id,
+          type: 'running_late',
+          minutes,
+        }),
+      },
     );
     setData(updated);
   }
 
   async function skipWeatherStop(item: ItineraryItemView) {
-    await phase2Fetch(`/api/trips/${tripId}/items`, { method: 'DELETE', body: JSON.stringify({ itemId: item.id }) });
+    await phase2Fetch(`/api/trips/${tripId}/items`, {
+      method: 'DELETE',
+      body: JSON.stringify({ itemId: item.id }),
+    });
     await load(false);
   }
 
@@ -510,10 +580,18 @@ export function LiveTrip({ tripId }: { tripId: string }) {
               {data.itinerary.destination}
             </h1>
             <p className="text-sm text-warm-muted">
-              {remaining.length} stop{remaining.length === 1 ? '' : 's'} remaining
+              {remaining.length} stop{remaining.length === 1 ? '' : 's'}{' '}
+              remaining
             </p>
           </div>
         </div>
+
+        {weatherStatus === 'error' && (
+          <output className="mb-5 block rounded-xl border border-brown-accent/25 bg-paper px-4 py-3 text-sm leading-6 text-ink">
+            Weather is unavailable right now. Today’s saved schedule is still
+            ready to use.
+          </output>
+        )}
 
         {current ? (
           <>
@@ -565,7 +643,9 @@ export function LiveTrip({ tripId }: { tripId: string }) {
                       className="size-4 text-brown-accent"
                       aria-hidden="true"
                     />
-                    <span className="font-semibold">RM {Math.round(estimatedToday)}</span>
+                    <span className="font-semibold">
+                      RM {Math.round(estimatedToday)}
+                    </span>
                     <span className="text-warm-muted">today</span>
                   </div>
                 </div>
@@ -583,9 +663,13 @@ export function LiveTrip({ tripId }: { tripId: string }) {
                     LIVE ROUTE
                   </p>
                   <p className="mt-1 text-sm">
-                    {nextSegment
-                      ? `${formatTravel(nextSegment.durationSeconds)} to ${next?.place.name ?? 'your next stop'}`
-                      : 'Your saved route is ready.'}
+                    {routeStatus === 'error'
+                      ? 'Route details are unavailable. Your stop order is still here.'
+                      : routeStatus === 'loading'
+                        ? 'Updating route details…'
+                        : nextSegment
+                          ? `${formatTravel(nextSegment.durationSeconds)} to ${next?.place.name ?? 'your next stop'}`
+                          : 'Your stop order is ready.'}
                   </p>
                 </div>
               </div>
@@ -621,7 +705,10 @@ export function LiveTrip({ tripId }: { tripId: string }) {
                   </div>
                   {nextSegment && (
                     <p className="inline-flex items-center gap-2 text-sm text-warm-muted sm:justify-self-end">
-                      <MapPin className="size-4 text-brown-accent" aria-hidden="true" />
+                      <MapPin
+                        className="size-4 text-brown-accent"
+                        aria-hidden="true"
+                      />
                       {formatTravel(nextSegment.durationSeconds)} ·{' '}
                       {formatDistance(nextSegment.distanceMeters)}
                     </p>
@@ -631,7 +718,10 @@ export function LiveTrip({ tripId }: { tripId: string }) {
             )}
 
             {later.length > 0 && (
-              <section aria-labelledby="live-later-heading" className="mt-9 sm:mt-11">
+              <section
+                aria-labelledby="live-later-heading"
+                className="mt-9 sm:mt-11"
+              >
                 <div className="flex items-end justify-between gap-4 border-b border-warm-border pb-4">
                   <div>
                     <p className="text-xs font-bold tracking-[0.18em] text-brown-accent">
@@ -680,12 +770,17 @@ export function LiveTrip({ tripId }: { tripId: string }) {
                           </h3>
                           <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-warm-muted">
                             <span>{item.estimatedDurationMinutes} min</span>
-                            <WeatherLine weather={weather.get(item.id) ?? null} />
+                            <WeatherLine
+                              weather={weather.get(item.id) ?? null}
+                            />
                           </div>
                         </div>
                         {segment && (
                           <span className="col-start-3 inline-flex items-center gap-1.5 text-xs text-warm-muted sm:col-start-auto sm:self-center">
-                            <Navigation className="size-3.5" aria-hidden="true" />
+                            <Navigation
+                              className="size-3.5"
+                              aria-hidden="true"
+                            />
                             {formatTravel(segment.durationSeconds)} travel
                           </span>
                         )}
@@ -698,8 +793,13 @@ export function LiveTrip({ tripId }: { tripId: string }) {
           </>
         ) : (
           <section className="rounded-2xl border border-warm-border bg-paper p-10 text-center shadow-editorial">
-            <Clock3 className="mx-auto size-6 text-brown-accent" aria-hidden="true" />
-            <h2 className="mt-4 font-editorial text-3xl font-semibold">Day complete</h2>
+            <Clock3
+              className="mx-auto size-6 text-brown-accent"
+              aria-hidden="true"
+            />
+            <h2 className="mt-4 font-editorial text-3xl font-semibold">
+              Day complete
+            </h2>
             <p className="mt-2 text-sm text-warm-muted">
               All scheduled stops for today have passed.
             </p>

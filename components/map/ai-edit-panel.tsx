@@ -136,7 +136,14 @@ export function AiEditPanel({
         </Button>
       </form>
 
-      {error && <p className="mt-3 text-xs text-[#a84a3f]">{error}</p>}
+      {error && (
+        <p
+          role="alert"
+          className="mt-3 rounded-lg border border-brown-accent/25 bg-parchment px-3 py-2 text-xs leading-5 text-ink"
+        >
+          {error}
+        </p>
+      )}
 
       {proposal && (
         <div className="mt-5 border-t border-[#35383d]/25 pt-4">
@@ -167,7 +174,10 @@ export function AiEditPanel({
             className="mt-4 h-10 w-full rounded-none bg-[#2f3237] text-[#f8f4e8] hover:bg-[#1f2227]"
           >
             {working && (
-              <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+              <LoaderCircle
+                className="size-4 animate-spin"
+                aria-hidden="true"
+              />
             )}
             Apply Changes
           </Button>

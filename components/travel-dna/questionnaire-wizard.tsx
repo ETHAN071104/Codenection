@@ -15,6 +15,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SystemLoading, SystemState } from '@/components/ui/system-state';
 import {
   BUDGET_CUSTOM_POSITION,
   BUDGET_UNLIMITED_POSITION,
@@ -280,12 +281,10 @@ export function QuestionnaireWizard({ tripId }: { tripId: string }) {
   if (screen === 'loading') {
     return (
       <AtlasShell tripId={tripId} variant="travel-dna">
-        <div className="mx-auto w-full max-w-3xl" aria-live="polite">
-          <div className="h-4 w-28 animate-pulse rounded-full bg-warm-border" />
-          <div className="mt-7 h-14 max-w-xl animate-pulse rounded-xl bg-warm-border/70" />
-          <div className="mt-10 h-28 animate-pulse rounded-2xl border border-warm-border bg-paper" />
-          <span className="sr-only">Loading your Travel DNA</span>
-        </div>
+        <SystemLoading
+          title="Loading your Travel DNA"
+          description="We’re restoring your saved answers and the group’s readiness."
+        />
       </AtlasShell>
     );
   }
@@ -293,19 +292,38 @@ export function QuestionnaireWizard({ tripId }: { tripId: string }) {
   if (screen === 'error') {
     return (
       <AtlasShell tripId={tripId} variant="travel-dna">
-        <section className="mx-auto w-full max-w-xl rounded-2xl border border-warm-border bg-paper p-7 text-center shadow-editorial sm:p-10">
-          <h1 className="font-editorial text-3xl font-semibold tracking-[-0.04em]">
-            Travel DNA unavailable
-          </h1>
-          <p className="mt-4 leading-7 text-warm-muted">{error}</p>
-          <Button
-            type="button"
-            className="mt-7 h-11 bg-ink px-5 text-paper hover:bg-ink/85"
-            onClick={() => void loadQuestionnaire()}
-          >
-            Try again
-          </Button>
-        </section>
+        <SystemState
+          role="alert"
+          eyebrow="Travel DNA"
+          title="We could not load your preferences."
+          description={
+            <>
+              <p>{error}</p>
+              <p className="mt-2">Any answers already saved are still safe.</p>
+            </>
+          }
+          actions={
+            <>
+              <Button
+                type="button"
+                className="h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90"
+                onClick={() => void loadQuestionnaire()}
+              >
+                Try again
+              </Button>
+              <Link
+                href={`/trip/${tripId}`}
+                className={buttonVariants({
+                  variant: 'outline',
+                  className:
+                    'h-11 rounded-xl border-warm-border bg-paper px-5 text-ink hover:bg-parchment',
+                })}
+              >
+                Back to trip room
+              </Link>
+            </>
+          }
+        />
       </AtlasShell>
     );
   }

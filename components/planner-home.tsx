@@ -9,7 +9,13 @@ import {
 } from 'react';
 import { useRouter } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
-import { ArrowRight, LoaderCircle, MapPin, Plane, UsersRound } from 'lucide-react';
+import {
+  ArrowRight,
+  LoaderCircle,
+  MapPin,
+  Plane,
+  UsersRound,
+} from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -342,7 +348,10 @@ export function PlannerHome() {
                     </div>
                     <div className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
                       <div className="space-y-2">
-                        <label htmlFor="room-code" className="text-sm font-medium">
+                        <label
+                          htmlFor="room-code"
+                          className="text-sm font-medium"
+                        >
                           Room code
                         </label>
                         <div className="relative">
@@ -391,13 +400,19 @@ export function PlannerHome() {
                 {!configured && (
                   <Alert className="mt-5 border-brown-accent/35 bg-parchment">
                     <AlertDescription>
-                      Add your Supabase environment values to enable trip rooms.
+                      Trip rooms are not available right now. Nothing has been
+                      submitted; try again after the connection is restored.
                     </AlertDescription>
                   </Alert>
                 )}
                 {error && (
-                  <Alert variant="destructive" className="mt-5">
-                    <AlertDescription>{error}</AlertDescription>
+                  <Alert
+                    role="alert"
+                    className="mt-5 border-brown-accent/30 bg-paper text-ink"
+                  >
+                    <AlertDescription className="leading-6">
+                      {error}
+                    </AlertDescription>
                   </Alert>
                 )}
               </div>

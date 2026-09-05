@@ -6,13 +6,13 @@ import {
   ArrowRight,
   CalendarDays,
   Check,
-  LoaderCircle,
   MapPin,
   Pencil,
   RefreshCw,
   Star,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { SystemLoading, SystemState } from '@/components/ui/system-state';
 import {
   INTERESTS,
   formatMyr,
@@ -148,13 +148,10 @@ export function GroupSummary({ tripId }: { tripId: string }) {
   if (screen === 'loading') {
     return (
       <JourneyShell tripId={tripId}>
-        <div
-          className="mx-auto flex items-center gap-3 text-sm font-medium text-warm-muted"
-          aria-live="polite"
-        >
-          <LoaderCircle className="size-5 animate-spin" aria-hidden="true" />
-          Preparing the group summary
-        </div>
+        <SystemLoading
+          title="Preparing your group summary"
+          description="We’re combining the group’s completed Travel DNA into one shared picture."
+        />
       </JourneyShell>
     );
   }
@@ -162,22 +159,33 @@ export function GroupSummary({ tripId }: { tripId: string }) {
   if (screen === 'error') {
     return (
       <JourneyShell tripId={tripId}>
-        <section className="mx-auto w-full max-w-xl rounded-2xl border border-warm-border bg-paper p-7 shadow-editorial sm:p-10">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brown-accent">
-            Group summary
-          </p>
-          <h1 className="mt-3 font-editorial text-4xl font-medium tracking-[-0.04em]">
-            Summary unavailable
-          </h1>
-          <p className="mt-4 leading-7 text-warm-muted">{error}</p>
-          <Button
-            type="button"
-            className="mt-7 h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90"
-            onClick={() => void loadSummary()}
-          >
-            Try again
-          </Button>
-        </section>
+        <SystemState
+          role="alert"
+          eyebrow="Group summary"
+          title="We could not load the group picture."
+          description={error}
+          actions={
+            <>
+              <Button
+                type="button"
+                className="h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90"
+                onClick={() => void loadSummary()}
+              >
+                Try again
+              </Button>
+              <Link
+                href={`/trip/${tripId}`}
+                className={buttonVariants({
+                  variant: 'outline',
+                  className:
+                    'h-11 rounded-xl border-warm-border bg-paper px-5 text-ink hover:bg-parchment',
+                })}
+              >
+                Back to trip room
+              </Link>
+            </>
+          }
+        />
       </JourneyShell>
     );
   }
@@ -199,14 +207,27 @@ export function GroupSummary({ tripId }: { tripId: string }) {
             This summary unlocks when everyone completes their Travel DNA.
           </p>
           <ReadinessList rows={status} />
-          <Button
-            type="button"
-            className="mt-8 h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90"
-            onClick={() => void loadSummary()}
-          >
-            <RefreshCw aria-hidden="true" />
-            Refresh status
-          </Button>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <Link
+              href={`/trip/${tripId}/questionnaire`}
+              className={buttonVariants({
+                className:
+                  'h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90',
+              })}
+            >
+              Continue Travel DNA
+              <ArrowRight aria-hidden="true" />
+            </Link>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 rounded-xl border-warm-border bg-paper px-5 text-ink hover:bg-parchment"
+              onClick={() => void loadSummary()}
+            >
+              <RefreshCw aria-hidden="true" />
+              Refresh status
+            </Button>
+          </div>
         </section>
       </JourneyShell>
     );

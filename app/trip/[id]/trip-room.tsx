@@ -8,7 +8,6 @@ import {
   Clock3,
   Clipboard,
   Compass,
-  LoaderCircle,
   MapPinned,
   Plane,
   RefreshCw,
@@ -16,6 +15,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { SystemLoading, SystemState } from '@/components/ui/system-state';
 import { ensureAnonymousUser } from '@/lib/supabase/auth';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { QuestionnaireStatusRow } from '@/lib/preferences/model';
@@ -40,7 +40,9 @@ export function TripRoom({ tripId }: { tripId: string }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<'access' | 'load' | null>(null);
 
   const loadTrip = useCallback(
     async (background = false) => {
@@ -50,6 +52,7 @@ export function TripRoom({ tripId }: { tripId: string }) {
         setLoading(true);
       }
       setError(null);
+      setErrorKind(null);
 
       try {
         await ensureAnonymousUser();
@@ -75,15 +78,16 @@ export function TripRoom({ tripId }: { tripId: string }) {
           ]);
 
         if (tripResult.error) throw tripResult.error;
-        if (membersResult.error) throw membersResult.error;
-        if (statusResult.error) throw statusResult.error;
-        if (profileResult.error) throw profileResult.error;
         if (!tripResult.data) {
           setError('This trip is unavailable or you are not a member.');
+          setErrorKind('access');
           setTrip(null);
           setMembers([]);
           return;
         }
+        if (membersResult.error) throw membersResult.error;
+        if (statusResult.error) throw statusResult.error;
+        if (profileResult.error) throw profileResult.error;
 
         setTrip(tripResult.data);
         setMembers(membersResult.data ?? []);
@@ -93,6 +97,7 @@ export function TripRoom({ tripId }: { tripId: string }) {
         setError(
           'We could not load this trip. Check your connection and try again.',
         );
+        setErrorKind('load');
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -107,12 +112,14 @@ export function TripRoom({ tripId }: { tripId: string }) {
 
   async function copyRoomCode() {
     if (!trip) return;
+    setCopyError(false);
     try {
       await navigator.clipboard.writeText(trip.room_code);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
       setCopied(false);
+      setCopyError(true);
     }
   }
 
@@ -161,28 +168,51 @@ export function TripRoom({ tripId }: { tripId: string }) {
 
       <div className="mx-auto w-full max-w-[1180px] px-5 py-8 sm:px-8 sm:py-12 lg:py-14">
         {loading ? (
-          <div className="flex min-h-[55vh] items-center justify-center text-warm-muted">
-            <LoaderCircle
-              className="mr-2 size-5 animate-spin"
-              aria-hidden="true"
-            />
-            Loading your trip…
-          </div>
+          <SystemLoading
+            className="my-10"
+            title="Opening your shared trip"
+            description="We’re bringing in the room, members, and Travel DNA progress."
+          />
         ) : error ? (
-          <section className="mx-auto max-w-lg rounded-2xl border border-warm-border bg-paper p-8 text-center shadow-editorial">
-            <h1 className="font-editorial text-3xl font-semibold tracking-[-0.04em]">
-              Trip unavailable
-            </h1>
-            <p className="mt-3 text-sm leading-6 text-warm-muted">{error}</p>
-            <Link
-              href="/"
-              className={buttonVariants({
-                className: 'mt-6 h-11 w-full bg-ink text-paper hover:bg-ink/85',
-              })}
-            >
-              Return home
-            </Link>
-          </section>
+          <SystemState
+            role="alert"
+            eyebrow="Shared trip room"
+            title={
+              errorKind === 'access'
+                ? 'This trip is not available in this browser.'
+                : 'We could not open your trip.'
+            }
+            description={
+              errorKind === 'access'
+                ? 'Join again with the six-digit room code. Your group’s trip has not been changed.'
+                : error
+            }
+            actions={
+              <>
+                {errorKind === 'load' && (
+                  <Button
+                    type="button"
+                    className="h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90"
+                    onClick={() => void loadTrip()}
+                  >
+                    Try again
+                  </Button>
+                )}
+                <Link
+                  href="/"
+                  className={buttonVariants({
+                    variant: errorKind === 'load' ? 'outline' : 'default',
+                    className:
+                      errorKind === 'load'
+                        ? 'h-11 rounded-xl border-warm-border bg-paper px-5 text-ink hover:bg-parchment'
+                        : 'h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90',
+                  })}
+                >
+                  Return home
+                </Link>
+              </>
+            }
+          />
         ) : trip ? (
           <>
             <div className="mb-8 sm:mb-10">
@@ -243,8 +273,8 @@ export function TripRoom({ tripId }: { tripId: string }) {
                       </Button>
                     </div>
                     <p className="mt-4 text-sm leading-6 text-warm-muted">
-                      Friends can enter this code from the homepage. No account is
-                      required.
+                      Friends can enter this code from the homepage. No account
+                      is required.
                     </p>
                     {copied && (
                       <output
@@ -253,6 +283,15 @@ export function TripRoom({ tripId }: { tripId: string }) {
                       >
                         Room code copied.
                       </output>
+                    )}
+                    {copyError && (
+                      <p
+                        role="alert"
+                        className="mt-3 rounded-lg border border-brown-accent/25 bg-parchment px-3 py-2 text-sm leading-6 text-ink"
+                      >
+                        We could not copy automatically. Select the room code
+                        and copy it manually.
+                      </p>
                     )}
                   </div>
                 </section>
@@ -279,7 +318,8 @@ export function TripRoom({ tripId }: { tripId: string }) {
                         (row) => row.member_id === member.id,
                       )?.completed;
                       const display = memberDisplays.get(member.id);
-                      const MarkerIcon = memberMarkerIcons[display?.marker ?? 0];
+                      const MarkerIcon =
+                        memberMarkerIcons[display?.marker ?? 0];
 
                       return (
                         <li
@@ -323,7 +363,9 @@ export function TripRoom({ tripId }: { tripId: string }) {
                 </h2>
 
                 <div className="mt-6 flex items-end justify-between gap-4">
-                  <p className="text-sm text-warm-muted">Preferences completed</p>
+                  <p className="text-sm text-warm-muted">
+                    Preferences completed
+                  </p>
                   <p className="text-2xl font-semibold tracking-[-0.03em]">
                     {completedMembers} / {totalMembers}
                   </p>
@@ -358,7 +400,9 @@ export function TripRoom({ tripId }: { tripId: string }) {
                   </div>
                 ) : (
                   <div className="mt-6 rounded-xl border border-brown-accent/30 bg-parchment p-4">
-                    <p className="font-semibold">Your preferences are waiting</p>
+                    <p className="font-semibold">
+                      Your preferences are waiting
+                    </p>
                     <p className="mt-2 text-sm leading-6 text-warm-muted">
                       Add your budget, pace and interests to become ready.
                     </p>
@@ -371,7 +415,8 @@ export function TripRoom({ tripId }: { tripId: string }) {
                       href={`/trip/${tripId}/summary`}
                       className={buttonVariants({
                         size: 'lg',
-                        className: 'h-12 bg-ink px-5 text-paper hover:bg-ink/85',
+                        className:
+                          'h-12 bg-ink px-5 text-paper hover:bg-ink/85',
                       })}
                     >
                       View group summary
@@ -383,7 +428,8 @@ export function TripRoom({ tripId }: { tripId: string }) {
                       href={`/trip/${tripId}/questionnaire`}
                       className={buttonVariants({
                         size: 'lg',
-                        className: 'h-12 bg-ink px-5 text-paper hover:bg-ink/85',
+                        className:
+                          'h-12 bg-ink px-5 text-paper hover:bg-ink/85',
                       })}
                     >
                       Complete my Travel DNA
@@ -396,7 +442,8 @@ export function TripRoom({ tripId }: { tripId: string }) {
                       className={buttonVariants({
                         variant: 'outline',
                         size: 'lg',
-                        className: 'h-11 border-warm-border bg-paper text-ink hover:bg-parchment',
+                        className:
+                          'h-11 border-warm-border bg-paper text-ink hover:bg-parchment',
                       })}
                     >
                       Edit my Travel DNA

@@ -117,7 +117,14 @@ export function AddPlacePanel({
         </Button>
       </form>
 
-      {error && <p className="mt-3 text-xs text-[#a84a3f]">{error}</p>}
+      {error && (
+        <p
+          role="alert"
+          className="mt-3 rounded-lg border border-brown-accent/25 bg-parchment px-3 py-2 text-xs leading-5 text-ink"
+        >
+          {error}
+        </p>
+      )}
 
       {results.length > 0 && (
         <div className="mt-4 border-t border-[#35383d]/20">

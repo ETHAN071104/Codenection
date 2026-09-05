@@ -10,9 +10,9 @@ import {
   Sparkles,
   Star,
 } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SystemLoading, SystemState } from '@/components/ui/system-state';
 import { AtlasShell } from '@/components/travel-dna/atlas-shell';
 import { formatTripDuration } from '@/lib/trips/duration';
 import { phase2Fetch } from '@/lib/phase2/client';
@@ -297,10 +297,10 @@ export function ItineraryPlanner({ tripId }: { tripId: string }) {
   if (screen === 'loading') {
     return (
       <AtlasShell tripId={tripId} sectionLabel="TRIP ITINERARY">
-        <div className="mx-auto flex items-center gap-3 text-[#5a5d61]">
-          <LoaderCircle className="size-5 animate-spin" aria-hidden="true" />
-          Loading the trip itinerary
-        </div>
+        <SystemLoading
+          title="Loading your trip itinerary"
+          description="We’re bringing in the saved destination, schedule, and places."
+        />
       </AtlasShell>
     );
   }
@@ -308,19 +308,38 @@ export function ItineraryPlanner({ tripId }: { tripId: string }) {
   if (screen === 'error' || !data) {
     return (
       <AtlasShell tripId={tripId} sectionLabel="TRIP ITINERARY">
-        <section className="mx-auto w-full max-w-xl border border-[#35383d]/35 bg-[#fffdf8] p-6 sm:p-9">
-          <h1 className="text-3xl font-semibold tracking-[-0.04em]">
-            Itinerary unavailable
-          </h1>
-          <p className="mt-4 leading-7 text-[#5a5d61]">{error}</p>
-          <Button
-            type="button"
-            className="mt-7 h-11 rounded-none bg-[#2f3237] px-5 text-[#f8f4e8] hover:bg-[#1f2227]"
-            onClick={() => void load()}
-          >
-            Try again
-          </Button>
-        </section>
+        <SystemState
+          role="alert"
+          eyebrow="Trip itinerary"
+          title="We could not load this itinerary."
+          description={
+            <>
+              <p>{error}</p>
+              <p className="mt-2">No saved trip details were changed.</p>
+            </>
+          }
+          actions={
+            <>
+              <Button
+                type="button"
+                className="h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90"
+                onClick={() => void load()}
+              >
+                Try again
+              </Button>
+              <Link
+                href={`/trip/${tripId}`}
+                className={buttonVariants({
+                  variant: 'outline',
+                  className:
+                    'h-11 rounded-xl border-warm-border bg-paper px-5 text-ink hover:bg-parchment',
+                })}
+              >
+                Back to trip room
+              </Link>
+            </>
+          }
+        />
       </AtlasShell>
     );
   }
@@ -465,12 +484,12 @@ export function ItineraryPlanner({ tripId }: { tripId: string }) {
         )}
 
         {error && (
-          <Alert
-            variant="destructive"
-            className="mt-6 rounded-none bg-[#fffdf8]"
+          <p
+            role="alert"
+            className="mt-6 rounded-xl border border-brown-accent/30 bg-paper px-4 py-3 text-sm leading-6 text-ink"
           >
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+            {error}
+          </p>
         )}
 
         {data.trip.destination && (

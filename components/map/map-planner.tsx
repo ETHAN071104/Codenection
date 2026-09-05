@@ -15,7 +15,6 @@ import {
   Bot,
   CloudSun,
   GripVertical,
-  LoaderCircle,
   MapPin,
   Plus,
   Route,
@@ -50,6 +49,7 @@ import {
   useMap,
 } from '@/components/ui/map';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { SystemLoading, SystemState } from '@/components/ui/system-state';
 import { AddPlacePanel } from '@/components/map/add-place-panel';
 import { AiEditPanel } from '@/components/map/ai-edit-panel';
 import { cn } from '@/lib/utils';
@@ -65,6 +65,7 @@ import { useTripRealtime } from '@/lib/realtime/use-trip-realtime';
 
 type Screen = 'loading' | 'ready' | 'error';
 type RouteStatus = 'idle' | 'loading' | 'ready' | 'error';
+type WeatherStatus = 'idle' | 'loading' | 'ready' | 'error';
 type RouteState = {
   key: string | null;
   status: RouteStatus;
@@ -168,11 +169,17 @@ function MapCanvas({
   if (!initialItem) {
     return (
       <div className="flex h-full min-h-[360px] items-center justify-center bg-[#e7e0cd] p-8 text-center text-warm-muted">
-        <div>
-          <MapPin className="mx-auto size-6 text-ink" aria-hidden="true" />
-          <p className="mt-3 font-semibold text-ink">Map unavailable</p>
+        <div className="max-w-sm rounded-2xl border border-warm-border bg-paper/95 p-6 shadow-editorial">
+          <MapPin
+            className="mx-auto size-6 text-brown-accent"
+            aria-hidden="true"
+          />
+          <p className="mt-3 font-semibold text-ink">
+            Map view is not available.
+          </p>
           <p className="mt-2 text-sm leading-6">
-            This itinerary has no valid saved coordinates yet.
+            These stops do not have saved coordinates yet. Your itinerary is
+            still available in the panel.
           </p>
         </div>
       </div>
@@ -432,6 +439,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
   const [weatherByItemId, setWeatherByItemId] = useState(
     new Map<string, WeatherAtStop>(),
   );
+  const [weatherStatus, setWeatherStatus] = useState<WeatherStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const cardRefs = useRef(new Map<string, HTMLButtonElement>());
   const routeCache = useRef(new Map<string, TripRoute>());
@@ -562,6 +570,9 @@ export function MapPlanner({ tripId }: { tripId: string }) {
   useEffect(() => {
     let cancelled = false;
     if (!activeDay) return;
+    void Promise.resolve().then(() => {
+      if (!cancelled) setWeatherStatus('loading');
+    });
     phase2Fetch<WeatherDayResponse>(
       `/api/trips/${tripId}/weather?day=${activeDay.day}`,
     )
@@ -570,10 +581,14 @@ export function MapPlanner({ tripId }: { tripId: string }) {
           setWeatherByItemId(
             new Map(payload.stops.map((stop) => [stop.itemId, stop])),
           );
+          setWeatherStatus('ready');
         }
       })
       .catch(() => {
-        if (!cancelled) setWeatherByItemId(new Map());
+        if (!cancelled) {
+          setWeatherByItemId(new Map());
+          setWeatherStatus('error');
+        }
       });
     return () => {
       cancelled = true;
@@ -746,10 +761,10 @@ export function MapPlanner({ tripId }: { tripId: string }) {
   if (screen === 'loading') {
     return (
       <AtlasShell tripId={tripId} sectionLabel="MAP PLAN">
-        <div className="mx-auto flex items-center gap-3 text-[#5a5d61]">
-          <LoaderCircle className="size-5 animate-spin" aria-hidden="true" />
-          Loading saved itinerary places
-        </div>
+        <SystemLoading
+          title="Opening your map plan"
+          description="We’re loading the saved stops, day order, and map details."
+        />
       </AtlasShell>
     );
   }
@@ -757,19 +772,38 @@ export function MapPlanner({ tripId }: { tripId: string }) {
   if (screen === 'error' || !data) {
     return (
       <AtlasShell tripId={tripId} sectionLabel="MAP PLAN">
-        <section className="mx-auto w-full max-w-xl border border-[#35383d]/35 bg-[#fffdf8] p-6 sm:p-9">
-          <h1 className="text-3xl font-semibold tracking-[-0.04em]">
-            Map plan unavailable
-          </h1>
-          <p className="mt-4 leading-7 text-[#5a5d61]">{error}</p>
-          <Button
-            type="button"
-            className="mt-7 h-11 rounded-none bg-[#2f3237] px-5 text-[#f8f4e8] hover:bg-[#1f2227]"
-            onClick={() => void load()}
-          >
-            Try again
-          </Button>
-        </section>
+        <SystemState
+          role="alert"
+          eyebrow="Map plan"
+          title="We could not open your map plan."
+          description={
+            <>
+              <p>{error}</p>
+              <p className="mt-2">Your saved itinerary has not been changed.</p>
+            </>
+          }
+          actions={
+            <>
+              <Button
+                type="button"
+                className="h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90"
+                onClick={() => void load()}
+              >
+                Try again
+              </Button>
+              <Link
+                href={`/trip/${tripId}`}
+                className={buttonVariants({
+                  variant: 'outline',
+                  className:
+                    'h-11 rounded-xl border-warm-border bg-paper px-5 text-ink hover:bg-parchment',
+                })}
+              >
+                Back to trip room
+              </Link>
+            </>
+          }
+        />
       </AtlasShell>
     );
   }
@@ -777,27 +811,22 @@ export function MapPlanner({ tripId }: { tripId: string }) {
   if (!data.itinerary || days.length === 0 || !activeDay) {
     return (
       <AtlasShell tripId={tripId} sectionLabel="MAP PLAN">
-        <section className="mx-auto w-full max-w-xl border border-[#35383d]/35 bg-[#fffdf8] p-6 sm:p-9">
-          <p className="text-sm font-semibold tracking-[0.08em] text-[#2f3237]">
-            MAP FOUNDATION
-          </p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-            Generate an itinerary first
-          </h1>
-          <p className="mt-4 leading-7 text-[#5a5d61]">
-            Once your saved itinerary contains real places, they will appear
-            here as map markers.
-          </p>
-          <Link
-            href={`/trip/${tripId}/itinerary`}
-            className={buttonVariants({
-              className:
-                'mt-7 h-11 rounded-none bg-[#2f3237] px-5 text-[#f8f4e8] hover:bg-[#1f2227]',
-            })}
-          >
-            Go to Generate Trip
-          </Link>
-        </section>
+        <SystemState
+          eyebrow="Map plan"
+          title="Your map is waiting for an itinerary."
+          description="Nothing has gone wrong. Once the trip has saved places, they will appear here as markers and a route."
+          actions={
+            <Link
+              href={`/trip/${tripId}/itinerary`}
+              className={buttonVariants({
+                className:
+                  'h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90',
+              })}
+            >
+              Go to Generate Trip
+            </Link>
+          }
+        />
       </AtlasShell>
     );
   }
@@ -847,7 +876,8 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                   {data.itinerary.destination}
                 </h1>
                 <p className="mt-1 text-xs leading-5 text-warm-muted">
-                    Day {activeDay.day} · {activeDay.theme.replace(/^Day\s+\d+:\s*/i, "")}
+                  Day {activeDay.day} ·{' '}
+                  {activeDay.theme.replace(/^Day\s+\d+:\s*/i, '')}
                 </p>
               </div>
               <span className="shrink-0 rounded-full bg-parchment px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-warm-muted">
@@ -888,7 +918,10 @@ export function MapPlanner({ tripId }: { tripId: string }) {
 
           <div className="border-b border-warm-border bg-[#fcfaf6] px-5 py-3 sm:px-6">
             <div className="flex items-center gap-2 text-xs text-warm-muted">
-              <Route className="size-3.5 shrink-0 text-brown-accent" aria-hidden="true" />
+              <Route
+                className="size-3.5 shrink-0 text-brown-accent"
+                aria-hidden="true"
+              />
               <span>
                 {activeDay.items.length} stops
                 {route && route.totalDistanceMeters > 0 && (
@@ -906,8 +939,22 @@ export function MapPlanner({ tripId }: { tripId: string }) {
               </p>
             )}
             {routeStatus === 'error' && (
-              <p className="mt-1.5 text-[0.68rem] text-[#a84a3f]">
-                Route unavailable
+              <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-brown-accent/25 bg-paper px-3 py-2 text-[0.68rem] text-ink">
+                <span>
+                  Route details are unavailable. Your stops are unchanged.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void loadRoute(activeDay)}
+                  className="shrink-0 font-semibold text-brown-accent underline-offset-2 hover:underline"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            {weatherStatus === 'error' && (
+              <p className="mt-2 rounded-lg border border-brown-accent/25 bg-paper px-3 py-2 text-[0.68rem] leading-5 text-ink">
+                Weather is unavailable. The itinerary and route still work.
               </p>
             )}
             {isSaving && (
@@ -916,9 +963,19 @@ export function MapPlanner({ tripId }: { tripId: string }) {
               </p>
             )}
             {plannerError && (
-              <p className="mt-1.5 text-[0.68rem] text-[#a84a3f]">
-                {plannerError}
-              </p>
+              <div
+                role="alert"
+                className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-brown-accent/25 bg-paper px-3 py-2 text-[0.68rem] leading-5 text-ink"
+              >
+                <span>{plannerError}</span>
+                <button
+                  type="button"
+                  onClick={() => void load()}
+                  className="shrink-0 font-semibold text-brown-accent underline-offset-2 hover:underline"
+                >
+                  Refresh
+                </button>
+              </div>
             )}
             {activeEditor && activeEditorPlace && (
               <p className="mt-1.5 text-[0.68rem] font-medium text-ink">

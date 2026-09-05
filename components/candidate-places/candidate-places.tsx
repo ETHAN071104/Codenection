@@ -20,6 +20,8 @@ import {
   X,
 } from 'lucide-react';
 import { JourneyShell } from '@/components/travel-dna/journey-shell';
+import { SystemLoading, SystemState } from '@/components/ui/system-state';
+import { buttonVariants } from '@/components/ui/button';
 import type { GeographicDayClustering } from '@/lib/malaysia-places/day-clustering-core';
 import type { DeterministicDraftSchedule } from '@/lib/malaysia-places/deterministic-scheduling-core';
 import type { RankedCandidate } from '@/lib/malaysia-places/group-ranking';
@@ -216,7 +218,7 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
           setError(
             subscriptionError instanceof Error
               ? subscriptionError.message
-              : 'Live updates are unavailable.',
+              : 'Live updates paused. Your choices are still saved; refresh to reconnect.',
           );
         }
       });
@@ -337,10 +339,7 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
       return;
     }
     setMapPlanError(null);
-    if (
-      data.hasPersistedItinerary &&
-      !data.scheduleMatchesPersistedItinerary
-    ) {
+    if (data.hasPersistedItinerary && !data.scheduleMatchesPersistedItinerary) {
       setReplacementWarning(true);
       return;
     }
@@ -350,13 +349,10 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
   if (loading) {
     return (
       <JourneyShell tripId={tripId} currentStep="Places">
-        <div
-          className="mx-auto flex items-center gap-3 text-sm font-medium text-warm-muted"
-          aria-live="polite"
-        >
-          <LoaderCircle className="size-5 animate-spin" aria-hidden="true" />
-          Loading curated places
-        </div>
+        <SystemLoading
+          title="Gathering places for your group"
+          description="We’re loading real Kuala Lumpur places and the group’s saved choices."
+        />
       </JourneyShell>
     );
   }
@@ -364,22 +360,40 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
   if (error && !data) {
     return (
       <JourneyShell tripId={tripId} currentStep="Places">
-        <section className="mx-auto w-full max-w-xl rounded-2xl border border-warm-border bg-paper p-7 shadow-editorial sm:p-10">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brown-accent">
-            Choose places
-          </p>
-          <h1 className="mt-3 font-editorial text-4xl font-medium tracking-[-0.04em]">
-            Places unavailable
-          </h1>
-          <p className="mt-4 leading-7 text-warm-muted">{error}</p>
-          <button
-            type="button"
-            onClick={() => void load(true)}
-            className="mt-7 inline-flex h-11 items-center justify-center rounded-xl bg-ink px-5 text-sm font-semibold text-paper transition-colors hover:bg-ink/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/40 focus-visible:ring-offset-4 focus-visible:ring-offset-parchment"
-          >
-            Try again
-          </button>
-        </section>
+        <SystemState
+          role="alert"
+          eyebrow="Choose places"
+          title="We could not load your place suggestions."
+          description={
+            <>
+              <p>{error}</p>
+              <p className="mt-2">
+                Your group’s existing choices have not been changed.
+              </p>
+            </>
+          }
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={() => void load(true)}
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-ink px-5 text-sm font-semibold text-paper transition-colors hover:bg-ink/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/40"
+              >
+                Try again
+              </button>
+              <Link
+                href={`/trip/${tripId}`}
+                className={buttonVariants({
+                  variant: 'outline',
+                  className:
+                    'h-11 rounded-xl border-warm-border bg-paper px-5 text-ink hover:bg-parchment',
+                })}
+              >
+                Back to trip room
+              </Link>
+            </>
+          }
+        />
       </JourneyShell>
     );
   }
@@ -506,12 +520,19 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
         </div>
 
         {error && (
-          <p
+          <div
             role="alert"
-            className="mt-5 rounded-xl border border-red-800/20 bg-red-50 px-4 py-3 text-sm text-red-800"
+            className="mt-5 flex flex-col gap-3 rounded-xl border border-brown-accent/30 bg-paper px-4 py-3 text-sm leading-6 text-ink sm:flex-row sm:items-center sm:justify-between"
           >
-            {error}
-          </p>
+            <span>{error}</span>
+            <button
+              type="button"
+              onClick={() => void load(false)}
+              className="shrink-0 font-semibold text-brown-accent underline-offset-4 hover:underline"
+            >
+              Refresh choices
+            </button>
+          </div>
         )}
 
         {activePlace ? (
@@ -627,20 +648,52 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
           </div>
         ) : (
           <div className="mt-7 rounded-2xl border border-warm-border bg-paper p-8 text-center shadow-editorial">
-            <Check
-              className="mx-auto size-8 text-brown-accent"
-              aria-hidden="true"
-            />
+            {orderedCandidates.length > 0 ? (
+              <Check
+                className="mx-auto size-8 text-brown-accent"
+                aria-hidden="true"
+              />
+            ) : (
+              <MapPin
+                className="mx-auto size-8 text-brown-accent"
+                aria-hidden="true"
+              />
+            )}
             <h2 className="mt-4 font-editorial text-3xl font-medium">
-              You have reviewed every place.
+              {orderedCandidates.length > 0
+                ? 'You have reviewed every place.'
+                : 'No place suggestions are available yet.'}
             </h2>
-            <button
-              type="button"
-              onClick={() => setView('review')}
-              className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-ink px-5 text-sm font-semibold text-paper"
-            >
-              Review selected places
-            </button>
+            <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-warm-muted">
+              {orderedCandidates.length > 0
+                ? 'Your saved choices are ready to review.'
+                : 'We could not find curated places for this trip. Your trip room and Travel DNA are still available.'}
+            </p>
+            {orderedCandidates.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setView('review')}
+                className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-ink px-5 text-sm font-semibold text-paper"
+              >
+                Review selected places
+              </button>
+            ) : (
+              <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => void load(true)}
+                  className="inline-flex h-11 items-center justify-center rounded-xl bg-ink px-5 text-sm font-semibold text-paper"
+                >
+                  Try again
+                </button>
+                <Link
+                  href={`/trip/${tripId}`}
+                  className="inline-flex h-11 items-center justify-center rounded-xl border border-warm-border bg-paper px-5 text-sm font-semibold text-ink hover:bg-parchment"
+                >
+                  Back to trip room
+                </Link>
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -726,9 +779,21 @@ function SelectedPlacesReview({
           ))}
         </ol>
       ) : (
-        <div className="mt-8 rounded-2xl border border-warm-border bg-paper p-7 text-warm-muted shadow-editorial">
-          No group selections yet. Return to the cards and choose the places
-          that feel right.
+        <div className="mt-8 rounded-2xl border border-warm-border bg-paper p-7 shadow-editorial">
+          <h2 className="font-editorial text-2xl font-medium text-ink">
+            No group selections yet.
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-warm-muted">
+            Nothing is missing. Return to the cards and choose the places that
+            feel right for your group.
+          </p>
+          <button
+            type="button"
+            onClick={onBack}
+            className="mt-5 inline-flex h-10 items-center justify-center rounded-xl border border-warm-border bg-paper px-4 text-sm font-semibold text-ink hover:bg-parchment"
+          >
+            Choose places
+          </button>
         </div>
       )}
 
@@ -867,9 +932,11 @@ function StayAreaUnavailable({
   return (
     <div className="mt-5 rounded-2xl border border-warm-border bg-paper p-7 shadow-editorial sm:p-9">
       <h1 className="font-editorial text-4xl font-medium tracking-[-0.04em]">
-        A base is not available yet.
+        No stay area recommendation yet.
       </h1>
-      <p className="mt-4 leading-7 text-warm-muted">{message}</p>
+      <p className="mt-4 leading-7 text-warm-muted">
+        {message} Your selected places are still saved.
+      </p>
     </div>
   );
 }
@@ -1048,12 +1115,15 @@ function SchedulePresentation({
         <p className="mt-8 text-xs font-semibold uppercase tracking-[0.18em] text-brown-accent">
           Your trip plan
         </p>
-        <h1 className="mt-4 font-editorial text-5xl font-medium tracking-[-0.05em]">
-          There is no schedule yet.
-        </h1>
-        <p className="mt-4 text-lg leading-8 text-warm-muted">
-          Choose at least one place to build your schedule.
-        </p>
+        <div className="mt-5 rounded-2xl border border-warm-border bg-paper p-7 shadow-editorial sm:p-9">
+          <h1 className="font-editorial text-4xl font-medium tracking-[-0.04em]">
+            No schedule yet.
+          </h1>
+          <p className="mt-4 text-base leading-7 text-warm-muted">
+            Choose at least one place first. Then the schedule can arrange it
+            into a practical day.
+          </p>
+        </div>
       </section>
     );
   }
@@ -1350,7 +1420,7 @@ function SchedulePresentation({
         {error && (
           <p
             role="alert"
-            className="mb-5 rounded-xl border border-red-800/20 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800"
+            className="mb-5 rounded-xl border border-brown-accent/30 bg-paper px-4 py-3 text-sm leading-6 text-ink"
           >
             {error}
           </p>
@@ -1365,7 +1435,10 @@ function SchedulePresentation({
         >
           {saving ? (
             <>
-              <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+              <LoaderCircle
+                className="size-4 animate-spin"
+                aria-hidden="true"
+              />
               Saving map plan
             </>
           ) : (
