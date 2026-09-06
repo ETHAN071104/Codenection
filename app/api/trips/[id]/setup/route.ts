@@ -63,6 +63,29 @@ export async function PATCH(
     .maybeSingle();
   if (error || !data) return unavailableTripResponse();
 
+  if (planningMode === 'collaborative') {
+    const { error: roundError } = await authenticated.supabase.rpc(
+      'start_place_selection_round',
+      { p_trip_id: id },
+    );
+    if (roundError) {
+      await authenticated.supabase
+        .from('trips')
+        .update({ planning_mode: null, setup_stage: 'mode' })
+        .eq('id', id)
+        .eq('created_by', authenticated.user.id);
+      return Response.json(
+        {
+          error: {
+            code: 'SELECTION_ROUND_UNAVAILABLE',
+            message: 'We could not start the shared selection round.',
+          },
+        },
+        { status: 500 },
+      );
+    }
+  }
+
   return Response.json({
     planningMode: parseTripPlanningMode(data.planning_mode),
     setupStage: data.setup_stage,

@@ -1,4 +1,5 @@
 import type { CandidatePlace } from './types';
+import { compareConsensusPriority } from './consensus-core';
 
 export type DayClusterSelection = CandidatePlace & {
   voteCount: number;
@@ -40,7 +41,7 @@ function hasCoordinates(place: Pick<CandidatePlace, 'latitude' | 'longitude'>): 
 }
 
 function comparePriority(a: DayClusterSelection, b: DayClusterSelection) {
-  return b.voteCount - a.voteCount || b.groupScore - a.groupScore || b.score - a.score || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+  return compareConsensusPriority(a, b);
 }
 
 function centroid(places: DayClusterSelection[]) {
@@ -143,9 +144,11 @@ export function clusterSelectedPlacesByDay(
     const bCenter = centroid(b.places);
     const aDistance = stayAreaCenter && aCenter ? haversineDistanceKm(stayAreaCenter, aCenter) : Number.POSITIVE_INFINITY;
     const bDistance = stayAreaCenter && bCenter ? haversineDistanceKm(stayAreaCenter, bCenter) : Number.POSITIVE_INFINITY;
+    const aBest = [...a.places].sort(comparePriority)[0];
+    const bBest = [...b.places].sort(comparePriority)[0];
     const aPriority = a.places.reduce((sum, place) => sum + place.groupScore, 0);
     const bPriority = b.places.reduce((sum, place) => sum + place.groupScore, 0);
-    return aDistance - bDistance || bPriority - aPriority || (aCenter?.latitude ?? Number.POSITIVE_INFINITY) - (bCenter?.latitude ?? Number.POSITIVE_INFINITY) || (aCenter?.longitude ?? Number.POSITIVE_INFINITY) - (bCenter?.longitude ?? Number.POSITIVE_INFINITY) || comparePriority(a.seed, b.seed);
+    return aDistance - bDistance || comparePriority(aBest, bBest) || bPriority - aPriority || (aCenter?.latitude ?? Number.POSITIVE_INFINITY) - (bCenter?.latitude ?? Number.POSITIVE_INFINITY) || (aCenter?.longitude ?? Number.POSITIVE_INFINITY) - (bCenter?.longitude ?? Number.POSITIVE_INFINITY) || comparePriority(a.seed, b.seed);
   });
   const days = orderedClusters.map((cluster, index) => createDayGroup(index + 1, cluster.places));
   while (days.length < normalizedDays) days.push(createDayGroup(days.length + 1, []));

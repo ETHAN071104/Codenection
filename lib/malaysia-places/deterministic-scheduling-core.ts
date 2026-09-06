@@ -1,5 +1,9 @@
 import { haversineDistanceKm, type DayClusterSelection, type GeographicDayClustering } from './day-clustering-core';
 import type { CandidatePlace } from './types';
+import {
+  compareConsensusPriority,
+  consensusPriorityTier,
+} from './consensus-core';
 
 export const DRAFT_SCHEDULE_WINDOW = {
   startMinutes: 9 * 60,
@@ -76,7 +80,7 @@ function time(value: number) {
 }
 
 function comparePriority(a: DayClusterSelection, b: DayClusterSelection) {
-  return b.voteCount - a.voteCount || b.groupScore - a.groupScore || b.score - a.score || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+  return compareConsensusPriority(a, b);
 }
 
 function bestTimeRank(place: DayClusterSelection) {
@@ -144,6 +148,10 @@ function orderedPlaces(places: DayClusterSelection[], origin: Coordinate | null)
   const ordered: DayClusterSelection[] = [];
   while (remaining.length) {
     remaining.sort((a, b) => {
+      const consensusOrder = comparePriority(a, b);
+      const aTier = consensusPriorityTier(a.voteCount, a.totalMembers);
+      const bTier = consensusPriorityTier(b.voteCount, b.totalMembers);
+      if (aTier !== bTier) return consensusOrder;
       const timeOrder = bestTimeRank(a) - bestTimeRank(b);
       if (timeOrder) return timeOrder;
       const aDistance = prior && hasCoordinates(a) ? haversineDistanceKm(prior, a) : Number.POSITIVE_INFINITY;
@@ -216,6 +224,13 @@ export function createDeterministicDraftSchedule(
         `Uses ${duration.source} (${duration.minutes} min).`,
         `Includes an approximate ${transition}-minute Haversine transition buffer; route validation comes next.`,
       ];
+      if (place.totalMembers > 0 && place.voteCount >= place.totalMembers) {
+        reasons.push('Included first because it is a shared priority for everyone in the group.');
+      } else if (place.totalMembers > 0 && place.voteCount * 2 > place.totalMembers) {
+        reasons.push('Included early because a majority of the group chose it.');
+      } else {
+        reasons.push('Included as an individual group member preference after broader shared priorities.');
+      }
       const preference = place.bestTimeOfDay?.toLowerCase();
       if (preference && preference !== 'any') reasons.push(`Scheduled later to prefer its ${preference} best-time setting.`);
       if (previous) reasons.push(`Placed after ${previous.name} using geographic proximity and group priority.`);

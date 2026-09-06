@@ -8,6 +8,7 @@ import {
   ArrowRight,
   CalendarDays,
   Check,
+  Clock3,
   Heart,
   LoaderCircle,
   MapPin,
@@ -29,6 +30,7 @@ import { buttonVariants } from '@/components/ui/button';
 import type { GeographicDayClustering } from '@/lib/malaysia-places/day-clustering-core';
 import type { DeterministicDraftSchedule } from '@/lib/malaysia-places/deterministic-scheduling-core';
 import type { RankedCandidate } from '@/lib/malaysia-places/group-ranking';
+import { consensusTiers } from '@/lib/malaysia-places/consensus-core';
 import type { StayAreaRecommendation } from '@/lib/malaysia-places/stay-area-core';
 import { phase2Fetch } from '@/lib/phase2/client';
 import { ensureAnonymousUser } from '@/lib/supabase/auth';
@@ -51,6 +53,13 @@ type CandidateResponse = {
   hasPersistedItinerary?: boolean;
   scheduleMatchesPersistedItinerary?: boolean;
   confirmationIssue?: string | null;
+  selectionMembers: {
+    userId: string;
+    displayName: string;
+    completed: boolean;
+  }[];
+  currentUserSelectionComplete: boolean;
+  allSelectionComplete: boolean;
 };
 
 type MapPlanConfirmation = {
@@ -151,6 +160,7 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
   const [mapPlanSaving, setMapPlanSaving] = useState(false);
   const [mapPlanError, setMapPlanError] = useState<string | null>(null);
   const [replacementWarning, setReplacementWarning] = useState(false);
+  const [completionSaving, setCompletionSaving] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(
@@ -232,6 +242,19 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
               refreshTimer.current = setTimeout(() => void load(false), 120);
             },
           )
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'trip_place_selection_members',
+              filter: `trip_id=eq.${tripId}`,
+            },
+            () => {
+              if (refreshTimer.current) clearTimeout(refreshTimer.current);
+              refreshTimer.current = setTimeout(() => void load(false), 120);
+            },
+          )
           .subscribe((status) => {
             if (!disposed) setRealtimeStatus(status);
           });
@@ -297,6 +320,29 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
         next.delete(place.id);
         return next;
       });
+    }
+  }
+
+  async function setSelectionComplete(completed: boolean) {
+    if (completionSaving) return;
+    setCompletionSaving(true);
+    setError(null);
+    try {
+      await phase2Fetch(`/api/trips/${tripId}/candidate-places`, {
+        method: 'PATCH',
+        body: JSON.stringify({ completed }),
+      });
+      await load(false);
+      if (!completed) setView('review');
+    } catch (completionError) {
+      setErrorKind('mutation');
+      setError(
+        completionError instanceof Error
+          ? completionError.message
+          : 'Could not update your selection status.',
+      );
+    } finally {
+      setCompletionSaving(false);
     }
   }
 
@@ -496,6 +542,33 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
     (place) => place.currentUserSelected,
   ).length;
 
+  if (
+    data.currentUserSelectionComplete &&
+    !data.allSelectionComplete &&
+    (view === 'choose' || view === 'review')
+  ) {
+    return (
+      <JourneyShell tripId={tripId} currentStep="Places">
+        <SelectionWaiting
+          members={data.selectionMembers}
+          saving={completionSaving}
+          onEdit={() => void setSelectionComplete(false)}
+        />
+      </JourneyShell>
+    );
+  }
+
+  if (
+    data.allSelectionComplete &&
+    (view === 'choose' || view === 'review')
+  ) {
+    return (
+      <JourneyShell tripId={tripId} currentStep="Places">
+        <ConsensusResult data={data} onOrganise={() => setView('stay')} />
+      </JourneyShell>
+    );
+  }
+
   if (view === 'stay') {
     return (
       <JourneyShell tripId={tripId} currentStep="Plan" contentAlign="start">
@@ -549,8 +622,10 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
             );
             setView('choose');
           }}
-          onOrganise={() => setView('stay')}
+          onComplete={() => void setSelectionComplete(true)}
           onToggle={toggle}
+          completionSaving={completionSaving}
+          error={errorKind === 'mutation' ? error : null}
         />
       </JourneyShell>
     );
@@ -791,18 +866,177 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
   );
 }
 
+function SelectionWaiting({
+  members,
+  saving,
+  onEdit,
+}: {
+  members: CandidateResponse['selectionMembers'];
+  saving: boolean;
+  onEdit: () => void;
+}) {
+  return (
+    <section className="mx-auto w-full max-w-2xl">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brown-accent">
+        Place selection
+      </p>
+      <h1 className="mt-4 font-editorial text-5xl font-medium leading-[1.02] tracking-[-0.05em] sm:text-6xl">
+        You’re done choosing.
+      </h1>
+      <p className="mt-4 max-w-xl text-lg leading-8 text-warm-muted">
+        Your votes are saved. Waiting for the rest of your group…
+      </p>
+
+      <ul className="mt-8 divide-y divide-warm-border rounded-2xl border border-warm-border bg-paper px-5 shadow-editorial">
+        {members.map((member) => (
+          <li
+            key={member.userId}
+            className="flex min-h-16 items-center justify-between gap-4 py-4"
+          >
+            <span className="font-semibold text-ink">{member.displayName}</span>
+            <span
+              className={`inline-flex items-center gap-2 text-sm font-semibold ${
+                member.completed ? 'text-brown-accent' : 'text-warm-muted'
+              }`}
+            >
+              {member.completed ? (
+                <Check className="size-4" aria-hidden="true" />
+              ) : (
+                <Clock3 className="size-4" aria-hidden="true" />
+              )}
+              {member.completed ? 'Ready' : 'Choosing places…'}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <button
+        type="button"
+        disabled={saving}
+        onClick={onEdit}
+        className="mt-6 inline-flex h-11 items-center justify-center rounded-xl border border-warm-border bg-paper px-5 text-sm font-semibold text-ink hover:bg-parchment disabled:cursor-wait disabled:opacity-60"
+      >
+        {saving && (
+          <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+        )}
+        Change my choices
+      </button>
+    </section>
+  );
+}
+
+function ConsensusResult({
+  data,
+  onOrganise,
+}: {
+  data: CandidateResponse;
+  onOrganise: () => void;
+}) {
+  const tiers = consensusTiers(data.selected, data.selectionMembers.length);
+
+  function tier(
+    title: string,
+    description: string,
+    places: RankedCandidate[],
+    startIndex: number,
+  ) {
+    return (
+      <section className="mt-10">
+        <h2 className="font-editorial text-3xl font-medium tracking-[-0.035em]">
+          {title}
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-warm-muted">{description}</p>
+        {places.length ? (
+          <ol className="mt-5 space-y-3">
+            {places.map((place, index) => (
+              <li
+                key={place.id}
+                className="flex items-center gap-4 rounded-xl border border-warm-border bg-paper p-4 shadow-sm sm:p-5"
+              >
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-parchment font-editorial text-lg text-brown-accent">
+                  {String(startIndex + index + 1).padStart(2, '0')}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-semibold text-ink">{place.name}</h3>
+                  <p className="mt-1 text-sm text-warm-muted">
+                    {[place.area, label(place.category)]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </p>
+                  <p className="mt-1.5 text-xs font-semibold text-brown-accent">
+                    {place.voteCount >= data.selectionMembers.length
+                      ? 'Everyone in your group wants to visit this.'
+                      : `${place.voteCount} of ${data.selectionMembers.length} travellers chose this.`}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="mt-5 rounded-xl border border-warm-border bg-paper p-5 text-sm text-warm-muted">
+            No places are in this tier.
+          </p>
+        )}
+      </section>
+    );
+  }
+
+  return (
+    <section className="mx-auto w-full max-w-3xl" data-testid="consensus-result">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brown-accent">
+        Group result
+      </p>
+      <h1 className="mt-4 font-editorial text-5xl font-medium leading-[1.02] tracking-[-0.05em] sm:text-6xl">
+        Your group’s places.
+      </h1>
+      <p className="mt-4 max-w-xl text-lg leading-8 text-warm-muted">
+        Everyone has finished choosing. Shared priorities will receive scarce
+        schedule capacity first, while geographic and timing constraints remain
+        in control.
+      </p>
+
+      {tier(
+        'Everyone wants these',
+        'Unanimous choices from every planning member.',
+        tiers.unanimous,
+        0,
+      )}
+      {tier(
+        "Also on someone’s list",
+        'Chosen by at least one traveller without unanimous agreement.',
+        tiers.additional,
+        tiers.unanimous.length,
+      )}
+
+      <button
+        type="button"
+        disabled={!data.selected.length}
+        onClick={onOrganise}
+        className="mt-10 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink px-6 text-sm font-semibold text-paper shadow-sm transition-colors hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-45"
+      >
+        Organise our trip
+        <ArrowRight className="size-4" aria-hidden="true" />
+      </button>
+    </section>
+  );
+}
+
 function SelectedPlacesReview({
   data,
   pending,
   onBack,
-  onOrganise,
+  onComplete,
   onToggle,
+  completionSaving,
+  error,
 }: {
   data: CandidateResponse;
   pending: Set<string>;
   onBack: () => void;
-  onOrganise: () => void;
+  onComplete: () => void;
   onToggle: (place: RankedCandidate) => Promise<boolean>;
+  completionSaving: boolean;
+  error: string | null;
 }) {
   return (
     <section
@@ -827,6 +1061,15 @@ function SelectedPlacesReview({
         These are the places your group has selected so far. Everyone keeps
         control of their own choices.
       </p>
+
+      {error && (
+        <SystemNotice
+          role="alert"
+          className="mt-5 border-brown-accent/30"
+          title="We couldn’t save your completion status."
+          description={error}
+        />
+      )}
 
       {data.selected.length ? (
         <ol className="mt-8 space-y-3">
@@ -889,12 +1132,16 @@ function SelectedPlacesReview({
 
       <button
         type="button"
-        disabled={!data.selected.length}
-        onClick={onOrganise}
+        disabled={completionSaving}
+        onClick={onComplete}
         className="mt-8 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink px-6 text-sm font-semibold text-paper shadow-sm transition-colors hover:bg-ink/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/40 focus-visible:ring-offset-4 focus-visible:ring-offset-parchment disabled:cursor-not-allowed disabled:opacity-45"
       >
-        Organise our trip
-        <ArrowRight className="size-4" aria-hidden="true" />
+        {completionSaving ? (
+          <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+        ) : (
+          <Check className="size-4" aria-hidden="true" />
+        )}
+        I’m done choosing
       </button>
     </section>
   );

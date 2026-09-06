@@ -147,6 +147,13 @@ export type TripPlaceVoteRow = {
   updated_at: string;
 };
 
+export type TripPlaceSelectionMemberRow = {
+  trip_id: string;
+  user_id: string;
+  completed_at: string | null;
+  created_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -242,6 +249,16 @@ export type Database = {
           updated_at?: string;
         },
         { selected?: boolean; updated_at?: string }
+      >;
+      trip_place_selection_members: Table<
+        TripPlaceSelectionMemberRow,
+        {
+          trip_id: string;
+          user_id: string;
+          completed_at?: string | null;
+          created_at?: string;
+        },
+        { completed_at?: string | null }
       >;
     };
     Views: Record<string, never>;
@@ -346,6 +363,18 @@ export type Database = {
           p_places: Json;
         };
         Returns: { saved_items: number }[];
+      };
+      start_place_selection_round: {
+        Args: { p_trip_id: string };
+        Returns: { planning_members: number }[];
+      };
+      set_place_selection_completion: {
+        Args: { p_trip_id: string; p_completed: boolean };
+        Returns: {
+          completed_members: number;
+          planning_members: number;
+          all_completed: boolean;
+        }[];
       };
     };
     Enums: Record<string, never>;

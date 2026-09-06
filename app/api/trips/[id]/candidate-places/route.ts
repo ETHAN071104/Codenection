@@ -23,6 +23,7 @@ import {
 import { loadItineraryPageData } from '@/lib/phase2/storage';
 import { Phase2ProviderError } from '@/lib/phase2/provider-error';
 import { parseAverageInterests } from '@/lib/preferences/model';
+import { selectionCompletionSummary } from '@/lib/malaysia-places/selection-completion-core';
 
 function unavailable(
   message: string,
@@ -44,6 +45,7 @@ async function loadPhase9Plan(
     summaryResult,
     membersResult,
     votesResult,
+    selectionMembersResult,
   ] = await Promise.all([
     supabase
       .from('trips')
@@ -61,20 +63,25 @@ async function loadPhase9Plan(
     supabase.rpc('get_group_preference_summary', { p_trip_id: tripId }),
     supabase
       .from('trip_members')
-      .select('id', { count: 'exact' })
+      .select('user_id, display_name', { count: 'exact' })
       .eq('trip_id', tripId),
     supabase
       .from('trip_place_votes')
       .select('place_id, user_id, selected')
       .eq('trip_id', tripId)
       .eq('selected', true),
+    supabase
+      .from('trip_place_selection_members')
+      .select('user_id, completed_at')
+      .eq('trip_id', tripId),
   ]);
   const error =
     tripResult.error ??
     membershipResult.error ??
     summaryResult.error ??
     membersResult.error ??
-    votesResult.error;
+    votesResult.error ??
+    selectionMembersResult.error;
   if (error) throw error;
   if (!tripResult.data || !membershipResult.data) return null;
 
@@ -158,7 +165,31 @@ async function loadPhase9Plan(
   }
 
   const votes = votesResult.data ?? [];
-  const totalMembers = membersResult.count ?? membersResult.data?.length ?? 0;
+  const members = membersResult.data ?? [];
+  const memberNames = new Map(
+    members.map((member) => [member.user_id, member.display_name]),
+  );
+  const persistedSelectionMembers = selectionMembersResult.data ?? [];
+  const selectionMembers = (
+    persistedSelectionMembers.length
+      ? persistedSelectionMembers
+      : members.map((member) => ({
+          user_id: member.user_id,
+          completed_at: null,
+        }))
+  )
+    .map((member) => ({
+      userId: member.user_id,
+      displayName: memberNames.get(member.user_id) ?? 'Traveller',
+      completed: member.completed_at !== null,
+    }))
+    .sort(
+      (a, b) =>
+        a.displayName.localeCompare(b.displayName) ||
+        a.userId.localeCompare(b.userId),
+    );
+  const totalMembers = selectionMembers.length;
+  const completion = selectionCompletionSummary(selectionMembers, userId);
   const ranked = rankCandidates(
     candidates.map((candidate) => {
       const placeVotes = votes.filter((vote) => vote.place_id === candidate.id);
@@ -197,6 +228,9 @@ async function loadPhase9Plan(
     draftSchedule,
     candidateSource,
     googlePlacesCalls,
+    selectionMembers,
+    currentUserSelectionComplete: completion.currentUserCompleted,
+    allSelectionComplete: completion.allCompleted,
     markCollaborativeReady:
       tripResult.data.created_by === userId &&
       tripResult.data.planning_mode === 'collaborative' &&
@@ -348,6 +382,43 @@ export async function POST(
   return Response.json({ ok: true });
 }
 
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const authenticated = await getAuthenticatedSupabase(request);
+  if (!authenticated) {
+    return unavailable('Please reconnect and retry.', 401, 'AUTH_REQUIRED');
+  }
+  const body = (await request.json().catch(() => null)) as {
+    completed?: unknown;
+  } | null;
+  if (typeof body?.completed !== 'boolean') {
+    return unavailable(
+      'Choose a valid completion state.',
+      400,
+      'INVALID_COMPLETION_STATE',
+    );
+  }
+
+  const { id } = await context.params;
+  const { data, error } = await authenticated.supabase.rpc(
+    'set_place_selection_completion',
+    { p_trip_id: id, p_completed: body.completed },
+  );
+  if (error) {
+    const locked = error.message.includes('SELECTION_LOCKED');
+    return unavailable(
+      locked
+        ? 'The group selection is already complete.'
+        : 'We could not update your selection status.',
+      locked ? 409 : 500,
+      locked ? 'SELECTION_LOCKED' : 'SELECTION_COMPLETION_FAILED',
+    );
+  }
+  return Response.json(data?.[0] ?? null);
+}
+
 export async function PUT(
   request: Request,
   context: { params: Promise<{ id: string }> },
@@ -388,6 +459,13 @@ export async function PUT(
         'Map handoff is currently available for Kuala Lumpur trips only.',
         400,
         'DESTINATION_UNSUPPORTED',
+      );
+    }
+    if (!plan.allSelectionComplete) {
+      return unavailable(
+        'Wait for every planning member to finish choosing before organising the trip.',
+        409,
+        'PLACE_SELECTION_INCOMPLETE',
       );
     }
 
