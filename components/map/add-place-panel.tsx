@@ -78,11 +78,11 @@ export function AddPlacePanel({
   }
 
   return (
-    <section className="border-b border-[#35383d]/25 bg-[#fffdf8] p-5">
+    <section className="border-b border-warm-border bg-paper p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="font-semibold">Add a real place</h3>
-          <p className="mt-1 text-xs leading-5 text-[#5a5d61]">
+          <p className="mt-1 text-xs leading-5 text-warm-muted">
             Search Google Places and add a stop to Day {day}.
           </p>
         </div>
@@ -90,7 +90,7 @@ export function AddPlacePanel({
           type="button"
           aria-label="Close place search"
           onClick={onClose}
-          className="p-1 text-[#5a5d61] outline-none hover:text-[#25282d] focus-visible:ring-2 focus-visible:ring-[#2f3237]"
+          className="rounded-lg p-2 text-warm-muted outline-none hover:bg-parchment hover:text-ink focus-visible:ring-2 focus-visible:ring-brown-accent/35"
         >
           <X className="size-4" aria-hidden="true" />
         </button>
@@ -99,7 +99,7 @@ export function AddPlacePanel({
       <form className="mt-4 flex gap-2" onSubmit={search}>
         <div className="relative min-w-0 flex-1">
           <Search
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#5a5d61]"
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-warm-muted"
             aria-hidden="true"
           />
           <Input
@@ -108,13 +108,13 @@ export function AddPlacePanel({
             placeholder="cafe near Alfama"
             aria-label="Search for a place"
             disabled={disabled || searching}
-            className="h-10 rounded-none border-[#35383d]/35 bg-[#f7f3e8] pl-9 text-[#25282d] placeholder:text-[#5a5d61]"
+            className="h-11 rounded-xl border-warm-border bg-parchment pl-9 text-ink placeholder:text-warm-muted/70 focus-visible:border-brown-accent focus-visible:ring-brown-accent/20"
           />
         </div>
         <Button
           type="submit"
           disabled={disabled || searching || query.trim().length < 2}
-          className="h-10 rounded-none bg-[#2f3237] px-4 text-[#f8f4e8] hover:bg-[#1f2227]"
+          className="h-11 rounded-xl bg-ink px-4 text-paper hover:bg-ink/90"
         >
           {searching ? (
             <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
@@ -146,19 +146,19 @@ export function AddPlacePanel({
       )}
 
       {results.length > 0 && (
-        <div className="mt-4 border-t border-[#35383d]/20">
+        <div className="mt-4 border-t border-warm-border">
           {results.map((place) => (
             <div
               key={place.externalPlaceId}
-              className="flex items-start gap-3 border-b border-[#35383d]/15 py-3"
+              className="flex items-start gap-3 border-b border-warm-border/70 py-3"
             >
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold">{place.name}</p>
-                <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#5a5d61]">
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-warm-muted">
                   {place.address ?? 'Address unavailable'}
                 </p>
                 {place.rating !== null && (
-                  <p className="mt-1 text-xs text-[#5a5d61]">
+                  <p className="mt-1 text-xs text-warm-muted">
                     {place.rating.toFixed(1)} Google rating
                   </p>
                 )}
@@ -168,7 +168,7 @@ export function AddPlacePanel({
                 aria-label={`Add ${place.name} to Day ${day}`}
                 disabled={disabled || addingId !== null}
                 onClick={() => void add(place)}
-                className="h-9 shrink-0 rounded-none border border-[#2f3237] bg-transparent px-3 text-[#25282d] hover:bg-[#e7e0cd]"
+                className="h-10 shrink-0 rounded-lg border border-warm-border bg-paper px-3 text-ink hover:border-brown-accent/50 hover:bg-parchment"
               >
                 {addingId === place.externalPlaceId ? (
                   <LoaderCircle

@@ -42,9 +42,11 @@ export function JourneyShell({
                     key={step}
                     aria-current={active ? 'step' : undefined}
                     className={`min-w-14 border-b pb-2 text-center text-[0.65rem] font-semibold uppercase tracking-[0.14em] sm:min-w-20 sm:text-xs ${
-                      active || complete
+                      active
                         ? 'border-ink text-ink'
-                        : 'border-warm-border text-warm-muted/55'
+                        : complete
+                          ? 'border-brown-accent text-brown-accent'
+                          : 'border-warm-border text-warm-muted/55'
                     }`}
                   >
                     {step}

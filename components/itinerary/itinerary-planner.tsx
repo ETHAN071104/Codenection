@@ -72,34 +72,34 @@ function ItineraryResult({ itinerary }: { itinerary: ItineraryView }) {
 
   return (
     <section className="mx-auto w-full max-w-5xl">
-      <p className="text-sm font-semibold tracking-[0.08em] text-[#2f3237]">
+      <p className="text-xs font-semibold tracking-[0.16em] text-brown-accent">
         TRIP ITINERARY
       </p>
-      <div className="mt-4 flex flex-col gap-4 border-b border-[#35383d]/30 pb-8 sm:flex-row sm:items-end sm:justify-between">
+      <div className="mt-4 flex flex-col gap-4 border-b border-warm-border pb-8 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-4xl font-semibold tracking-[-0.05em] sm:text-6xl">
+          <h1 className="font-editorial text-4xl font-semibold tracking-[-0.05em] sm:text-6xl">
             {itinerary.destination}
           </h1>
-          <p className="mt-4 text-[#5a5d61]">
+          <p className="mt-4 text-warm-muted">
             {formatTripDuration(itinerary.durationDays)} with {placeCount} real
             places from Google Places.
           </p>
         </div>
-        <span className="text-sm text-[#5a5d61]">Times are approximate.</span>
+        <span className="text-sm text-warm-muted">Times are approximate.</span>
       </div>
 
       <div className="mt-10 space-y-12">
         {itinerary.days.map((day) => (
           <article key={day.day}>
             <div className="grid gap-2 sm:grid-cols-[90px_1fr] sm:items-baseline">
-              <p className="text-sm font-semibold tracking-[0.08em] text-[#2f3237]">
+              <p className="text-xs font-semibold tracking-[0.16em] text-brown-accent">
                 DAY {day.day}
               </p>
-              <h2 className="text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">
+              <h2 className="font-editorial text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">
                 {day.theme}
               </h2>
               {day.area && (
-                <p className="text-sm text-[#5a5d61]">
+                <p className="text-sm text-warm-muted">
                   {day.mode === 'day_trip' ? 'Day trip area' : 'Base area'}:{' '}
                   {day.area}
                 </p>
@@ -110,9 +110,9 @@ function ItineraryResult({ itinerary }: { itinerary: ItineraryView }) {
               {day.items.map((item) => (
                 <li
                   key={item.id}
-                  className="grid gap-4 border border-[#8b8170]/30 bg-[#fffdf8] p-5 shadow-[0_20px_55px_-45px_rgba(67,58,44,0.55)] sm:grid-cols-[90px_1fr] sm:p-6"
+                  className="grid gap-4 rounded-2xl border border-warm-border bg-paper p-5 shadow-[var(--journey-shadow)] sm:grid-cols-[90px_1fr] sm:p-6"
                 >
-                  <time className="font-semibold text-[#2f3237]">
+                  <time className="font-semibold text-ink">
                     {item.plannedTime}
                   </time>
                   <div className="min-w-0">
@@ -121,7 +121,7 @@ function ItineraryResult({ itinerary }: { itinerary: ItineraryView }) {
                         {item.place.name}
                       </h3>
                       {item.place.rating !== null && (
-                        <p className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-[#2f3237]">
+                        <p className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-ink">
                           <Star
                             className="size-4 fill-current"
                             aria-hidden="true"
@@ -133,7 +133,7 @@ function ItineraryResult({ itinerary }: { itinerary: ItineraryView }) {
                       )}
                     </div>
                     {item.place.address && (
-                      <p className="mt-2 inline-flex items-start gap-2 text-sm leading-6 text-[#5a5d61]">
+                      <p className="mt-2 inline-flex items-start gap-2 text-sm leading-6 text-warm-muted">
                         <MapPin
                           className="mt-1 size-4 shrink-0"
                           aria-hidden="true"
@@ -141,10 +141,8 @@ function ItineraryResult({ itinerary }: { itinerary: ItineraryView }) {
                         {item.place.address}
                       </p>
                     )}
-                    <p className="mt-4 leading-7 text-[#3f4247]">
-                      {item.reason}
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[#5a5d61]">
+                    <p className="mt-4 leading-7 text-ink/85">{item.reason}</p>
+                    <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-warm-muted">
                       <span className="inline-flex items-center gap-2">
                         <Clock3 className="size-4" aria-hidden="true" />
                         {item.estimatedDurationMinutes} min estimated
@@ -431,12 +429,12 @@ export function ItineraryPlanner({
       <AtlasShell tripId={tripId} sectionLabel="TRIP ITINERARY">
         <div className="w-full py-2">
           <ItineraryResult itinerary={data.itinerary} />
-          <div className="mx-auto mt-10 flex w-full max-w-5xl flex-wrap gap-3 border-t border-[#35383d]/30 pt-7">
+          <div className="mx-auto mt-10 flex w-full max-w-5xl flex-wrap gap-3 border-t border-warm-border pt-7">
             <Link
               href={`/trip/${tripId}/plan`}
               className={buttonVariants({
                 className:
-                  'h-11 rounded-none bg-[#2f3237] px-5 text-[#f8f4e8] hover:bg-[#1f2227]',
+                  'h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90',
               })}
             >
               Open map plan
@@ -446,7 +444,7 @@ export function ItineraryPlanner({
               href={`/trip/${tripId}`}
               className={buttonVariants({
                 className:
-                  'h-11 rounded-none bg-[#2f3237] px-5 text-[#f8f4e8] hover:bg-[#1f2227]',
+                  'h-11 rounded-xl border-warm-border bg-paper px-5 text-ink hover:bg-parchment',
               })}
             >
               Return to trip room
@@ -457,7 +455,7 @@ export function ItineraryPlanner({
               className={buttonVariants({
                 variant: 'outline',
                 className:
-                  'h-11 rounded-none border-[#35383d]/40 bg-transparent px-5 hover:bg-[#e7e0cd]',
+                  'h-11 rounded-xl border-warm-border bg-transparent px-5 text-ink hover:bg-paper',
               })}
             >
               View group summary
@@ -472,8 +470,8 @@ export function ItineraryPlanner({
 
   return (
     <AtlasShell tripId={tripId} sectionLabel="TRIP PLANNING">
-      <section className="mx-auto w-full max-w-3xl rounded-xl border border-[#8b8170]/30 bg-[#fffdf8] p-6 shadow-[0_24px_70px_-48px_rgba(67,58,44,0.55)] sm:p-10">
-        <p className="text-sm font-semibold tracking-[0.08em] text-[#2f3237]">
+      <section className="mx-auto w-full max-w-3xl rounded-2xl border border-warm-border bg-paper p-6 shadow-[var(--journey-shadow)] sm:p-10">
+        <p className="text-xs font-semibold tracking-[0.16em] text-brown-accent">
           {planningStep === 'destination'
             ? 'DESTINATION'
             : planningStep === 'scope'
@@ -483,27 +481,27 @@ export function ItineraryPlanner({
 
         {planningStep === 'destination' && (
           <>
-            <h1 className="mt-4 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">
+            <h1 className="mt-4 font-editorial text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">
               Where do you want to go?
             </h1>
-            <p className="mt-5 max-w-2xl leading-7 text-[#5a5d61]">
+            <p className="mt-5 max-w-2xl leading-7 text-warm-muted">
               Enter a city, state, region, or country. For broad areas, we can
               suggest a practical destination using the group summary for this{' '}
               {formatTripDuration(data.trip.durationDays)} trip.
             </p>
 
             {data.trip.destination && !editingDestination && (
-              <div className="mt-8 border-l-2 border-[#2f3237] bg-[#f2eee1] p-5 sm:p-6">
-                <p className="text-sm font-semibold text-[#2f3237]">
+              <div className="mt-8 rounded-xl border border-warm-border border-l-2 border-l-brown-accent bg-parchment p-5 sm:p-6">
+                <p className="text-xs font-semibold tracking-[0.14em] text-brown-accent">
                   CURRENT DESTINATION
                 </p>
-                <h2 className="mt-3 text-2xl font-semibold">
+                <h2 className="mt-3 font-editorial text-2xl font-semibold">
                   {data.trip.destination}
                 </h2>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Button
                     type="button"
-                    className="h-11 rounded-none bg-[#2f3237] px-5 text-[#f8f4e8] hover:bg-[#1f2227]"
+                    className="h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90"
                     onClick={() => goToStep('scope')}
                   >
                     Continue
@@ -512,7 +510,7 @@ export function ItineraryPlanner({
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-11 rounded-none border-[#35383d]/40 bg-transparent px-5 hover:bg-[#e7e0cd]"
+                    className="h-11 rounded-xl border-warm-border bg-paper px-5 text-ink hover:bg-paper/65"
                     onClick={() => {
                       setDestinationInput(
                         data.trip.destinationInput ??
@@ -542,7 +540,7 @@ export function ItineraryPlanner({
               >
                 <label
                   htmlFor="destination-input"
-                  className="text-sm font-semibold text-[#35383d]"
+                  className="text-sm font-semibold text-ink"
                 >
                   City, state, region, or country
                 </label>
@@ -553,12 +551,12 @@ export function ItineraryPlanner({
                   placeholder="Johor Bahru, Kedah, or Japan"
                   autoComplete="off"
                   maxLength={120}
-                  className="mt-2 h-12 rounded-none border-[#35383d]/40 bg-[#fffdf8] px-4 focus-visible:border-[#2f3237] focus-visible:ring-[#2f3237]/20"
+                  className="mt-2 h-12 rounded-xl border-warm-border bg-paper px-4 focus-visible:border-brown-accent focus-visible:ring-brown-accent/20"
                 />
                 <div className="mt-4 flex flex-wrap gap-3">
                   <Button
                     type="submit"
-                    className="h-11 rounded-none bg-[#2f3237] px-5 text-[#f8f4e8] hover:bg-[#1f2227]"
+                    className="h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90"
                     disabled={
                       pendingAction !== null ||
                       destinationInput.trim().length < 3
@@ -577,7 +575,7 @@ export function ItineraryPlanner({
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-11 rounded-none border-[#35383d]/40 bg-transparent px-5 hover:bg-[#e7e0cd]"
+                    className="h-11 rounded-xl border-warm-border bg-paper px-5 text-ink hover:bg-parchment"
                     onClick={() =>
                       void suggestDestination(
                         destinationInput.trim().replace(/\s+/g, ' ') || null,
@@ -600,25 +598,25 @@ export function ItineraryPlanner({
             )}
 
             {suggestion && destinationEditing && (
-              <div className="mt-8 border-l-2 border-[#2f3237] bg-[#f2eee1] p-5 sm:p-6">
-                <p className="text-sm font-semibold text-[#2f3237]">
+              <div className="mt-8 rounded-xl border border-warm-border border-l-2 border-l-brown-accent bg-parchment p-5 sm:p-6">
+                <p className="text-xs font-semibold tracking-[0.14em] text-brown-accent">
                   PROPOSED DESTINATION
                 </p>
-                <h2 className="mt-3 text-2xl font-semibold">
+                <h2 className="mt-3 font-editorial text-2xl font-semibold">
                   {suggestion.destination}
                 </h2>
-                <p className="mt-3 leading-7 text-[#5a5d61]">
+                <p className="mt-3 leading-7 text-warm-muted">
                   {suggestion.reason}
                 </p>
                 {suggestionScope && (
-                  <p className="mt-4 text-sm text-[#5a5d61]">
+                  <p className="mt-4 text-sm text-warm-muted">
                     Your chosen area: {suggestionScope}
                   </p>
                 )}
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Button
                     type="button"
-                    className="h-11 rounded-none bg-[#2f3237] px-5 text-[#f8f4e8] hover:bg-[#1f2227]"
+                    className="h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90"
                     onClick={() => void acceptDestination()}
                     disabled={pendingAction !== null}
                   >
@@ -635,7 +633,7 @@ export function ItineraryPlanner({
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-11 rounded-none border-[#35383d]/40 bg-transparent px-5 hover:bg-[#e7e0cd]"
+                    className="h-11 rounded-xl border-warm-border bg-paper px-5 text-ink hover:bg-parchment"
                     onClick={() => void suggestDestination(suggestionScope)}
                     disabled={pendingAction !== null}
                   >
@@ -652,7 +650,7 @@ export function ItineraryPlanner({
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-11 rounded-none border-[#35383d]/40 bg-transparent px-5 hover:bg-[#e7e0cd]"
+                    className="h-11 rounded-xl border-warm-border bg-paper px-5 text-ink hover:bg-parchment"
                     onClick={() => {
                       setSuggestion(null);
                       setError(null);
@@ -667,7 +665,7 @@ export function ItineraryPlanner({
 
             <Link
               href={`/trip/${tripId}/summary`}
-              className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-[#5a5d61] underline-offset-4 hover:text-[#25282d] hover:underline"
+              className="mt-8 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-warm-muted underline-offset-4 hover:text-ink hover:underline"
             >
               Back to group summary
             </Link>
@@ -676,15 +674,15 @@ export function ItineraryPlanner({
 
         {planningStep === 'scope' && data.trip.destination && (
           <>
-            <h1 className="mt-4 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">
+            <h1 className="mt-4 font-editorial text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">
               How far should this trip reach?
             </h1>
-            <p className="mt-5 max-w-2xl leading-7 text-[#5a5d61]">
+            <p className="mt-5 max-w-2xl leading-7 text-warm-muted">
               {data.trip.destination} remains the base. This choice is saved
               before you choose how the trip will be planned.
             </p>
-            <fieldset className="mt-8 border-y border-[#35383d]/20 py-6">
-              <legend className="text-sm font-semibold text-[#35383d]">
+            <fieldset className="mt-8 border-y border-warm-border py-6">
+              <legend className="text-sm font-semibold text-ink">
                 Geographic scope
               </legend>
               <div className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -697,10 +695,10 @@ export function ItineraryPlanner({
                       onClick={() => setExplorationPreference(option.value)}
                       disabled={pendingAction !== null}
                       aria-pressed={selected}
-                      className={`border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f3237]/30 ${
+                      className={`min-h-28 rounded-xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/30 ${
                         selected
-                          ? 'border-[#2f3237] bg-[#2f3237] text-[#f8f4e8]'
-                          : 'border-[#8b8170]/35 bg-[#fffdf8] text-[#35383d] hover:bg-[#f2eee1]'
+                          ? 'border-ink bg-ink text-paper'
+                          : 'border-warm-border bg-paper text-ink hover:bg-parchment'
                       }`}
                     >
                       <span className="block font-semibold">
@@ -708,7 +706,7 @@ export function ItineraryPlanner({
                       </span>
                       <span
                         className={`mt-1 block text-sm leading-5 ${
-                          selected ? 'text-[#f8f4e8]/80' : 'text-[#5a5d61]'
+                          selected ? 'text-paper/80' : 'text-warm-muted'
                         }`}
                       >
                         {option.description}
@@ -721,7 +719,7 @@ export function ItineraryPlanner({
             <div className="mt-8 flex flex-wrap gap-3">
               <Button
                 type="button"
-                className="h-11 rounded-none bg-[#2f3237] px-5 text-[#f8f4e8] hover:bg-[#1f2227]"
+                className="h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90"
                 onClick={() => void saveScope()}
                 disabled={pendingAction !== null}
               >
@@ -734,7 +732,7 @@ export function ItineraryPlanner({
               <Button
                 type="button"
                 variant="outline"
-                className="h-11 rounded-none border-[#35383d]/40 bg-transparent px-5 hover:bg-[#e7e0cd]"
+                className="h-11 rounded-xl border-warm-border bg-paper px-5 text-ink hover:bg-parchment"
                 onClick={() => goToStep('destination')}
                 disabled={pendingAction !== null}
               >
@@ -746,25 +744,25 @@ export function ItineraryPlanner({
 
         {planningStep === 'mode' && data.trip.destination && (
           <>
-            <h1 className="mt-4 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">
+            <h1 className="mt-4 font-editorial text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">
               How should we plan {data.trip.destination}?
             </h1>
-            <p className="mt-5 max-w-2xl leading-7 text-[#5a5d61]">
+            <p className="mt-5 max-w-2xl leading-7 text-warm-muted">
               Choose places together for the full collaborative journey, or ask
               the existing AI planner to prepare a grounded itinerary now.
             </p>
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
               <Link
                 href={`/trip/${tripId}/places`}
-                className="group border border-[#2f3237] bg-[#2f3237] p-6 text-[#f8f4e8] transition-colors hover:bg-[#1f2227]"
+                className="group rounded-2xl border border-ink bg-ink p-6 text-paper transition-colors hover:bg-ink/90"
               >
-                <span className="block text-xs font-semibold tracking-[0.12em] text-[#f8f4e8]/65">
+                <span className="block text-xs font-semibold tracking-[0.12em] text-paper/65">
                   PRIMARY
                 </span>
-                <span className="mt-3 block text-2xl font-semibold">
+                <span className="mt-3 block font-editorial text-2xl font-semibold">
                   Choose places together
                 </span>
-                <span className="mt-3 block text-sm leading-6 text-[#f8f4e8]/75">
+                <span className="mt-3 block text-sm leading-6 text-paper/75">
                   Review grounded places, vote as a group, then organise the
                   selected places into a deterministic schedule.
                 </span>
@@ -780,15 +778,15 @@ export function ItineraryPlanner({
                 type="button"
                 onClick={() => void generateItinerary()}
                 disabled={pendingAction !== null}
-                className="border border-[#8b8170]/35 bg-[#fffdf8] p-6 text-left text-[#35383d] transition-colors hover:bg-[#f2eee1] disabled:cursor-wait disabled:opacity-60"
+                className="rounded-2xl border border-warm-border bg-paper p-6 text-left text-ink shadow-[var(--journey-shadow)] transition-colors hover:bg-parchment disabled:cursor-wait disabled:opacity-60"
               >
-                <span className="block text-xs font-semibold tracking-[0.12em] text-[#5a5d61]">
+                <span className="block text-xs font-semibold tracking-[0.12em] text-warm-muted">
                   QUICK PLAN
                 </span>
-                <span className="mt-3 block text-2xl font-semibold">
+                <span className="mt-3 block font-editorial text-2xl font-semibold">
                   Plan it for me with AI
                 </span>
-                <span className="mt-3 block text-sm leading-6 text-[#5a5d61]">
+                <span className="mt-3 block text-sm leading-6 text-warm-muted">
                   Skip collaborative voting and use the existing grounded
                   itinerary generator.
                 </span>
@@ -807,7 +805,7 @@ export function ItineraryPlanner({
             <Button
               type="button"
               variant="outline"
-              className="mt-8 h-11 rounded-none border-[#35383d]/40 bg-transparent px-5 hover:bg-[#e7e0cd]"
+              className="mt-8 h-11 rounded-xl border-warm-border bg-transparent px-5 text-ink hover:bg-paper"
               onClick={() => goToStep('scope')}
               disabled={pendingAction !== null}
             >

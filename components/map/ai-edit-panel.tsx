@@ -92,14 +92,14 @@ export function AiEditPanel({
   }
 
   return (
-    <section className="border-b border-[#35383d]/25 bg-[#fffdf8] p-5">
+    <section className="border-b border-warm-border bg-paper p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="flex items-center gap-2 font-semibold">
             <Bot className="size-4" aria-hidden="true" />
             AI itinerary edit
           </h3>
-          <p className="mt-1 text-xs leading-5 text-[#5a5d61]">
+          <p className="mt-1 text-xs leading-5 text-warm-muted">
             Preview changes for Day {day} before anything is saved.
           </p>
         </div>
@@ -107,7 +107,7 @@ export function AiEditPanel({
           type="button"
           aria-label="Close AI editor"
           onClick={onClose}
-          className="p-1 text-[#5a5d61] outline-none hover:text-[#25282d] focus-visible:ring-2 focus-visible:ring-[#2f3237]"
+          className="rounded-lg p-2 text-warm-muted outline-none hover:bg-parchment hover:text-ink focus-visible:ring-2 focus-visible:ring-brown-accent/35"
         >
           <X className="size-4" aria-hidden="true" />
         </button>
@@ -124,19 +124,19 @@ export function AiEditPanel({
           placeholder="Make this day more relaxed"
           disabled={disabled || working}
           rows={3}
-          className="mt-2 w-full resize-none border border-[#35383d]/35 bg-[#f7f3e8] p-3 text-sm leading-6 text-[#25282d] outline-none placeholder:text-[#5a5d61] focus:border-[#2f3237] focus:ring-1 focus:ring-[#2f3237]"
+          className="mt-2 w-full resize-none rounded-xl border border-warm-border bg-parchment p-3 text-sm leading-6 text-ink outline-none placeholder:text-warm-muted/70 focus:border-brown-accent focus:ring-1 focus:ring-brown-accent/20"
         />
         <Button
           type="submit"
           disabled={disabled || working || request.trim().length < 3}
-          className="mt-3 h-10 w-full rounded-none bg-[#2f3237] text-[#f8f4e8] hover:bg-[#1f2227]"
+          className="mt-3 h-11 w-full rounded-xl bg-ink text-paper hover:bg-ink/90"
         >
           {working && !proposal ? (
             <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
           ) : (
             <Sparkles className="size-4" aria-hidden="true" />
           )}
-          Preview Changes
+          Preview changes
         </Button>
       </form>
 
@@ -158,22 +158,22 @@ export function AiEditPanel({
       )}
 
       {proposal && (
-        <div className="mt-5 border-t border-[#35383d]/25 pt-4">
+        <div className="mt-5 border-t border-warm-border pt-4">
           <p className="text-sm font-semibold">{proposal.overview}</p>
           <div className="mt-3 space-y-3">
             {proposal.operations.map((operation) => (
               <div
                 key={operation.id}
-                className="border-l-2 border-[#2f3237] pl-3"
+                className="border-l-2 border-brown-accent pl-3"
               >
                 <p className="text-xs font-semibold">
                   {operationLabels[operation.type]}
                   {operation.place ? `: ${operation.place.name}` : ''}
                 </p>
-                <p className="mt-1 text-xs leading-5 text-[#5a5d61]">
+                <p className="mt-1 text-xs leading-5 text-warm-muted">
                   {operation.summary}
                 </p>
-                <p className="mt-1 text-xs leading-5 text-[#5a5d61]">
+                <p className="mt-1 text-xs leading-5 text-warm-muted">
                   Schedule effect: {operation.expectedEffect}
                 </p>
               </div>
@@ -183,7 +183,7 @@ export function AiEditPanel({
             type="button"
             disabled={working}
             onClick={() => void applyChanges()}
-            className="mt-4 h-10 w-full rounded-none bg-[#2f3237] text-[#f8f4e8] hover:bg-[#1f2227]"
+            className="mt-4 h-11 w-full rounded-xl bg-ink text-paper hover:bg-ink/90"
           >
             {working && (
               <LoaderCircle
@@ -191,7 +191,7 @@ export function AiEditPanel({
                 aria-hidden="true"
               />
             )}
-            Apply Changes
+            Apply changes
           </Button>
         </div>
       )}

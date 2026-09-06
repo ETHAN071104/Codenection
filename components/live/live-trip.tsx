@@ -159,7 +159,7 @@ function LiveMap({
   const first = valid[0];
   if (!first) {
     return (
-      <div className="flex min-h-[320px] items-center justify-center bg-[#e7e0cd] p-6 text-center text-warm-muted">
+      <div className="flex min-h-[320px] items-center justify-center bg-warm-border p-6 text-center text-warm-muted">
         <div className="max-w-xs rounded-2xl border border-warm-border bg-paper/95 p-6 shadow-editorial">
           <MapPin
             className="mx-auto size-6 text-brown-accent"
@@ -204,10 +204,10 @@ function LiveMap({
           <MarkerContent>
             <div
               className={cn(
-                'flex size-9 items-center justify-center rounded-full border-2 border-[#f8f4e8] text-sm font-bold shadow-[0_6px_16px_rgb(37_40_45/30%)]',
+                'flex size-9 items-center justify-center rounded-full border-2 border-paper text-sm font-bold shadow-[0_6px_16px_rgb(37_40_45/30%)]',
                 index === 0
-                  ? 'scale-110 bg-[#1f2227] text-[#f8f4e8]'
-                  : 'bg-[#2f3237] text-[#f8f4e8]',
+                  ? 'scale-110 bg-ink text-paper'
+                  : 'bg-ink/90 text-paper',
               )}
               aria-label={`${index + 1}. ${item.place.name}`}
             >
@@ -225,7 +225,7 @@ function WeatherLine({ weather }: { weather: WeatherAtStop | null }) {
   const WeatherIcon =
     (weather.precipitationProbability ?? 0) >= 50 ? CloudRain : CloudSun;
   return (
-    <span className="inline-flex items-center gap-1.5 text-sm text-[#5a5d61]">
+    <span className="inline-flex items-center gap-1.5 text-sm text-warm-muted">
       <WeatherIcon className="size-4" aria-hidden="true" />
       {weather.condition}, {Math.round(weather.temperatureC)}°C
       {weather.precipitationProbability !== null &&
@@ -683,7 +683,7 @@ export function LiveTrip({ tripId }: { tripId: string }) {
                 )}
               </article>
 
-              <div className="relative min-h-[300px] overflow-hidden rounded-2xl border border-warm-border bg-[#e7e0cd] shadow-editorial lg:min-h-[390px]">
+              <div className="relative min-h-[300px] overflow-hidden rounded-2xl border border-warm-border bg-warm-border shadow-editorial lg:min-h-[390px]">
                 <LiveMap items={remaining} route={route} />
                 <div className="pointer-events-none absolute inset-x-4 bottom-4 rounded-xl bg-ink/90 px-4 py-3 text-paper shadow-lg backdrop-blur-sm">
                   <p className="text-xs font-semibold tracking-[0.12em] text-paper/65">

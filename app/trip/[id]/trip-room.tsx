@@ -156,7 +156,7 @@ export function TripRoom({ tripId }: { tripId: string }) {
               type="button"
               variant="ghost"
               size="sm"
-              className="text-warm-muted hover:bg-parchment hover:text-ink"
+              className="h-10 rounded-lg px-3 text-warm-muted hover:bg-parchment hover:text-ink"
               onClick={() => void loadTrip(true)}
               disabled={refreshing}
             >

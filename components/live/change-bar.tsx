@@ -211,14 +211,14 @@ export function ChangeBar({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex h-11 w-full items-center justify-center gap-2 border border-[#35383d] bg-[#2f3237] px-4 text-sm font-semibold text-[#f8f4e8] transition-colors hover:bg-[#1f2227] active:translate-y-px sm:w-auto"
+        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-ink bg-ink px-4 text-sm font-semibold text-paper transition-colors hover:bg-ink/90 active:translate-y-px sm:w-auto"
       >
         <AlertTriangle className="size-4" aria-hidden="true" />
         Something changed
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-40 flex items-end bg-[#1f2227]/35 sm:items-center sm:justify-center">
+        <div className="fixed inset-0 z-40 flex items-end bg-ink/35 sm:items-center sm:justify-center">
           <button
             type="button"
             aria-label="Close change panel"
@@ -228,16 +228,16 @@ export function ChangeBar({
           <dialog
             open
             aria-labelledby="change-bar-title"
-            className="relative z-10 max-h-[82dvh] w-full overflow-y-auto border border-[#35383d]/35 bg-[#fffdf8] shadow-[0_-24px_65px_rgba(67,58,44,0.3)] sm:max-w-lg sm:shadow-[0_24px_65px_rgba(67,58,44,0.3)]"
+            className="relative z-10 max-h-[82dvh] w-full overflow-y-auto rounded-t-2xl border border-warm-border bg-paper shadow-[0_-24px_65px_rgba(67,58,44,0.3)] sm:max-w-lg sm:rounded-2xl sm:shadow-[0_24px_65px_rgba(67,58,44,0.3)]"
           >
-            <div className="flex items-start justify-between border-b border-[#35383d]/20 bg-[#f2eee1] p-5">
+            <div className="flex items-start justify-between border-b border-warm-border bg-parchment p-5">
               <div>
-                <p className="text-xs font-semibold tracking-[0.12em] text-[#5a5d61]">
+                <p className="text-xs font-semibold tracking-[0.12em] text-brown-accent">
                   LIVE CHANGE
                 </p>
                 <h2
                   id="change-bar-title"
-                  className="mt-1 text-xl font-semibold tracking-[-0.03em]"
+                  className="mt-1 font-editorial text-xl font-semibold tracking-[-0.03em]"
                 >
                   {option ? option.label : 'What happened?'}
                 </h2>
@@ -246,7 +246,7 @@ export function ChangeBar({
                 type="button"
                 onClick={close}
                 aria-label="Close change panel"
-                className="-mr-2 -mt-2 flex size-10 items-center justify-center text-[#35383d] hover:bg-[#e7e0cd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f3237]/30"
+                className="-mr-2 -mt-2 flex size-10 items-center justify-center rounded-lg text-ink hover:bg-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/30"
               >
                 <X className="size-5" aria-hidden="true" />
               </button>
@@ -260,7 +260,7 @@ export function ChangeBar({
                       key={type}
                       type="button"
                       onClick={() => selectType(type)}
-                      className="flex min-h-24 flex-col items-start justify-between border border-[#8b8170]/35 bg-[#fffdf8] p-4 text-left text-[#35383d] transition-colors hover:bg-[#f2eee1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f3237]/30 active:translate-y-px"
+                      className="flex min-h-24 flex-col items-start justify-between rounded-xl border border-warm-border bg-paper p-4 text-left text-ink transition-colors hover:bg-parchment focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/30 active:translate-y-px"
                     >
                       <Icon className="size-5" aria-hidden="true" />
                       <span className="text-sm font-semibold leading-5">
@@ -277,7 +277,7 @@ export function ChangeBar({
                       setActiveType(null);
                       setCapturedEvent(null);
                     }}
-                    className="mb-5 inline-flex items-center gap-1 text-sm font-semibold text-[#35383d] underline-offset-4 hover:underline"
+                    className="mb-5 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-warm-muted underline-offset-4 hover:text-ink hover:underline"
                   >
                     <ChevronLeft className="size-4" aria-hidden="true" />
                     All changes
@@ -355,7 +355,7 @@ export function ChangeBar({
                                   memberId: member.id,
                                 })
                               }
-                              className="border border-[#8b8170]/35 bg-[#fffdf8] px-4 py-3 text-left font-semibold text-[#35383d] hover:bg-[#f2eee1] active:translate-y-px"
+                              className="rounded-xl border border-warm-border bg-paper px-4 py-3 text-left font-semibold text-ink hover:bg-parchment active:translate-y-px"
                             >
                               {member.displayName}
                             </button>
@@ -363,7 +363,7 @@ export function ChangeBar({
                         </div>
                       ) : (
                         <div className="mt-4">
-                          <p className="text-sm leading-6 text-[#5a5d61]">
+                          <p className="text-sm leading-6 text-warm-muted">
                             Record the separation now. Member selection is
                             unavailable.
                           </p>
@@ -384,7 +384,7 @@ export function ChangeBar({
                         <p className="text-sm font-semibold">
                           Weather data is unavailable right now.
                         </p>
-                        <p className="mt-2 text-sm leading-6 text-[#5a5d61]">
+                        <p className="mt-2 text-sm leading-6 text-warm-muted">
                           Your Live Trip remains available. Please check again
                           shortly.
                         </p>
@@ -399,7 +399,7 @@ export function ChangeBar({
                           detected for your upcoming stops.
                         </p>
                         {weatherContext && (
-                          <p className="mt-2 text-sm leading-6 text-[#5a5d61]">
+                          <p className="mt-2 text-sm leading-6 text-warm-muted">
                             Upcoming: {weatherContext}
                           </p>
                         )}
@@ -459,11 +459,11 @@ export function ChangeBar({
                   )}
 
                   {capturedEvent && (
-                    <div className="mt-5 border-l-2 border-[#2f3237] bg-[#f2eee1] p-4">
+                    <div className="mt-5 rounded-xl border border-warm-border border-l-2 border-l-brown-accent bg-parchment p-4">
                       <p className="font-semibold">
                         {eventSummary(capturedEvent, members)}
                       </p>
-                      <p className="mt-1 text-sm leading-6 text-[#5a5d61]">
+                      <p className="mt-1 text-sm leading-6 text-warm-muted">
                         Schedule adjustment will be handled next.
                       </p>
                     </div>
@@ -494,15 +494,15 @@ function WeatherDisruptionChoice({
   const { item, weather } = disruption;
   return (
     <div>
-      <p className="text-xs font-semibold tracking-[0.12em] text-[#5a5d61]">
+      <p className="text-xs font-semibold tracking-[0.12em] text-brown-accent">
         WEATHER CHANGE AHEAD
       </p>
-      <div className="mt-3 border-l-2 border-[#2f3237] bg-[#f2eee1] p-4">
+      <div className="mt-3 rounded-xl border border-warm-border border-l-2 border-l-brown-accent bg-parchment p-4">
         <div className="flex items-baseline justify-between gap-3">
           <p className="font-semibold">{item.place.name}</p>
           <time className="font-mono text-sm">{item.plannedTime}</time>
         </div>
-        <p className="mt-2 text-sm text-[#5a5d61]">
+        <p className="mt-2 text-sm text-warm-muted">
           {weather.condition}
           {weather.precipitationProbability !== null
             ? ` · ${Math.round(weather.precipitationProbability)}% precipitation`
@@ -513,7 +513,7 @@ function WeatherDisruptionChoice({
         </p>
       </div>
       {laterCount > 0 && (
-        <p className="mt-3 text-sm text-[#5a5d61]">
+        <p className="mt-3 text-sm text-warm-muted">
           {laterCount} later stop{laterCount === 1 ? '' : 's'} may also be
           affected.
         </p>
@@ -525,7 +525,7 @@ function WeatherDisruptionChoice({
             key={minutes}
             type="button"
             onClick={() => onDelay(minutes)}
-            className="border border-[#35383d] bg-[#2f3237] px-3 py-3 text-sm font-semibold text-[#f8f4e8] hover:bg-[#1f2227]"
+            className="rounded-xl border border-ink bg-ink px-3 py-3 text-sm font-semibold text-paper hover:bg-ink/90"
           >
             +{minutes} min
           </button>
@@ -535,7 +535,7 @@ function WeatherDisruptionChoice({
         <button
           type="button"
           onClick={onSkip}
-          className="h-11 border border-[#35383d] px-4 text-sm font-semibold hover:bg-[#f2eee1]"
+          className="h-11 rounded-xl border border-warm-border px-4 text-sm font-semibold hover:bg-parchment"
         >
           Skip stop
         </button>
@@ -567,7 +567,7 @@ function SkipWeatherPreview({
   return (
     <div>
       <p className="text-sm font-semibold">Skip {item.place.name}</p>
-      <p className="mt-2 text-sm leading-6 text-[#5a5d61]">
+      <p className="mt-2 text-sm leading-6 text-warm-muted">
         Route and remaining schedule will be recalculated.
       </p>
       {error && (
@@ -623,7 +623,7 @@ function SchedulePreview({
       <p className="text-sm font-semibold">
         {event.minutes} minute schedule shift
       </p>
-      <p className="mt-2 text-sm leading-6 text-[#5a5d61]">
+      <p className="mt-2 text-sm leading-6 text-warm-muted">
         {event.type === 'stay_longer'
           ? `${schedule.current.place.name} ends ${formatTime(addMinutes(schedule.current.plannedTime, schedule.current.estimatedDurationMinutes))} → ${formatTime(addMinutes(schedule.current.plannedTime, schedule.current.estimatedDurationMinutes + event.minutes))}`
           : `${schedule.current.place.name} starts ${schedule.current.plannedTime} → ${formatTime(addMinutes(schedule.current.plannedTime, event.minutes))}`}
@@ -632,7 +632,7 @@ function SchedulePreview({
         {affected.slice(0, 4).map((item) => (
           <p key={item.id} className="text-sm">
             <span className="font-semibold">{item.place.name}</span>
-            <span className="text-[#5a5d61]">
+            <span className="text-warm-muted">
               {' '}
               {item.plannedTime} →{' '}
               {formatTime(addMinutes(item.plannedTime, event.minutes))}
@@ -693,7 +693,7 @@ function ChoiceCapture({
             key={minutes}
             type="button"
             onClick={() => onChoose(minutes)}
-            className="border border-[#35383d] bg-[#2f3237] px-3 py-4 text-sm font-semibold text-[#f8f4e8] hover:bg-[#1f2227] active:translate-y-px"
+            className="rounded-xl border border-ink bg-ink px-3 py-4 text-sm font-semibold text-paper hover:bg-ink/90 active:translate-y-px"
           >
             {prompt === 'How much longer?' ? '+' : ''}
             {minutes} {suffix}
@@ -727,7 +727,7 @@ function NoteCapture({
         {prompt}
       </label>
       {description && (
-        <p className="mt-2 text-sm leading-6 text-[#5a5d61]">{description}</p>
+        <p className="mt-2 text-sm leading-6 text-warm-muted">{description}</p>
       )}
       <Input
         id="trip-change-note"
@@ -735,7 +735,7 @@ function NoteCapture({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         maxLength={240}
-        className="mt-4 h-12 rounded-none border-[#35383d]/40 bg-[#fffdf8] px-4 focus-visible:border-[#2f3237] focus-visible:ring-[#2f3237]/20"
+        className="mt-4 h-12 rounded-xl border-warm-border bg-paper px-4 focus-visible:border-brown-accent focus-visible:ring-brown-accent/20"
       />
       <ActionButton className="mt-4" onClick={onSave} disabled={disabled}>
         Record change
@@ -760,7 +760,7 @@ function ActionButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`h-11 border border-[#35383d] bg-[#2f3237] px-4 text-sm font-semibold text-[#f8f4e8] hover:bg-[#1f2227] disabled:cursor-not-allowed disabled:opacity-45 active:translate-y-px ${className ?? ''}`}
+      className={`h-11 rounded-xl border border-ink bg-ink px-4 text-sm font-semibold text-paper hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-45 active:translate-y-px ${className ?? ''}`}
     >
       {children}
     </button>

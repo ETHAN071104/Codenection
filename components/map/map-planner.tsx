@@ -175,7 +175,7 @@ function MapCanvas({
 
   if (!initialItem) {
     return (
-      <div className="flex h-full min-h-[360px] items-center justify-center bg-[#e7e0cd] p-8 text-center text-warm-muted">
+      <div className="flex h-full min-h-[360px] items-center justify-center bg-warm-border p-8 text-center text-warm-muted">
         <div className="max-w-sm rounded-2xl border border-warm-border bg-paper/95 p-6 shadow-editorial">
           <MapPin
             className="mx-auto size-6 text-brown-accent"
@@ -866,7 +866,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
       <div className="lg:grid lg:h-[calc(100dvh-4rem)] lg:grid-cols-[minmax(0,7fr)_minmax(340px,3fr)]">
         <section
           aria-label={`${data.itinerary.destination} map`}
-          className="relative h-[48dvh] min-h-[360px] overflow-hidden bg-[#e7e0cd] lg:h-full lg:min-h-0"
+          className="relative h-[48dvh] min-h-[360px] overflow-hidden bg-warm-border lg:h-full lg:min-h-0"
         >
           <MapCanvas
             items={activeDay.items}
