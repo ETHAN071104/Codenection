@@ -30,6 +30,7 @@ import { ReadinessList } from './readiness-list';
 type SummaryScreen = 'loading' | 'locked' | 'ready' | 'error';
 
 type TripContext = {
+  created_by: string;
   destination: string | null;
   start_date: string | null;
   end_date: string | null;
@@ -75,13 +76,14 @@ export function GroupSummary({ tripId }: { tripId: string }) {
   const [summary, setSummary] = useState<GroupPreferenceSummary | null>(null);
   const [trip, setTrip] = useState<TripContext | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isHost, setIsHost] = useState(false);
 
   const loadSummary = useCallback(async () => {
     setScreen('loading');
     setError(null);
 
     try {
-      await ensureAnonymousUser();
+      const user = await ensureAnonymousUser();
       const supabase = getSupabaseBrowserClient();
       const [statusResult, membersResult, tripResult] = await Promise.all([
         supabase.rpc('get_questionnaire_status', { p_trip_id: tripId }),
@@ -91,7 +93,9 @@ export function GroupSummary({ tripId }: { tripId: string }) {
           .eq('trip_id', tripId),
         supabase
           .from('trips')
-          .select('destination, start_date, end_date, duration_days')
+          .select(
+            'created_by, destination, start_date, end_date, duration_days',
+          )
           .eq('id', tripId)
           .maybeSingle(),
       ]);
@@ -100,6 +104,7 @@ export function GroupSummary({ tripId }: { tripId: string }) {
       if (tripResult.error) throw tripResult.error;
 
       setTrip(tripResult.data);
+      setIsHost(tripResult.data?.created_by === user.id);
       const memberIds = new Map(
         (membersResult.data ?? []).map((member) => [member.id, member.user_id]),
       );
@@ -387,7 +392,7 @@ export function GroupSummary({ tripId }: { tripId: string }) {
                 'h-12 w-full rounded-xl bg-ink px-6 text-paper shadow-sm hover:bg-ink/90',
             })}
           >
-            Choose destination
+            {isHost ? 'Choose destination' : 'View trip setup'}
             <ArrowRight aria-hidden="true" />
           </Link>
           <div className="mt-4 text-center">

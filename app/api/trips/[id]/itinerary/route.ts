@@ -2,6 +2,7 @@ import type { Json } from '@/lib/supabase/database.types';
 import { getAuthenticatedSupabase } from '@/lib/supabase/server-auth';
 import {
   phase2ErrorResponse,
+  hostOnlyResponse,
   unauthorizedResponse,
   unavailableTripResponse,
 } from '@/lib/phase2/api-error';
@@ -29,7 +30,11 @@ export async function GET(
 
   try {
     const { id } = await context.params;
-    const data = await loadItineraryPageData(authenticated.supabase, id);
+    const data = await loadItineraryPageData(
+      authenticated.supabase,
+      id,
+      authenticated.user.id,
+    );
     return data ? Response.json(data) : unavailableTripResponse();
   } catch (error) {
     return phase2ErrorResponse(error);
@@ -64,10 +69,11 @@ export async function PATCH(
   const { id } = await context.params;
   const { data: trip, error: tripError } = await authenticated.supabase
     .from('trips')
-    .select('id, destination')
+    .select('id, created_by, destination')
     .eq('id', id)
     .maybeSingle();
   if (tripError || !trip) return unavailableTripResponse();
+  if (trip.created_by !== authenticated.user.id) return hostOnlyResponse();
   if (!trip.destination) {
     return Response.json(
       {
@@ -85,6 +91,8 @@ export async function PATCH(
     .update({
       exploration_preference: explorationPreference,
       geographic_scope: null,
+      planning_mode: null,
+      setup_stage: 'mode',
     })
     .eq('id', id)
     .select('id, destination, exploration_preference')
@@ -111,11 +119,14 @@ export async function POST(
     };
     const { data: trip, error: tripError } = await authenticated.supabase
       .from('trips')
-      .select('id, destination, duration_days, exploration_preference')
+      .select(
+        'id, created_by, destination, duration_days, exploration_preference',
+      )
       .eq('id', id)
       .maybeSingle();
     if (tripError) throw tripError;
     if (!trip) return unavailableTripResponse();
+    if (trip.created_by !== authenticated.user.id) return hostOnlyResponse();
     if (!trip.destination) throw new Error('DESTINATION_REQUIRED');
     const explorationPreference =
       body.explorationPreference === undefined
@@ -193,15 +204,28 @@ export async function POST(
       .update({
         exploration_preference: explorationPreference,
         geographic_scope: generated.geographicScope as unknown as Json,
+        planning_mode: 'ai',
+        setup_stage: 'ai_ready',
       })
       .eq('id', id);
     if (scopeSaveError) throw scopeSaveError;
 
-    const data = await loadItineraryPageData(authenticated.supabase, id);
+    const data = await loadItineraryPageData(
+      authenticated.supabase,
+      id,
+      authenticated.user.id,
+    );
     if (!data?.itinerary) throw new Error('ITINERARY_SAVE_FAILED');
 
     return Response.json({ ...data, metrics: generated.metrics });
   } catch (error) {
+    const { id } = await context.params;
+    await authenticated.supabase
+      .from('trips')
+      .update({ planning_mode: null, setup_stage: 'mode' })
+      .eq('id', id)
+      .eq('created_by', authenticated.user.id)
+      .eq('setup_stage', 'preparing');
     return phase2ErrorResponse(error);
   }
 }

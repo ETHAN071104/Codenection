@@ -36,7 +36,10 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 type CandidateResponse = {
   supported: boolean;
-  availability?: 'destination_required' | 'insufficient_candidates';
+  availability?:
+    | 'destination_required'
+    | 'insufficient_candidates'
+    | 'setup_preparing';
   destination: string;
   durationDays: number | null;
   candidates: RankedCandidate[];
@@ -210,6 +213,19 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
               schema: 'public',
               table: 'trip_place_votes',
               filter: `trip_id=eq.${tripId}`,
+            },
+            () => {
+              if (refreshTimer.current) clearTimeout(refreshTimer.current);
+              refreshTimer.current = setTimeout(() => void load(false), 120);
+            },
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'trips',
+              filter: `id=eq.${tripId}`,
             },
             () => {
               if (refreshTimer.current) clearTimeout(refreshTimer.current);
@@ -413,6 +429,16 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
   }
 
   if (!data?.supported) {
+    if (data?.availability === 'setup_preparing') {
+      return (
+        <JourneyShell tripId={tripId} currentStep="Places">
+          <SystemLoading
+            title={`Preparing places${data.destination ? ` for ${data.destination}` : ''}`}
+            description="The trip host is gathering the shared place choices. This page will update automatically."
+          />
+        </JourneyShell>
+      );
+    }
     const destinationRequired = data?.availability === 'destination_required';
     return (
       <JourneyShell tripId={tripId} currentStep="Places">

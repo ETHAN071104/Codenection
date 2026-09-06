@@ -68,3 +68,15 @@ export function unavailableTripResponse() {
     { status: 404 },
   );
 }
+
+export function hostOnlyResponse() {
+  return Response.json(
+    {
+      error: {
+        code: 'TRIP_HOST_REQUIRED',
+        message: 'Only the trip host can change the shared trip setup.',
+      },
+    },
+    { status: 403 },
+  );
+}

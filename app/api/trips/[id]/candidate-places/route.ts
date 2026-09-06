@@ -48,7 +48,7 @@ async function loadPhase9Plan(
     supabase
       .from('trips')
       .select(
-        'destination, duration_days, exploration_preference, geographic_scope',
+        'created_by, destination, duration_days, exploration_preference, geographic_scope, planning_mode, setup_stage',
       )
       .eq('id', tripId)
       .maybeSingle(),
@@ -83,6 +83,21 @@ async function loadPhase9Plan(
     return {
       supported: false as const,
       availability: 'destination_required' as const,
+      destination,
+      durationDays: tripResult.data.duration_days ?? null,
+      candidates: [],
+      selected: [],
+    };
+  }
+
+  if (
+    tripResult.data.planning_mode === 'collaborative' &&
+    tripResult.data.setup_stage === 'preparing' &&
+    tripResult.data.created_by !== userId
+  ) {
+    return {
+      supported: false as const,
+      availability: 'setup_preparing' as const,
       destination,
       durationDays: tripResult.data.duration_days ?? null,
       candidates: [],
@@ -135,6 +150,10 @@ async function loadPhase9Plan(
       selected: [],
       candidateSource,
       googlePlacesCalls,
+      resetCollaborativeSetup:
+        tripResult.data.created_by === userId &&
+        tripResult.data.planning_mode === 'collaborative' &&
+        tripResult.data.setup_stage === 'preparing',
     };
   }
 
@@ -178,6 +197,10 @@ async function loadPhase9Plan(
     draftSchedule,
     candidateSource,
     googlePlacesCalls,
+    markCollaborativeReady:
+      tripResult.data.created_by === userId &&
+      tripResult.data.planning_mode === 'collaborative' &&
+      tripResult.data.setup_stage === 'preparing',
   };
 }
 
@@ -200,7 +223,33 @@ export async function GET(
     if (!plan) {
       return unavailable('This trip is unavailable.', 404, 'TRIP_UNAVAILABLE');
     }
-    if (!plan.supported) return Response.json(plan);
+    if (!plan.supported) {
+      if (
+        'resetCollaborativeSetup' in plan &&
+        plan.resetCollaborativeSetup
+      ) {
+        const { error: resetError } = await authenticated.supabase
+          .from('trips')
+          .update({ planning_mode: null, setup_stage: 'mode' })
+          .eq('id', id)
+          .eq('created_by', authenticated.user.id);
+        if (resetError) throw resetError;
+      }
+      return Response.json({
+        ...plan,
+        resetCollaborativeSetup: undefined,
+      });
+    }
+
+    if (plan.markCollaborativeReady) {
+      const { error: readyError } = await authenticated.supabase
+        .from('trips')
+        .update({ setup_stage: 'collaborative_ready' })
+        .eq('id', id)
+        .eq('created_by', authenticated.user.id)
+        .eq('planning_mode', 'collaborative');
+      if (readyError) throw readyError;
+    }
 
     const scheduleFingerprint = createScheduleFingerprint(
       plan.draftSchedule,
@@ -230,12 +279,21 @@ export async function GET(
 
     return Response.json({
       ...plan,
+      markCollaborativeReady: undefined,
       scheduleFingerprint,
       hasPersistedItinerary,
       scheduleMatchesPersistedItinerary,
       confirmationIssue,
     });
   } catch (error) {
+    const { id } = await context.params;
+    await authenticated.supabase
+      .from('trips')
+      .update({ planning_mode: null, setup_stage: 'mode' })
+      .eq('id', id)
+      .eq('created_by', authenticated.user.id)
+      .eq('planning_mode', 'collaborative')
+      .eq('setup_stage', 'preparing');
     const message =
       error instanceof Phase2ProviderError
         ? error.code === 'GOOGLE_PLACES_UNAVAILABLE'

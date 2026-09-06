@@ -1,6 +1,7 @@
 import { getAuthenticatedSupabase } from '@/lib/supabase/server-auth';
 import {
   phase2ErrorResponse,
+  hostOnlyResponse,
   unauthorizedResponse,
   unavailableTripResponse,
 } from '@/lib/phase2/api-error';
@@ -46,11 +47,12 @@ export async function POST(
     const { id } = await context.params;
     const { data: trip, error: tripError } = await authenticated.supabase
       .from('trips')
-      .select('id, destination, duration_days')
+      .select('id, created_by, destination, duration_days')
       .eq('id', id)
       .maybeSingle();
     if (tripError) throw tripError;
     if (!trip) return unavailableTripResponse();
+    if (trip.created_by !== authenticated.user.id) return hostOnlyResponse();
     if (trip.destination && body?.replaceExisting !== true) {
       return Response.json({
         suggestion: {

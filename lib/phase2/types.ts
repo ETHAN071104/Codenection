@@ -124,6 +124,10 @@ export type ItineraryPageData = {
     endDate: string | null;
     explorationPreference: ExplorationPreference;
     geographicScope: GeographicScope | null;
+    planningMode: import('@/lib/trips/setup-core').TripPlanningMode | null;
+    setupStage: import('@/lib/trips/setup-core').TripSetupStage;
+    isHost: boolean;
+    hostDisplayName: string | null;
   };
   itinerary: ItineraryView | null;
 };

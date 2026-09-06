@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
+  Check,
   Clock3,
   LoaderCircle,
   MapPin,
@@ -21,6 +22,9 @@ import {
 import { AtlasShell } from '@/components/travel-dna/atlas-shell';
 import { formatTripDuration } from '@/lib/trips/duration';
 import { phase2Fetch } from '@/lib/phase2/client';
+import { ensureAnonymousUser } from '@/lib/supabase/auth';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { hasConfirmedScope } from '@/lib/trips/setup-core';
 import type {
   DestinationSuggestion,
   ExplorationPreference,
@@ -35,6 +39,7 @@ type PendingAction =
   | 'suggest'
   | 'accept'
   | 'scope'
+  | 'mode'
   | 'generate'
   | null;
 
@@ -63,6 +68,102 @@ const EXPLORATION_OPTIONS: {
     description: 'Cover a wider practical area from one base.',
   },
 ];
+
+function explorationLabel(value: ExplorationPreference) {
+  return EXPLORATION_OPTIONS.find((option) => option.value === value)?.label;
+}
+
+function HostSetupWaiting({
+  tripId,
+  data,
+}: {
+  tripId: string;
+  data: ItineraryPageData;
+}) {
+  const { trip } = data;
+  const organiser = trip.hostDisplayName || 'Your trip organiser';
+  const scopeReady = hasConfirmedScope(trip.setupStage);
+  const collaborativeReady = trip.setupStage === 'collaborative_ready';
+  const aiReady = trip.setupStage === 'ai_ready' && Boolean(data.itinerary);
+  const preparing = trip.setupStage === 'preparing';
+
+  return (
+    <AtlasShell tripId={tripId} sectionLabel="TRIP SETUP">
+      <section className="mx-auto w-full max-w-3xl rounded-2xl border border-warm-border bg-paper p-6 shadow-[var(--journey-shadow)] sm:p-10">
+        <p className="text-xs font-semibold tracking-[0.16em] text-brown-accent">
+          SHARED TRIP SETUP
+        </p>
+        <h1 className="mt-4 font-editorial text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">
+          {trip.isHost ? 'Your shared setup is in progress' : `${organiser} is setting up the trip`}
+        </h1>
+        <p className="mt-5 max-w-2xl leading-7 text-warm-muted">
+          {trip.isHost
+            ? 'Keep this page open while the shared plan is being prepared.'
+            : 'The trip host is making the shared choices. This page updates automatically.'}
+        </p>
+
+        <dl className="mt-8 divide-y divide-warm-border rounded-xl border border-warm-border bg-parchment px-5">
+          <div className="flex items-center justify-between gap-4 py-4">
+            <dt className="text-sm font-semibold text-warm-muted">Destination</dt>
+            <dd className="inline-flex items-center gap-2 text-right font-semibold text-ink">
+              {trip.destination || 'Waiting…'}
+              {trip.destination && <Check className="size-4 text-brown-accent" aria-hidden="true" />}
+            </dd>
+          </div>
+          <div className="flex items-center justify-between gap-4 py-4">
+            <dt className="text-sm font-semibold text-warm-muted">Travel range</dt>
+            <dd className="inline-flex items-center gap-2 text-right font-semibold text-ink">
+              {scopeReady
+                ? explorationLabel(trip.explorationPreference)
+                : 'Waiting…'}
+              {scopeReady && <Check className="size-4 text-brown-accent" aria-hidden="true" />}
+            </dd>
+          </div>
+          <div className="flex items-center justify-between gap-4 py-4">
+            <dt className="text-sm font-semibold text-warm-muted">Planning style</dt>
+            <dd className="inline-flex items-center gap-2 text-right font-semibold text-ink">
+              {trip.planningMode === 'collaborative'
+                ? 'Choose places together'
+                : trip.planningMode === 'ai'
+                  ? 'Plan it for me with AI'
+                  : 'Waiting…'}
+              {trip.planningMode && <Check className="size-4 text-brown-accent" aria-hidden="true" />}
+            </dd>
+          </div>
+        </dl>
+
+        {preparing && (
+          <SystemNotice
+            className="mt-6"
+            title={
+              trip.planningMode === 'collaborative'
+                ? `Preparing places${trip.destination ? ` for ${trip.destination}` : ''}…`
+                : 'Preparing the shared itinerary…'
+            }
+            description="Your saved trip details are safe. This status will update when the next step is ready."
+          />
+        )}
+
+        {(collaborativeReady || aiReady) && (
+          <Link
+            href={
+              collaborativeReady
+                ? `/trip/${tripId}/places`
+                : `/trip/${tripId}/itinerary?step=result`
+            }
+            className={buttonVariants({
+              className:
+                'mt-7 h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90',
+            })}
+          >
+            {collaborativeReady ? 'Continue to choose places' : 'View generated plan'}
+            <ArrowRight aria-hidden="true" />
+          </Link>
+        )}
+      </section>
+    </AtlasShell>
+  );
+}
 
 function ItineraryResult({ itinerary }: { itinerary: ItineraryView }) {
   const placeCount = itinerary.days.reduce(
@@ -198,8 +299,8 @@ export function ItineraryPlanner({
     else router.push(href);
   }
 
-  const load = useCallback(async () => {
-    setScreen('loading');
+  const load = useCallback(async (showLoading = true) => {
+    if (showLoading) setScreen('loading');
     setError(null);
     try {
       const payload = await phase2Fetch<ItineraryPageData>(
@@ -226,13 +327,46 @@ export function ItineraryPlanner({
           ? loadError.message
           : 'We could not load this itinerary.',
       );
-      setScreen('error');
+      if (showLoading) setScreen('error');
     }
   }, [tripId]);
 
   useEffect(() => {
-    void Promise.resolve().then(load);
+    void Promise.resolve().then(() => load(true));
   }, [load]);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    let disposed = false;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    void ensureAnonymousUser().then(() => {
+      if (disposed) return;
+      channel = supabase
+        .channel(`trip-setup:${tripId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'trips',
+            filter: `id=eq.${tripId}`,
+          },
+          () => {
+            if (refreshTimer) clearTimeout(refreshTimer);
+            refreshTimer = setTimeout(() => void load(false), 120);
+          },
+        )
+        .subscribe();
+    });
+
+    return () => {
+      disposed = true;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      if (channel) void supabase.removeChannel(channel);
+    };
+  }, [load, tripId]);
 
   async function saveDestination(destination: string, input: string | null) {
     if (!data) return;
@@ -249,6 +383,8 @@ export function ItineraryPlanner({
         ...data.trip,
         destination: payload.destination,
         destinationInput: payload.destinationInput,
+        planningMode: null,
+        setupStage: 'scope',
       },
     });
     setSuggestion(null);
@@ -336,6 +472,8 @@ export function ItineraryPlanner({
           ...data.trip,
           explorationPreference: payload.explorationPreference,
           geographicScope: null,
+          planningMode: null,
+          setupStage: 'mode',
         },
       });
       goToStep('mode');
@@ -354,6 +492,10 @@ export function ItineraryPlanner({
     setPendingAction('generate');
     setError(null);
     try {
+      await phase2Fetch(`/api/trips/${tripId}/setup`, {
+        method: 'PATCH',
+        body: JSON.stringify({ planningMode: 'ai' }),
+      });
       const payload = await phase2Fetch<ItineraryPageData>(
         `/api/trips/${tripId}/itinerary`,
         {
@@ -370,6 +512,25 @@ export function ItineraryPlanner({
           : 'We could not generate this itinerary.',
       );
     } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function startCollaborativePlanning() {
+    setPendingAction('mode');
+    setError(null);
+    try {
+      await phase2Fetch(`/api/trips/${tripId}/setup`, {
+        method: 'PATCH',
+        body: JSON.stringify({ planningMode: 'collaborative' }),
+      });
+      router.push(`/trip/${tripId}/places`);
+    } catch (actionError) {
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : 'We could not start collaborative planning.',
+      );
       setPendingAction(null);
     }
   }
@@ -422,6 +583,10 @@ export function ItineraryPlanner({
         />
       </AtlasShell>
     );
+  }
+
+  if (!data.trip.isHost || data.trip.setupStage === 'preparing') {
+    return <HostSetupWaiting tripId={tripId} data={data} />;
   }
 
   if (planningStep === 'result' && data.itinerary) {
@@ -752,8 +917,10 @@ export function ItineraryPlanner({
               the existing AI planner to prepare a grounded itinerary now.
             </p>
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
-              <Link
-                href={`/trip/${tripId}/places`}
+              <button
+                type="button"
+                onClick={() => void startCollaborativePlanning()}
+                disabled={pendingAction !== null}
                 className="group rounded-2xl border border-ink bg-ink p-6 text-paper transition-colors hover:bg-ink/90"
               >
                 <span className="block text-xs font-semibold tracking-[0.12em] text-paper/65">
@@ -767,13 +934,13 @@ export function ItineraryPlanner({
                   selected places into a deterministic schedule.
                 </span>
                 <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold">
-                  Start choosing
+                  {pendingAction === 'mode' ? 'Preparing places' : 'Start choosing'}
                   <ArrowRight
                     className="transition-transform group-hover:translate-x-1"
                     aria-hidden="true"
                   />
                 </span>
-              </Link>
+              </button>
               <button
                 type="button"
                 onClick={() => void generateItinerary()}

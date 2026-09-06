@@ -9,6 +9,11 @@ import type {
   ItineraryPlace,
 } from './types';
 import { parseGeographicScope } from './validation';
+import {
+  canControlTripSetup,
+  parseTripPlanningMode,
+  parseTripSetupStage,
+} from '@/lib/trips/setup-core';
 
 function explorationPreference(value: string): ExplorationPreference {
   return value === 'stay_local' ||
@@ -21,16 +26,25 @@ function explorationPreference(value: string): ExplorationPreference {
 export async function loadItineraryPageData(
   supabase: SupabaseClient<Database>,
   tripId: string,
+  currentUserId?: string,
 ): Promise<ItineraryPageData | null> {
   const { data: trip, error: tripError } = await supabase
     .from('trips')
     .select(
-      'id, destination, destination_input, duration_days, start_date, end_date, exploration_preference, geographic_scope',
+      'id, created_by, destination, destination_input, duration_days, start_date, end_date, exploration_preference, geographic_scope, planning_mode, setup_stage',
     )
     .eq('id', tripId)
     .maybeSingle();
   if (tripError) throw tripError;
   if (!trip) return null;
+
+  const { data: hostMember, error: hostError } = await supabase
+    .from('trip_members')
+    .select('display_name')
+    .eq('trip_id', tripId)
+    .eq('user_id', trip.created_by)
+    .maybeSingle();
+  if (hostError) throw hostError;
 
   const { data: itemRows, error: itemError } = await supabase
     .from('itinerary_items')
@@ -109,6 +123,12 @@ export async function loadItineraryPageData(
     endDate: trip.end_date,
     explorationPreference: explorationPreference(trip.exploration_preference),
     geographicScope,
+    planningMode: parseTripPlanningMode(trip.planning_mode),
+    setupStage: parseTripSetupStage(trip.setup_stage),
+    isHost: currentUserId
+      ? canControlTripSetup(trip.created_by, currentUserId)
+      : false,
+    hostDisplayName: hostMember?.display_name ?? null,
   };
 
   if (items.length === 0 || !trip.destination) {

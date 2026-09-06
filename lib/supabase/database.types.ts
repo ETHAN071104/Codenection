@@ -21,6 +21,8 @@ type TripRow = {
   destination_input: string | null;
   exploration_preference: string;
   geographic_scope: Json | null;
+  planning_mode: string | null;
+  setup_stage: string;
   start_date: string | null;
   end_date: string | null;
   duration_days: number | null;
@@ -36,6 +38,8 @@ type TripInsert = {
   destination_input?: string | null;
   exploration_preference?: string;
   geographic_scope?: Json | null;
+  planning_mode?: string | null;
+  setup_stage?: string;
   start_date?: string | null;
   end_date?: string | null;
   duration_days?: number | null;
