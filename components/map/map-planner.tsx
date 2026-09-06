@@ -16,6 +16,8 @@ import {
   CloudSun,
   GripVertical,
   MapPin,
+  PlaneLanding,
+  PlaneTakeoff,
   Plus,
   Route,
   Star,
@@ -59,6 +61,11 @@ import { AiEditPanel } from '@/components/map/ai-edit-panel';
 import { cn } from '@/lib/utils';
 import { phase2Fetch } from '@/lib/phase2/client';
 import type { ItineraryItemView, ItineraryPageData } from '@/lib/phase2/types';
+import type { TripEndpoint } from '@/lib/trips/travel-boundaries';
+import {
+  ARRIVAL_ENDPOINT_ID,
+  DEPARTURE_ENDPOINT_ID,
+} from '@/lib/routing/route-points-core';
 import type { RouteSegment, TripRoute } from '@/lib/routing/types';
 import type {
   PlannerMutationResponse,
@@ -115,8 +122,17 @@ function getRouteCacheKey(
   tripId: string,
   dayNumber: number,
   items: ItineraryItemView[],
+  endpoints?: { arrival?: TripEndpoint | null; departure?: TripEndpoint | null },
 ) {
-  return `${tripId}:${dayNumber}:${items
+  const endpointKey = [
+    endpoints?.arrival
+      ? `arrival:${endpoints.arrival.googlePlaceId}:${endpoints.arrival.longitude},${endpoints.arrival.latitude}`
+      : '',
+    endpoints?.departure
+      ? `departure:${endpoints.departure.googlePlaceId}:${endpoints.departure.longitude},${endpoints.departure.latitude}`
+      : '',
+  ].join('|');
+  return `${tripId}:${dayNumber}:${endpointKey}:${items
     .map(
       (item) =>
         `${item.id}:${item.place.longitude ?? 'missing'},${item.place.latitude ?? 'missing'}`,
@@ -124,25 +140,62 @@ function getRouteCacheKey(
     .join('|')}`;
 }
 
-function MapDayViewport({ items }: { items: ItineraryItemView[] }) {
+function getDayEndpoints(
+  data: ItineraryPageData | null,
+  dayNumber: number,
+) {
+  const days = data?.itinerary?.days ?? [];
+  return {
+    arrival:
+      dayNumber === days[0]?.day ? (data?.trip.arrivalPoint ?? null) : null,
+    departure:
+      dayNumber === days.at(-1)?.day
+        ? (data?.trip.departurePoint ?? null)
+        : null,
+  };
+}
+
+function MapDayViewport({
+  items,
+  arrivalPoint,
+  departurePoint,
+}: {
+  items: ItineraryItemView[];
+  arrivalPoint: TripEndpoint | null;
+  departurePoint: TripEndpoint | null;
+}) {
   const { map, isLoaded } = useMap();
-  const validItems = useMemo(() => items.filter(hasValidCoordinates), [items]);
+  const coordinates = useMemo(
+    () => [
+      ...(arrivalPoint
+        ? [{ longitude: arrivalPoint.longitude, latitude: arrivalPoint.latitude }]
+        : []),
+      ...items.filter(hasValidCoordinates).map((item) => ({
+        longitude: item.place.longitude!,
+        latitude: item.place.latitude!,
+      })),
+      ...(departurePoint
+        ? [{ longitude: departurePoint.longitude, latitude: departurePoint.latitude }]
+        : []),
+    ],
+    [arrivalPoint, departurePoint, items],
+  );
 
   useEffect(() => {
-    if (!map || !isLoaded || validItems.length === 0) return;
+    if (!map || !isLoaded || coordinates.length === 0) return;
 
-    if (validItems.length === 1) {
-      const item = validItems[0];
+    if (coordinates.length === 1) {
+      const point = coordinates[0];
       map.easeTo({
-        center: [item.place.longitude!, item.place.latitude!],
+        center: [point.longitude, point.latitude],
         zoom: 13,
         duration: 550,
       });
       return;
     }
 
-    const longitudes = validItems.map((item) => item.place.longitude!);
-    const latitudes = validItems.map((item) => item.place.latitude!);
+    const longitudes = coordinates.map((point) => point.longitude);
+    const latitudes = coordinates.map((point) => point.latitude);
     map.fitBounds(
       [
         [Math.min(...longitudes), Math.min(...latitudes)],
@@ -154,7 +207,7 @@ function MapDayViewport({ items }: { items: ItineraryItemView[] }) {
         duration: 550,
       },
     );
-  }, [isLoaded, map, validItems]);
+  }, [coordinates, isLoaded, map]);
 
   return null;
 }
@@ -162,18 +215,34 @@ function MapDayViewport({ items }: { items: ItineraryItemView[] }) {
 function MapCanvas({
   items,
   route,
+  arrivalPoint,
+  departurePoint,
   selectedItemId,
   onSelect,
 }: {
   items: ItineraryItemView[];
   route: TripRoute | null;
+  arrivalPoint: TripEndpoint | null;
+  departurePoint: TripEndpoint | null;
   selectedItemId: string | null;
   onSelect: (itemId: string, scrollToCard?: boolean) => void;
 }) {
   const validItems = items.filter(hasValidCoordinates);
-  const initialItem = validItems[0];
+  const sameEndpoint =
+    arrivalPoint !== null &&
+    departurePoint?.googlePlaceId === arrivalPoint.googlePlaceId;
+  const initialPoint = arrivalPoint
+    ? { longitude: arrivalPoint.longitude, latitude: arrivalPoint.latitude }
+    : validItems[0]
+      ? {
+          longitude: validItems[0].place.longitude!,
+          latitude: validItems[0].place.latitude!,
+        }
+      : departurePoint
+        ? { longitude: departurePoint.longitude, latitude: departurePoint.latitude }
+        : null;
 
-  if (!initialItem) {
+  if (!initialPoint) {
     return (
       <div className="flex h-full min-h-[360px] items-center justify-center bg-warm-border p-8 text-center text-warm-muted">
         <div className="max-w-sm rounded-2xl border border-warm-border bg-paper/95 p-6 shadow-editorial">
@@ -195,12 +264,16 @@ function MapCanvas({
 
   return (
     <Mapcn
-      center={[initialItem.place.longitude!, initialItem.place.latitude!]}
+      center={[initialPoint.longitude, initialPoint.latitude]}
       zoom={12}
       theme="light"
       className="h-full min-h-[360px]"
     >
-      <MapDayViewport items={items} />
+      <MapDayViewport
+        items={items}
+        arrivalPoint={arrivalPoint}
+        departurePoint={departurePoint}
+      />
       {route?.geometry && (
         <MapRoute
           id="saved-driving-route"
@@ -212,6 +285,50 @@ function MapCanvas({
         />
       )}
       <MapControls />
+      {arrivalPoint && (
+        <MapMarker
+          longitude={arrivalPoint.longitude}
+          latitude={arrivalPoint.latitude}
+        >
+          <MarkerContent>
+            <div
+              className="flex size-10 items-center justify-center rounded-full border-2 border-paper bg-brown-accent text-paper shadow-[0_6px_16px_rgb(55_43_34/28%)]"
+              aria-label={`${sameEndpoint ? 'Arrival and departure' : 'Arrival'} point: ${arrivalPoint.name}`}
+            >
+              <PlaneLanding className="size-4" aria-hidden="true" />
+            </div>
+          </MarkerContent>
+          <MarkerPopup closeButton>
+            <div className="min-w-48 p-1 text-ink">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-brown-accent">{sameEndpoint ? 'Arrival and departure point' : 'Arrival point'}</p>
+              <p className="mt-1 font-semibold">{arrivalPoint.name}</p>
+              {arrivalPoint.address && <p className="mt-2 text-sm text-warm-muted">{arrivalPoint.address}</p>}
+            </div>
+          </MarkerPopup>
+        </MapMarker>
+      )}
+      {departurePoint && !sameEndpoint && (
+        <MapMarker
+          longitude={departurePoint.longitude}
+          latitude={departurePoint.latitude}
+        >
+          <MarkerContent>
+            <div
+              className="flex size-10 items-center justify-center rounded-full border-2 border-paper bg-ink text-paper shadow-[0_6px_16px_rgb(55_43_34/28%)]"
+              aria-label={`Departure point: ${departurePoint.name}`}
+            >
+              <PlaneTakeoff className="size-4" aria-hidden="true" />
+            </div>
+          </MarkerContent>
+          <MarkerPopup closeButton>
+            <div className="min-w-48 p-1 text-ink">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-brown-accent">Departure point</p>
+              <p className="mt-1 font-semibold">{departurePoint.name}</p>
+              {departurePoint.address && <p className="mt-2 text-sm text-warm-muted">{departurePoint.address}</p>}
+            </div>
+          </MarkerPopup>
+        </MapMarker>
+      )}
       {validItems.map((item, index) => {
         const selected = item.id === selectedItemId;
         return (
@@ -507,6 +624,9 @@ export function MapPlanner({ tripId }: { tripId: string }) {
   const days = data?.itinerary?.days ?? [];
   const activeDay =
     days.find((day) => day.day === selectedDay) ?? days[0] ?? null;
+  const activeEndpoints = activeDay
+    ? getDayEndpoints(data, activeDay.day)
+    : { arrival: null, departure: null };
   const realtimeMembers = useTripRealtime({
     tripId,
     editingItemId: selectedItemId,
@@ -520,16 +640,25 @@ export function MapPlanner({ tripId }: { tripId: string }) {
         .find((item) => item.id === activeEditor.editingItemId)?.place.name
     : null;
   const routeKey = activeDay
-    ? getRouteCacheKey(tripId, activeDay.day, activeDay.items)
+    ? getRouteCacheKey(
+        tripId,
+        activeDay.day,
+        activeDay.items,
+        activeEndpoints,
+      )
     : null;
 
   const loadRoute = useCallback(
     async (day: { day: number; items: ItineraryItemView[] }) => {
-      const key = getRouteCacheKey(tripId, day.day, day.items);
+      const endpoints = getDayEndpoints(data, day.day);
+      const key = getRouteCacheKey(tripId, day.day, day.items, endpoints);
       activeRouteKey.current = key;
 
-      const validItemCount = day.items.filter(hasValidCoordinates).length;
-      if (validItemCount < 2) {
+      const validPointCount =
+        day.items.filter(hasValidCoordinates).length +
+        (endpoints.arrival ? 1 : 0) +
+        (endpoints.departure ? 1 : 0);
+      if (validPointCount < 2) {
         const emptyRoute: TripRoute = {
           geometry: null,
           totalDistanceMeters: 0,
@@ -570,7 +699,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
         routeRequests.current.delete(key);
       }
     },
-    [tripId],
+    [data, tripId],
   );
 
   useEffect(() => {
@@ -636,7 +765,12 @@ export function MapPlanner({ tripId }: { tripId: string }) {
       (day) => day.day === result.day,
     );
     if (updatedDay) {
-      const key = getRouteCacheKey(tripId, result.day, updatedDay.items);
+      const key = getRouteCacheKey(
+        tripId,
+        result.day,
+        updatedDay.items,
+        getDayEndpoints(result.data, result.day),
+      );
       routeCache.current.set(key, result.route);
       activeRouteKey.current = key;
       setRouteState({ key, status: 'ready', route: result.route });
@@ -659,7 +793,12 @@ export function MapPlanner({ tripId }: { tripId: string }) {
     const reorderedItems = arrayMove(previousItems, fromIndex, toIndex).map(
       (item, index) => ({ ...item, sortOrder: index }),
     );
-    const oldRouteKey = getRouteCacheKey(tripId, activeDay.day, previousItems);
+    const oldRouteKey = getRouteCacheKey(
+      tripId,
+      activeDay.day,
+      previousItems,
+      activeEndpoints,
+    );
 
     setData((current) => {
       if (!current?.itinerary) return current;
@@ -871,6 +1010,8 @@ export function MapPlanner({ tripId }: { tripId: string }) {
           <MapCanvas
             items={activeDay.items}
             route={route}
+            arrivalPoint={activeEndpoints.arrival}
+            departurePoint={activeEndpoints.departure}
             selectedItemId={selectedItemId}
             onSelect={selectItem}
           />
@@ -1028,6 +1169,36 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                   items={activeDay.items.map((item) => item.id)}
                   strategy={verticalListSortingStrategy}
                 >
+                  {(activeEndpoints.arrival ||
+                    (activeDay.day === days[0]?.day &&
+                      data.trip.arrivalTime)) && (
+                    <div className="border-b border-warm-border bg-[#fcfaf6] px-5 py-4 sm:px-6">
+                      <div className="flex items-start gap-3">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brown-accent text-paper">
+                          <PlaneLanding className="size-4" aria-hidden="true" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.13em] text-brown-accent">
+                            Arrive{data.trip.arrivalTime ? ` · ${data.trip.arrivalTime}` : ''}
+                          </p>
+                          {activeEndpoints.arrival && (
+                            <p className="mt-1 font-editorial text-base font-medium text-ink">
+                              {activeEndpoints.arrival.name}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <TravelSegment
+                        segment={
+                          activeDay.items[0]
+                            ? (routeSegments.get(
+                                `${ARRIVAL_ENDPOINT_ID}:${activeDay.items[0].id}`,
+                              ) ?? null)
+                            : null
+                        }
+                      />
+                    </div>
+                  )}
                   {activeDay.items.map((item, index) => {
                     const nextItem = activeDay.items[index + 1];
                     const segment = nextItem
@@ -1051,6 +1222,36 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                       />
                     );
                   })}
+                  {(activeEndpoints.departure ||
+                    (activeDay.day === days.at(-1)?.day &&
+                      data.trip.departureTime)) && (
+                    <div className="bg-[#fcfaf6]">
+                      <TravelSegment
+                        segment={
+                          activeDay.items.at(-1)
+                            ? (routeSegments.get(
+                                `${activeDay.items.at(-1)!.id}:${DEPARTURE_ENDPOINT_ID}`,
+                              ) ?? null)
+                            : null
+                        }
+                      />
+                      <div className="flex items-start gap-3 px-5 py-4 sm:px-6">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-ink text-paper">
+                          <PlaneTakeoff className="size-4" aria-hidden="true" />
+                        </span>
+                        <div className="min-w-0">
+                          {activeEndpoints.departure && (
+                            <p className="font-editorial text-base font-medium text-ink">
+                              {activeEndpoints.departure.name}
+                            </p>
+                          )}
+                          <p className="mt-1 text-[0.68rem] font-semibold uppercase tracking-[0.13em] text-brown-accent">
+                            Depart{data.trip.departureTime ? ` · ${data.trip.departureTime}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </SortableContext>
               </DndContext>
             </div>

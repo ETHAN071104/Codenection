@@ -4,6 +4,10 @@ import {
   compareConsensusPriority,
   consensusPriorityTier,
 } from './consensus-core';
+import {
+  parseTimeMinutes,
+  type TripTimeConstraints,
+} from '@/lib/trips/travel-boundaries';
 
 export const DRAFT_SCHEDULE_WINDOW = {
   startMinutes: 9 * 60,
@@ -114,7 +118,10 @@ function isFoodRelated(place: DayClusterSelection) {
   return /food|market|restaurant|cafe|hawker|dining/.test(values);
 }
 
-function transitionMinutes(from: Coordinate | null, to: Coordinate | null) {
+export function approximateTransitionMinutes(
+  from: Coordinate | null,
+  to: Coordinate | null,
+) {
   if (!from || !to) return 20;
   const distanceKm = haversineDistanceKm(from, to);
   if (distanceKm <= 1) return 10;
@@ -195,6 +202,7 @@ export function createDeterministicDraftSchedule(
   grouping: GeographicDayClustering,
   knownPlaces: CandidatePlace[],
   recommendedStayArea: string | null,
+  constraints?: TripTimeConstraints,
 ): DeterministicDraftSchedule {
   const stayOrigin = centroidForArea(recommendedStayArea, knownPlaces);
   let scheduledPlaceCount = 0;
@@ -203,20 +211,57 @@ export function createDeterministicDraftSchedule(
     const breaks: DraftScheduleBreak[] = [];
     const items: DraftScheduleItem[] = [];
     const overflow: DraftScheduleOverflow[] = [];
-    const origin = stayOrigin ?? fallbackOrigin(group.places);
+    const isFirstDay = group.day === 1;
+    const isFinalDay = group.day === grouping.activeDays;
+    const arrivalMinutes = isFirstDay
+      ? parseTimeMinutes(constraints?.arrivalTime)
+      : null;
+    const departureMinutes = isFinalDay
+      ? parseTimeMinutes(constraints?.departureTime)
+      : null;
+    const arrivalOrigin =
+      isFirstDay && arrivalMinutes !== null && constraints?.arrivalPoint
+        ? {
+            latitude: constraints.arrivalPoint.latitude,
+            longitude: constraints.arrivalPoint.longitude,
+          }
+        : null;
+    const departureTarget =
+      isFinalDay && departureMinutes !== null && constraints?.departurePoint
+        ? {
+            latitude: constraints.departurePoint.latitude,
+            longitude: constraints.departurePoint.longitude,
+          }
+        : null;
+    const origin =
+      arrivalOrigin ?? stayOrigin ?? fallbackOrigin(group.places);
     const ordered = orderedPlaces(group.places, origin);
-    let current = DRAFT_SCHEDULE_WINDOW.startMinutes;
+    const dayEnd = Math.min(
+      DRAFT_SCHEDULE_WINDOW.endMinutes,
+      departureMinutes ?? DRAFT_SCHEDULE_WINDOW.endMinutes,
+    );
+    const dayStart = Math.max(
+      DRAFT_SCHEDULE_WINDOW.startMinutes,
+      arrivalMinutes ?? DRAFT_SCHEDULE_WINDOW.startMinutes,
+    );
+    let current = dayStart;
     let previous: DayClusterSelection | null = null;
     for (const place of ordered) {
       const duration = durationFor(place);
       const priorCoordinate = previous && hasCoordinates(previous) ? previous : origin;
       const targetCoordinate = hasCoordinates(place) ? place : null;
-      const transition = transitionMinutes(priorCoordinate, targetCoordinate);
+      const transition =
+        !previous && arrivalMinutes !== null && !arrivalOrigin
+          ? 0
+          : approximateTransitionMinutes(priorCoordinate, targetCoordinate);
       let start = Math.max(current + transition, preferredStart(place));
       const afterBreak = addBreakIfNeeded(breaks, current, start, place);
       if (afterBreak !== current) start = Math.max(afterBreak + transition, preferredStart(place));
-      if (start + duration.minutes > DRAFT_SCHEDULE_WINDOW.endMinutes) {
-        overflow.push({ placeId: place.id, name: place.name, durationMinutes: duration.minutes, reason: 'Could not fit inside the 09:00–21:00 draft window after higher-priority places, estimated buffers, and meal windows.' });
+      const departureTransition = departureTarget
+        ? approximateTransitionMinutes(targetCoordinate, departureTarget)
+        : 0;
+      if (start + duration.minutes + departureTransition > dayEnd) {
+        overflow.push({ placeId: place.id, name: place.name, durationMinutes: duration.minutes, reason: departureMinutes !== null ? 'Could not fit before the saved departure boundary after higher-priority places, estimated buffers, and meal windows.' : 'Could not fit inside the 09:00–21:00 draft window after higher-priority places, estimated buffers, and meal windows.' });
         overflowPlaceCount += 1;
         continue;
       }
@@ -224,6 +269,12 @@ export function createDeterministicDraftSchedule(
         `Uses ${duration.source} (${duration.minutes} min).`,
         `Includes an approximate ${transition}-minute Haversine transition buffer; route validation comes next.`,
       ];
+      if (!previous && arrivalMinutes !== null) {
+        reasons.push(`Starts after the group's saved ${constraints?.arrivalTime} arrival boundary${arrivalOrigin ? ' and an approximate endpoint transition' : ''}.`);
+      }
+      if (departureMinutes !== null) {
+        reasons.push(`Leaves enough deterministic capacity before the group's saved ${constraints?.departureTime} departure boundary${departureTarget ? ' and an approximate endpoint transition' : ''}.`);
+      }
       if (place.totalMembers > 0 && place.voteCount >= place.totalMembers) {
         reasons.push('Included first because it is a shared priority for everyone in the group.');
       } else if (place.totalMembers > 0 && place.voteCount * 2 > place.totalMembers) {
@@ -250,7 +301,7 @@ export function createDeterministicDraftSchedule(
       previous = place;
       scheduledPlaceCount += 1;
     }
-    return { day: group.day, startTime: time(DRAFT_SCHEDULE_WINDOW.startMinutes), endTime: time(DRAFT_SCHEDULE_WINDOW.endMinutes), items, breaks: breaks.sort((a, b) => a.startTime.localeCompare(b.startTime) || a.label.localeCompare(b.label)), overflow };
+    return { day: group.day, startTime: time(dayStart), endTime: time(dayEnd), items, breaks: breaks.sort((a, b) => a.startTime.localeCompare(b.startTime) || a.label.localeCompare(b.label)), overflow };
   });
   return { status: grouping.status, days, scheduledPlaceCount, overflowPlaceCount, unlocatedPlaceCount: grouping.unlocatedPlaceCount };
 }

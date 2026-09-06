@@ -65,8 +65,12 @@ export async function PUT(
       destination,
       destination_input: destinationInput,
       geographic_scope: null,
+      arrival_time: null,
+      departure_time: null,
+      arrival_point: null,
+      departure_point: null,
       planning_mode: null,
-      setup_stage: 'scope',
+      setup_stage: 'timing',
     })
     .eq('id', id)
     .select('id, destination, destination_input')

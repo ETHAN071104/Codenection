@@ -96,6 +96,16 @@ export function useTripRealtime({
             },
             scheduleRefresh,
           )
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'trips',
+              filter: `id=eq.${tripId}`,
+            },
+            scheduleRefresh,
+          )
           .on('presence', { event: 'sync' }, () => {
             const state = channel.presenceState<PresencePayload>();
             const nextOthers = Object.values(state)

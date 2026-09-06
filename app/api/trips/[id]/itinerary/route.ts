@@ -120,7 +120,7 @@ export async function POST(
     const { data: trip, error: tripError } = await authenticated.supabase
       .from('trips')
       .select(
-        'id, created_by, destination, duration_days, exploration_preference',
+        'id, created_by, destination, duration_days, exploration_preference, arrival_time, departure_time',
       )
       .eq('id', id)
       .maybeSingle();
@@ -185,6 +185,8 @@ export async function POST(
       unlimitedMembers: Number(summary.unlimited_members),
       averagePace: Number(summary.average_pace),
       topInterests,
+      arrivalTime: trip.arrival_time?.slice(0, 5) ?? null,
+      departureTime: trip.departure_time?.slice(0, 5) ?? null,
     });
 
     const { data: saveRows, error: saveError } =

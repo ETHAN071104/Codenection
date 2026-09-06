@@ -1,6 +1,8 @@
 import 'server-only';
 
 import type { ItineraryItemView } from '@/lib/phase2/types';
+import type { TripEndpoint } from '@/lib/trips/travel-boundaries';
+import { buildRoutingPoints } from './route-points-core';
 import type { RouteSegment, TripRoute } from './types';
 
 const DIRECTIONS_URL =
@@ -61,9 +63,10 @@ function nonNegativeNumber(value: unknown) {
 
 export async function getDrivingRoute(
   items: ItineraryItemView[],
+  endpoints?: { start?: TripEndpoint | null; end?: TripEndpoint | null },
 ): Promise<TripRoute> {
-  const validItems = items.filter(hasRoutingCoordinates);
-  if (validItems.length < 2) {
+  const routingPoints = buildRoutingPoints(items, endpoints);
+  if (routingPoints.length < 2) {
     return {
       geometry: null,
       totalDistanceMeters: 0,
@@ -85,8 +88,8 @@ export async function getDrivingRoute(
         Accept: 'application/geo+json, application/json',
       },
       body: JSON.stringify({
-        coordinates: validItems.map(
-          (item) => [item.place.longitude, item.place.latitude] as Coordinate,
+        coordinates: routingPoints.map(
+          (point) => [point.longitude, point.latitude] as Coordinate,
         ),
       }),
       signal: AbortSignal.timeout(12_000),
@@ -122,7 +125,7 @@ export async function getDrivingRoute(
     coordinates.length < 2 ||
     summaryDistance === null ||
     summaryDuration === null ||
-    rawSegments.length !== validItems.length - 1
+    rawSegments.length !== routingPoints.length - 1
   ) {
     throw new OpenRouteServiceError('OPENROUTESERVICE_INVALID_RESPONSE');
   }
@@ -130,8 +133,8 @@ export async function getDrivingRoute(
   const segments: RouteSegment[] = rawSegments.flatMap((segment, index) => {
     const distanceMeters = nonNegativeNumber(segment.distance);
     const durationSeconds = nonNegativeNumber(segment.duration);
-    const from = validItems[index];
-    const to = validItems[index + 1];
+    const from = routingPoints[index];
+    const to = routingPoints[index + 1];
     if (!from || !to || distanceMeters === null || durationSeconds === null) {
       return [];
     }
@@ -145,7 +148,7 @@ export async function getDrivingRoute(
     ];
   });
 
-  if (segments.length !== validItems.length - 1) {
+  if (segments.length !== routingPoints.length - 1) {
     throw new OpenRouteServiceError('OPENROUTESERVICE_INVALID_RESPONSE');
   }
 

@@ -32,7 +32,17 @@ export async function finalizePlannerDay(
   let route = EMPTY_ROUTE;
   if (day) {
     try {
-      route = await getDrivingRoute(day.items);
+      const days = beforeSchedule.itinerary?.days ?? [];
+      route = await getDrivingRoute(day.items, {
+        start:
+          dayNumber === days[0]?.day
+            ? beforeSchedule.trip.arrivalPoint
+            : null,
+        end:
+          dayNumber === days.at(-1)?.day
+            ? beforeSchedule.trip.departurePoint
+            : null,
+      });
     } catch (error) {
       if (!(error instanceof OpenRouteServiceError)) throw error;
     }

@@ -14,6 +14,7 @@ import {
   parseTripPlanningMode,
   parseTripSetupStage,
 } from '@/lib/trips/setup-core';
+import { parseTripEndpoint } from '@/lib/trips/travel-boundaries';
 
 function explorationPreference(value: string): ExplorationPreference {
   return value === 'stay_local' ||
@@ -31,7 +32,7 @@ export async function loadItineraryPageData(
   const { data: trip, error: tripError } = await supabase
     .from('trips')
     .select(
-      'id, created_by, destination, destination_input, duration_days, start_date, end_date, exploration_preference, geographic_scope, planning_mode, setup_stage',
+      'id, created_by, destination, destination_input, duration_days, start_date, end_date, exploration_preference, geographic_scope, planning_mode, setup_stage, arrival_time, departure_time, arrival_point, departure_point',
     )
     .eq('id', tripId)
     .maybeSingle();
@@ -123,6 +124,10 @@ export async function loadItineraryPageData(
     endDate: trip.end_date,
     explorationPreference: explorationPreference(trip.exploration_preference),
     geographicScope,
+    arrivalTime: trip.arrival_time?.slice(0, 5) ?? null,
+    departureTime: trip.departure_time?.slice(0, 5) ?? null,
+    arrivalPoint: parseTripEndpoint(trip.arrival_point),
+    departurePoint: parseTripEndpoint(trip.departure_point),
     planningMode: parseTripPlanningMode(trip.planning_mode),
     setupStage: parseTripSetupStage(trip.setup_stage),
     isHost: currentUserId

@@ -21,6 +21,10 @@ type TripRow = {
   destination_input: string | null;
   exploration_preference: string;
   geographic_scope: Json | null;
+  arrival_time: string | null;
+  departure_time: string | null;
+  arrival_point: Json | null;
+  departure_point: Json | null;
   planning_mode: string | null;
   setup_stage: string;
   start_date: string | null;
@@ -38,6 +42,10 @@ type TripInsert = {
   destination_input?: string | null;
   exploration_preference?: string;
   geographic_scope?: Json | null;
+  arrival_time?: string | null;
+  departure_time?: string | null;
+  arrival_point?: Json | null;
+  departure_point?: Json | null;
   planning_mode?: string | null;
   setup_stage?: string;
   start_date?: string | null;

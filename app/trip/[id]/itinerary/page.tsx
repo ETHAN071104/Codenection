@@ -18,6 +18,7 @@ export default async function ItineraryPage({
   const { step } = await searchParams;
   const initialStep =
     step === 'destination' ||
+    step === 'timing' ||
     step === 'scope' ||
     step === 'mode' ||
     step === 'result'

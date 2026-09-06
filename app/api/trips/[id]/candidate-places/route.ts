@@ -24,6 +24,7 @@ import { loadItineraryPageData } from '@/lib/phase2/storage';
 import { Phase2ProviderError } from '@/lib/phase2/provider-error';
 import { parseAverageInterests } from '@/lib/preferences/model';
 import { selectionCompletionSummary } from '@/lib/malaysia-places/selection-completion-core';
+import { parseTripEndpoint } from '@/lib/trips/travel-boundaries';
 
 function unavailable(
   message: string,
@@ -50,7 +51,7 @@ async function loadPhase9Plan(
     supabase
       .from('trips')
       .select(
-        'created_by, destination, duration_days, exploration_preference, geographic_scope, planning_mode, setup_stage',
+        'created_by, destination, duration_days, exploration_preference, geographic_scope, planning_mode, setup_stage, arrival_time, departure_time, arrival_point, departure_point',
       )
       .eq('id', tripId)
       .maybeSingle(),
@@ -215,6 +216,12 @@ async function loadPhase9Plan(
     dayGroups,
     candidates,
     stayArea.recommendedArea?.area ?? null,
+    {
+      arrivalTime: tripResult.data.arrival_time?.slice(0, 5) ?? null,
+      departureTime: tripResult.data.departure_time?.slice(0, 5) ?? null,
+      arrivalPoint: parseTripEndpoint(tripResult.data.arrival_point),
+      departurePoint: parseTripEndpoint(tripResult.data.departure_point),
+    },
   );
 
   return {

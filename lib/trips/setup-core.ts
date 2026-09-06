@@ -2,6 +2,7 @@ export type TripPlanningMode = 'collaborative' | 'ai';
 
 export type TripSetupStage =
   | 'destination'
+  | 'timing'
   | 'scope'
   | 'mode'
   | 'preparing'
@@ -16,6 +17,7 @@ export function parseTripPlanningMode(
 
 export function parseTripSetupStage(value: unknown): TripSetupStage {
   return value === 'destination' ||
+    value === 'timing' ||
     value === 'scope' ||
     value === 'mode' ||
     value === 'preparing' ||

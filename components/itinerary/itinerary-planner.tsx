@@ -25,6 +25,7 @@ import { phase2Fetch } from '@/lib/phase2/client';
 import { ensureAnonymousUser } from '@/lib/supabase/auth';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { hasConfirmedScope } from '@/lib/trips/setup-core';
+import { TravelBoundariesStep } from './travel-boundaries-step';
 import type {
   DestinationSuggestion,
   ExplorationPreference,
@@ -33,7 +34,12 @@ import type {
 } from '@/lib/phase2/types';
 
 type Screen = 'loading' | 'ready' | 'error';
-export type PlanningStep = 'destination' | 'scope' | 'mode' | 'result';
+export type PlanningStep =
+  | 'destination'
+  | 'timing'
+  | 'scope'
+  | 'mode'
+  | 'result';
 type PendingAction =
   | 'resolve'
   | 'suggest'
@@ -108,6 +114,30 @@ function HostSetupWaiting({
             <dd className="inline-flex items-center gap-2 text-right font-semibold text-ink">
               {trip.destination || 'Waiting…'}
               {trip.destination && <Check className="size-4 text-brown-accent" aria-hidden="true" />}
+            </dd>
+          </div>
+          <div className="flex items-start justify-between gap-4 py-4">
+            <dt className="text-sm font-semibold text-warm-muted">Arrival</dt>
+            <dd className="text-right font-semibold text-ink">
+              {trip.arrivalTime ? `Arrive · ${trip.arrivalTime}` : 'Not set'}
+              {trip.arrivalPoint && (
+                <span className="mt-1 block text-xs font-normal text-warm-muted">
+                  {trip.arrivalPoint.name}
+                </span>
+              )}
+            </dd>
+          </div>
+          <div className="flex items-start justify-between gap-4 py-4">
+            <dt className="text-sm font-semibold text-warm-muted">Departure</dt>
+            <dd className="text-right font-semibold text-ink">
+              {trip.departureTime
+                ? `Depart · ${trip.departureTime}`
+                : 'Not set'}
+              {trip.departurePoint && (
+                <span className="mt-1 block text-xs font-normal text-warm-muted">
+                  {trip.departurePoint.name}
+                </span>
+              )}
             </dd>
           </div>
           <div className="flex items-center justify-between gap-4 py-4">
@@ -311,7 +341,9 @@ export function ItineraryPlanner({
       setExplorationPreference(payload.trip.explorationPreference);
       const requestedStep = initialStepRef.current;
       if (
-        (requestedStep === 'scope' || requestedStep === 'mode') &&
+        (requestedStep === 'timing' ||
+          requestedStep === 'scope' ||
+          requestedStep === 'mode') &&
         !payload.trip.destination
       ) {
         setPlanningStep('destination');
@@ -383,8 +415,12 @@ export function ItineraryPlanner({
         ...data.trip,
         destination: payload.destination,
         destinationInput: payload.destinationInput,
+        arrivalTime: null,
+        departureTime: null,
+        arrivalPoint: null,
+        departurePoint: null,
         planningMode: null,
-        setupStage: 'scope',
+        setupStage: 'timing',
       },
     });
     setSuggestion(null);
@@ -414,7 +450,7 @@ export function ItineraryPlanner({
         payload.suggestion.inputWasSpecific
       ) {
         await saveDestination(payload.suggestion.destination, geographicScope);
-        goToStep('scope');
+        goToStep('timing');
       } else {
         setSuggestion(payload.suggestion);
         setSuggestionScope(geographicScope);
@@ -440,7 +476,7 @@ export function ItineraryPlanner({
     setError(null);
     try {
       await saveDestination(suggestion.destination, suggestionScope);
-      goToStep('scope');
+      goToStep('timing');
     } catch (actionError) {
       setError(
         actionError instanceof Error
@@ -486,6 +522,25 @@ export function ItineraryPlanner({
     } finally {
       setPendingAction(null);
     }
+  }
+
+  function saveTravelBoundaries(value: {
+    arrivalTime: string | null;
+    departureTime: string | null;
+    arrivalPoint: ItineraryPageData['trip']['arrivalPoint'];
+    departurePoint: ItineraryPageData['trip']['departurePoint'];
+  }) {
+    if (!data) return;
+    setData({
+      ...data,
+      trip: {
+        ...data.trip,
+        ...value,
+        planningMode: null,
+        setupStage: 'scope',
+      },
+    });
+    goToStep('scope');
   }
 
   async function generateItinerary() {
@@ -639,6 +694,8 @@ export function ItineraryPlanner({
         <p className="text-xs font-semibold tracking-[0.16em] text-brown-accent">
           {planningStep === 'destination'
             ? 'DESTINATION'
+            : planningStep === 'timing'
+              ? 'TRAVEL TIMES'
             : planningStep === 'scope'
               ? 'GEOGRAPHIC SCOPE'
               : 'PLANNING MODE'}
@@ -667,7 +724,7 @@ export function ItineraryPlanner({
                   <Button
                     type="button"
                     className="h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90"
-                    onClick={() => goToStep('scope')}
+                    onClick={() => goToStep('timing')}
                   >
                     Continue
                     <ArrowRight aria-hidden="true" />
@@ -837,6 +894,19 @@ export function ItineraryPlanner({
           </>
         )}
 
+        {planningStep === 'timing' && data.trip.destination && (
+          <TravelBoundariesStep
+            tripId={tripId}
+            destination={data.trip.destination}
+            initialArrivalTime={data.trip.arrivalTime}
+            initialDepartureTime={data.trip.departureTime}
+            initialArrivalPoint={data.trip.arrivalPoint}
+            initialDeparturePoint={data.trip.departurePoint}
+            onSaved={saveTravelBoundaries}
+            onBack={() => goToStep('destination')}
+          />
+        )}
+
         {planningStep === 'scope' && data.trip.destination && (
           <>
             <h1 className="mt-4 font-editorial text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">
@@ -898,10 +968,10 @@ export function ItineraryPlanner({
                 type="button"
                 variant="outline"
                 className="h-11 rounded-xl border-warm-border bg-paper px-5 text-ink hover:bg-parchment"
-                onClick={() => goToStep('destination')}
+                onClick={() => goToStep('timing')}
                 disabled={pendingAction !== null}
               >
-                Back to destination
+                Back to travel times
               </Button>
             </div>
           </>

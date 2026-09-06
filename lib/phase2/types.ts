@@ -6,6 +6,8 @@ export type PlanningContext = {
   unlimitedMembers: number;
   averagePace: number;
   topInterests: { key: string; label: string; rating: number }[];
+  arrivalTime: string | null;
+  departureTime: string | null;
 };
 
 export type ExplorationPreference =
@@ -124,6 +126,10 @@ export type ItineraryPageData = {
     endDate: string | null;
     explorationPreference: ExplorationPreference;
     geographicScope: GeographicScope | null;
+    arrivalTime: string | null;
+    departureTime: string | null;
+    arrivalPoint: import('@/lib/trips/travel-boundaries').TripEndpoint | null;
+    departurePoint: import('@/lib/trips/travel-boundaries').TripEndpoint | null;
     planningMode: import('@/lib/trips/setup-core').TripPlanningMode | null;
     setupStage: import('@/lib/trips/setup-core').TripSetupStage;
     isHost: boolean;

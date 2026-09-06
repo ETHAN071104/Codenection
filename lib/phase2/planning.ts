@@ -17,8 +17,7 @@ import {
   parseGeographicScope,
   parseSelectedItinerary,
 } from './validation';
-
-const SLOT_TIMES = ['09:00', '11:30', '14:30', '17:30', '19:30', '21:00'];
+import { applyTimeBoundariesToGeneratedItinerary } from './time-boundaries-core';
 
 const destinationSchema = {
   type: 'object',
@@ -242,7 +241,7 @@ export async function generateGroundedItinerary(context: PlanningContext) {
       geographicScope,
       maxStopsPerDay,
       candidates,
-    })}\nReturn exactly ${context.durationDays} numbered days. Use only externalPlaceId values from candidates, and never repeat one on another day. Keep each day realistic for the pace. Cost is an estimate: use null whenever confidence is low. Reasons should explain fit without claiming unverifiable facts.`,
+    })}\nReturn exactly ${context.durationDays} numbered days. Use only externalPlaceId values from candidates, and never repeat one on another day. Keep each day realistic for the pace. Day 1 activities must start no earlier than arrivalTime when supplied. Final-day activities must finish no later than departureTime when supplied. Use fewer stops when those boundaries reduce capacity. Cost is an estimate: use null whenever confidence is low. Reasons should explain fit without claiming unverifiable facts.`,
     maxTokens: Math.min(7000, 1400 + context.durationDays * 550),
   });
   const itinerary = parseSelectedItinerary(
@@ -256,15 +255,11 @@ export async function generateGroundedItinerary(context: PlanningContext) {
     throw new Phase2ProviderError('OPENROUTER_INVALID_RESPONSE');
   }
 
-  const items: PersistedItineraryItem[] = itinerary.days.flatMap((day) =>
-    day.items.map((item, index) => ({
-      ...item,
-      day: day.day,
-      sortOrder: index,
-      plannedTime: SLOT_TIMES[index] ?? SLOT_TIMES.at(-1)!,
-      dayTheme: day.theme,
-    })),
-  );
+  const items: PersistedItineraryItem[] | null =
+    applyTimeBoundariesToGeneratedItinerary(itinerary, context);
+  if (!items) {
+    throw new Phase2ProviderError('OPENROUTER_INVALID_RESPONSE');
+  }
   const selectedIds = new Set(items.map((item) => item.externalPlaceId));
   const selectedPlaces = candidates.filter((candidate) =>
     selectedIds.has(candidate.externalPlaceId),
