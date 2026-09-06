@@ -47,6 +47,7 @@ type PendingAction =
   | 'scope'
   | 'mode'
   | 'generate'
+  | 'finalize'
   | null;
 
 function formatRatingCount(value: number) {
@@ -340,6 +341,15 @@ export function ItineraryPlanner({
       setDestinationInput(payload.trip.destinationInput ?? '');
       setExplorationPreference(payload.trip.explorationPreference);
       const requestedStep = initialStepRef.current;
+      if (payload.trip.finalizedAt) {
+        if (requestedStep === 'result') {
+          setPlanningStep('result');
+        } else {
+          router.replace(`/trip/${tripId}/plan`);
+        }
+        setScreen('ready');
+        return;
+      }
       if (
         (requestedStep === 'timing' ||
           requestedStep === 'scope' ||
@@ -361,7 +371,7 @@ export function ItineraryPlanner({
       );
       if (showLoading) setScreen('error');
     }
-  }, [tripId]);
+  }, [router, tripId]);
 
   useEffect(() => {
     void Promise.resolve().then(() => load(true));
@@ -590,6 +600,23 @@ export function ItineraryPlanner({
     }
   }
 
+  async function finalizeTrip() {
+    if (pendingAction || !data?.itinerary) return;
+    setPendingAction('finalize');
+    setError(null);
+    try {
+      await phase2Fetch(`/api/trips/${tripId}/finalize`, { method: 'POST' });
+      router.push(`/trip/${tripId}/plan`);
+    } catch (finalizeError) {
+      setError(
+        finalizeError instanceof Error
+          ? finalizeError.message
+          : 'We could not finalize this trip.',
+      );
+      setPendingAction(null);
+    }
+  }
+
   if (screen === 'loading') {
     return (
       <AtlasShell tripId={tripId} sectionLabel="TRIP ITINERARY">
@@ -640,7 +667,10 @@ export function ItineraryPlanner({
     );
   }
 
-  if (!data.trip.isHost || data.trip.setupStage === 'preparing') {
+  if (
+    !data.trip.finalizedAt &&
+    (!data.trip.isHost || data.trip.setupStage === 'preparing')
+  ) {
     return <HostSetupWaiting tripId={tripId} data={data} />;
   }
 
@@ -649,17 +679,43 @@ export function ItineraryPlanner({
       <AtlasShell tripId={tripId} sectionLabel="TRIP ITINERARY">
         <div className="w-full py-2">
           <ItineraryResult itinerary={data.itinerary} />
+          {error && (
+            <SystemNotice
+              role="alert"
+              className="mx-auto mt-6 w-full max-w-5xl"
+              title="We couldn’t finalize this trip."
+              description="The itinerary is still saved. Try again when you are ready to open the final map."
+            />
+          )}
           <div className="mx-auto mt-10 flex w-full max-w-5xl flex-wrap gap-3 border-t border-warm-border pt-7">
-            <Link
-              href={`/trip/${tripId}/plan`}
-              className={buttonVariants({
-                className:
-                  'h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90',
-              })}
-            >
-              Open map plan
-              <MapPin aria-hidden="true" />
-            </Link>
+            {data.trip.finalizedAt ? (
+              <Link
+                href={`/trip/${tripId}/plan`}
+                className={buttonVariants({
+                  className:
+                    'h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90',
+                })}
+              >
+                Open finalized map
+                <MapPin aria-hidden="true" />
+              </Link>
+            ) : (
+              <Button
+                type="button"
+                onClick={() => void finalizeTrip()}
+                disabled={pendingAction !== null}
+                className="h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90"
+              >
+                {pendingAction === 'finalize' ? (
+                  <LoaderCircle className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <MapPin aria-hidden="true" />
+                )}
+                {pendingAction === 'finalize'
+                  ? 'Finalizing trip…'
+                  : 'Finalize and open map'}
+              </Button>
+            )}
             <Link
               href={`/trip/${tripId}`}
               className={buttonVariants({

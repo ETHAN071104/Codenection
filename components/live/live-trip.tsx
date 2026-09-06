@@ -538,7 +538,7 @@ export function LiveTrip({ tripId }: { tripId: string }) {
   }
 
   async function skipWeatherStop(item: ItineraryItemView) {
-    await phase2Fetch(`/api/trips/${tripId}/items`, {
+    await phase2Fetch(`/api/trips/${tripId}/live/items`, {
       method: 'DELETE',
       body: JSON.stringify({ itemId: item.id }),
     });

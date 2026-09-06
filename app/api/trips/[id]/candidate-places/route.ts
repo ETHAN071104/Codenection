@@ -25,6 +25,7 @@ import { Phase2ProviderError } from '@/lib/phase2/provider-error';
 import { parseAverageInterests } from '@/lib/preferences/model';
 import { selectionCompletionSummary } from '@/lib/malaysia-places/selection-completion-core';
 import { parseTripEndpoint } from '@/lib/trips/travel-boundaries';
+import { planningLockResponse } from '@/lib/trips/finalization';
 
 function unavailable(
   message: string,
@@ -226,6 +227,7 @@ async function loadPhase9Plan(
 
   return {
     supported: true as const,
+    isHost: tripResult.data.created_by === userId,
     destination,
     durationDays: tripResult.data.duration_days ?? null,
     candidates: ranked,
@@ -256,6 +258,8 @@ export async function GET(
 
   try {
     const { id } = await context.params;
+    const planningLock = await planningLockResponse(authenticated.supabase, id);
+    if (planningLock) return planningLock;
     const plan = await loadPhase9Plan(
       authenticated.supabase,
       authenticated.user.id,
@@ -366,6 +370,8 @@ export async function POST(
   }
   const { id } = await context.params;
   const { supabase, user } = authenticated;
+  const planningLock = await planningLockResponse(supabase, id);
+  if (planningLock) return planningLock;
   if (body.selected) {
     const { error } = await supabase.from('trip_place_votes').upsert(
       {
@@ -409,6 +415,8 @@ export async function PATCH(
   }
 
   const { id } = await context.params;
+  const planningLock = await planningLockResponse(authenticated.supabase, id);
+  if (planningLock) return planningLock;
   const { data, error } = await authenticated.supabase.rpc(
     'set_place_selection_completion',
     { p_trip_id: id, p_completed: body.completed },
@@ -453,6 +461,8 @@ export async function PUT(
     }
 
     const { id } = await context.params;
+    const planningLock = await planningLockResponse(authenticated.supabase, id);
+    if (planningLock) return planningLock;
     const plan = await loadPhase9Plan(
       authenticated.supabase,
       authenticated.user.id,
@@ -473,6 +483,13 @@ export async function PUT(
         'Wait for every planning member to finish choosing before organising the trip.',
         409,
         'PLACE_SELECTION_INCOMPLETE',
+      );
+    }
+    if (!plan.isHost) {
+      return unavailable(
+        'The trip organiser will confirm the final map plan.',
+        403,
+        'TRIP_HOST_REQUIRED',
       );
     }
 

@@ -5,6 +5,7 @@ import {
   unavailableTripResponse,
 } from '@/lib/phase2/api-error';
 import { searchPlannerPlaces } from '@/lib/phase2/google-places';
+import { planningLockResponse } from '@/lib/trips/finalization';
 
 export async function POST(
   request: Request,
@@ -15,6 +16,8 @@ export async function POST(
 
   try {
     const { id } = await context.params;
+    const planningLock = await planningLockResponse(authenticated.supabase, id);
+    if (planningLock) return planningLock;
     const body = (await request.json().catch(() => null)) as {
       query?: unknown;
     } | null;

@@ -11,6 +11,7 @@ import {
   parseTripEndpoint,
   type TripEndpoint,
 } from '@/lib/trips/travel-boundaries';
+import { planningLockResponse } from '@/lib/trips/finalization';
 
 const ENDPOINT_TYPES = new Set([
   'airport',
@@ -95,6 +96,8 @@ export async function PATCH(
     }
 
     const { id } = await context.params;
+    const planningLock = await planningLockResponse(authenticated.supabase, id);
+    if (planningLock) return planningLock;
     const { data: trip, error: tripError } = await authenticated.supabase
       .from('trips')
       .select('created_by, arrival_point, departure_point')

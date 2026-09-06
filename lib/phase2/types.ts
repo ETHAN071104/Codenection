@@ -130,6 +130,8 @@ export type ItineraryPageData = {
     departureTime: string | null;
     arrivalPoint: import('@/lib/trips/travel-boundaries').TripEndpoint | null;
     departurePoint: import('@/lib/trips/travel-boundaries').TripEndpoint | null;
+    finalizedAt: string | null;
+    finalizedBy: string | null;
     planningMode: import('@/lib/trips/setup-core').TripPlanningMode | null;
     setupStage: import('@/lib/trips/setup-core').TripSetupStage;
     isHost: boolean;

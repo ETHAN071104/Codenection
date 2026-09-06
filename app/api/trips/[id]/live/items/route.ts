@@ -4,7 +4,6 @@ import {
   unauthorizedResponse,
 } from '@/lib/phase2/api-error';
 import { finalizePlannerDay } from '@/lib/planner/server';
-import { planningLockResponse } from '@/lib/trips/finalization';
 
 export async function DELETE(
   request: Request,
@@ -15,33 +14,23 @@ export async function DELETE(
 
   try {
     const { id } = await context.params;
-    const planningLock = await planningLockResponse(authenticated.supabase, id);
-    if (planningLock) return planningLock;
     const body = (await request.json().catch(() => null)) as {
       itemId?: unknown;
     } | null;
     const itemId = typeof body?.itemId === 'string' ? body.itemId : '';
-    if (!itemId) {
-      return Response.json(
-        {
-          error: {
-            code: 'INVALID_ITEM',
-            message: 'Choose a valid itinerary stop.',
-          },
-        },
-        { status: 400 },
-      );
-    }
+    if (!itemId) throw new Error('INVALID_ITEM');
 
     const { data: rows, error } = await authenticated.supabase.rpc(
-      'remove_itinerary_item',
+      'remove_live_itinerary_item',
       { p_trip_id: id, p_item_id: itemId },
     );
     const day = rows?.[0]?.day_number;
     if (error || !day) throw error ?? new Error('REMOVE_FAILED');
 
     return Response.json(
-      await finalizePlannerDay(authenticated.supabase, id, day),
+      await finalizePlannerDay(authenticated.supabase, id, day, {
+        allowFinalizedMutation: true,
+      }),
     );
   } catch (error) {
     return phase2ErrorResponse(error);

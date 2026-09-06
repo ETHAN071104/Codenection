@@ -5,6 +5,7 @@ import {
   unavailableTripResponse,
 } from '@/lib/phase2/api-error';
 import { parseTripPlanningMode } from '@/lib/trips/setup-core';
+import { planningLockResponse } from '@/lib/trips/finalization';
 
 export async function PATCH(
   request: Request,
@@ -30,6 +31,8 @@ export async function PATCH(
   }
 
   const { id } = await context.params;
+  const planningLock = await planningLockResponse(authenticated.supabase, id);
+  if (planningLock) return planningLock;
   const { data: trip, error: tripError } = await authenticated.supabase
     .from('trips')
     .select('created_by, destination, setup_stage')

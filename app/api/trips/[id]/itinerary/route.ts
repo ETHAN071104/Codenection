@@ -10,6 +10,7 @@ import { generateGroundedItinerary } from '@/lib/phase2/planning';
 import { loadItineraryPageData } from '@/lib/phase2/storage';
 import { INTERESTS, parseAverageInterests } from '@/lib/preferences/model';
 import type { ExplorationPreference } from '@/lib/phase2/types';
+import { planningLockResponse } from '@/lib/trips/finalization';
 
 function parseExplorationPreference(
   value: unknown,
@@ -67,6 +68,8 @@ export async function PATCH(
   }
 
   const { id } = await context.params;
+  const planningLock = await planningLockResponse(authenticated.supabase, id);
+  if (planningLock) return planningLock;
   const { data: trip, error: tripError } = await authenticated.supabase
     .from('trips')
     .select('id, created_by, destination')
@@ -114,6 +117,8 @@ export async function POST(
 
   try {
     const { id } = await context.params;
+    const planningLock = await planningLockResponse(authenticated.supabase, id);
+    if (planningLock) return planningLock;
     const body = (await request.json().catch(() => ({}))) as {
       explorationPreference?: unknown;
     };

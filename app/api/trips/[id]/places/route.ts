@@ -7,6 +7,7 @@ import {
 import { getPlaceCandidateById } from '@/lib/phase2/google-places';
 import { loadItineraryPageData } from '@/lib/phase2/storage';
 import { finalizePlannerDay } from '@/lib/planner/server';
+import { planningLockResponse } from '@/lib/trips/finalization';
 
 export async function POST(
   request: Request,
@@ -17,6 +18,8 @@ export async function POST(
 
   try {
     const { id } = await context.params;
+    const planningLock = await planningLockResponse(authenticated.supabase, id);
+    if (planningLock) return planningLock;
     const body = (await request.json().catch(() => null)) as {
       day?: unknown;
       externalPlaceId?: unknown;

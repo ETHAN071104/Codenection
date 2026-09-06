@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
   CalendarDays,
@@ -35,6 +36,7 @@ type TripContext = {
   start_date: string | null;
   end_date: string | null;
   duration_days: number | null;
+  finalized_at: string | null;
 };
 
 function formatTripDates(startDate: string | null, endDate: string | null) {
@@ -71,6 +73,7 @@ function getInitial(name: string) {
 }
 
 export function GroupSummary({ tripId }: { tripId: string }) {
+  const router = useRouter();
   const [screen, setScreen] = useState<SummaryScreen>('loading');
   const [status, setStatus] = useState<QuestionnaireStatusRow[]>([]);
   const [summary, setSummary] = useState<GroupPreferenceSummary | null>(null);
@@ -94,7 +97,7 @@ export function GroupSummary({ tripId }: { tripId: string }) {
         supabase
           .from('trips')
           .select(
-            'created_by, destination, start_date, end_date, duration_days',
+            'created_by, destination, start_date, end_date, duration_days, finalized_at',
           )
           .eq('id', tripId)
           .maybeSingle(),
@@ -102,6 +105,10 @@ export function GroupSummary({ tripId }: { tripId: string }) {
       if (statusResult.error) throw statusResult.error;
       if (membersResult.error) throw membersResult.error;
       if (tripResult.error) throw tripResult.error;
+      if (tripResult.data?.finalized_at) {
+        router.replace(`/trip/${tripId}/plan`);
+        return;
+      }
 
       setTrip(tripResult.data);
       setIsHost(tripResult.data?.created_by === user.id);
@@ -144,11 +151,31 @@ export function GroupSummary({ tripId }: { tripId: string }) {
       setError(getPreferenceError(summaryError));
       setScreen('error');
     }
-  }, [tripId]);
+  }, [router, tripId]);
 
   useEffect(() => {
     void Promise.resolve().then(loadSummary);
   }, [loadSummary]);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    const channel = supabase
+      .channel(`group-summary-lifecycle:${tripId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'trips',
+          filter: `id=eq.${tripId}`,
+        },
+        () => void loadSummary(),
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [loadSummary, tripId]);
 
   if (screen === 'loading') {
     return (

@@ -25,6 +25,8 @@ type TripRow = {
   departure_time: string | null;
   arrival_point: Json | null;
   departure_point: Json | null;
+  finalized_at: string | null;
+  finalized_by: string | null;
   planning_mode: string | null;
   setup_stage: string;
   start_date: string | null;
@@ -46,6 +48,8 @@ type TripInsert = {
   departure_time?: string | null;
   arrival_point?: Json | null;
   departure_point?: Json | null;
+  finalized_at?: string | null;
+  finalized_by?: string | null;
   planning_mode?: string | null;
   setup_stage?: string;
   start_date?: string | null;
@@ -383,6 +387,41 @@ export type Database = {
           planning_members: number;
           all_completed: boolean;
         }[];
+      };
+      finalize_trip: {
+        Args: { p_trip_id: string };
+        Returns: { finalized_at: string; already_finalized: boolean }[];
+      };
+      apply_ai_itinerary_day: {
+        Args: {
+          p_trip_id: string;
+          p_day_number: number;
+          p_items: Json;
+          p_places: Json;
+        };
+        Returns: { saved_items: number }[];
+      };
+      reschedule_post_planning_itinerary_day: {
+        Args: {
+          p_trip_id: string;
+          p_day_number: number;
+          p_schedule: Json;
+        };
+        Returns: { item_id: string; planned_time: string }[];
+      };
+      apply_live_schedule_adjustment: {
+        Args: {
+          p_trip_id: string;
+          p_day_number: number;
+          p_current_item_id: string;
+          p_change_type: string;
+          p_minutes: number;
+        };
+        Returns: { item_id: string; planned_time: string }[];
+      };
+      remove_live_itinerary_item: {
+        Args: { p_trip_id: string; p_item_id: string };
+        Returns: { day_number: number }[];
       };
     };
     Enums: Record<string, never>;

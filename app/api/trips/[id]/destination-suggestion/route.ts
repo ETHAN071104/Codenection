@@ -8,6 +8,7 @@ import {
 import { recommendDestination } from '@/lib/phase2/planning';
 import { INTERESTS, parseAverageInterests } from '@/lib/preferences/model';
 import { getOpenRouterModel } from '@/lib/phase2/openrouter';
+import { planningLockResponse } from '@/lib/trips/finalization';
 
 export async function POST(
   request: Request,
@@ -45,6 +46,8 @@ export async function POST(
           .slice(0, 10)
       : [];
     const { id } = await context.params;
+    const planningLock = await planningLockResponse(authenticated.supabase, id);
+    if (planningLock) return planningLock;
     const { data: trip, error: tripError } = await authenticated.supabase
       .from('trips')
       .select('id, created_by, destination, duration_days')

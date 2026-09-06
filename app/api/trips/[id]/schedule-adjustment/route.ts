@@ -28,7 +28,7 @@ export async function POST(
     }
     const { id } = await context.params;
     const { error } = await authenticated.supabase.rpc(
-      'adjust_itinerary_schedule',
+      'apply_live_schedule_adjustment',
       {
         p_trip_id: id,
         p_day_number: day,

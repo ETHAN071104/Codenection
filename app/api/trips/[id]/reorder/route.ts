@@ -1,6 +1,7 @@
 import { getAuthenticatedSupabase } from '@/lib/supabase/server-auth';
 import { unauthorizedResponse } from '@/lib/phase2/api-error';
 import { finalizePlannerDay } from '@/lib/planner/server';
+import { planningLockResponse } from '@/lib/trips/finalization';
 
 function invalidReorderResponse() {
   return Response.json(
@@ -40,6 +41,8 @@ export async function PUT(
 
   try {
     const { id } = await context.params;
+    const planningLock = await planningLockResponse(authenticated.supabase, id);
+    if (planningLock) return planningLock;
     const { data, error } = await authenticated.supabase.rpc(
       'reorder_itinerary_day',
       {

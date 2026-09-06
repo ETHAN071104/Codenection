@@ -4,6 +4,7 @@ import {
   unauthorizedResponse,
   unavailableTripResponse,
 } from '@/lib/phase2/api-error';
+import { planningLockResponse } from '@/lib/trips/finalization';
 
 export async function PUT(
   request: Request,
@@ -51,6 +52,8 @@ export async function PUT(
   }
 
   const { id } = await context.params;
+  const planningLock = await planningLockResponse(authenticated.supabase, id);
+  if (planningLock) return planningLock;
   const { data: trip, error: tripError } = await authenticated.supabase
     .from('trips')
     .select('created_by')

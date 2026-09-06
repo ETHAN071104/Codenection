@@ -136,7 +136,18 @@ export function PlannerHome() {
       if (rpcError) throw rpcError;
       const trip = data?.[0];
       if (!trip) throw new Error('ROOM_NOT_FOUND');
-      router.push(`/trip/${trip.trip_id}`);
+      const { data: lifecycle, error: lifecycleError } =
+        await getSupabaseBrowserClient()
+          .from('trips')
+          .select('finalized_at')
+          .eq('id', trip.trip_id)
+          .maybeSingle();
+      if (lifecycleError) throw lifecycleError;
+      router.push(
+        lifecycle?.finalized_at
+          ? `/trip/${trip.trip_id}/plan`
+          : `/trip/${trip.trip_id}`,
+      );
     } catch (actionError) {
       setError(getFriendlyTripError(actionError));
       setPendingAction(null);

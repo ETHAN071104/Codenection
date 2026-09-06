@@ -22,6 +22,7 @@ export async function finalizePlannerDay(
   supabase: SupabaseClient<Database>,
   tripId: string,
   dayNumber: number,
+  options?: { allowFinalizedMutation?: boolean },
 ): Promise<PlannerMutationResponse> {
   const beforeSchedule = await loadItineraryPageData(supabase, tripId);
   if (!beforeSchedule) throw new Error('TRIP_UNAVAILABLE');
@@ -51,7 +52,9 @@ export async function finalizePlannerDay(
   if (day && day.items.length > 0) {
     const schedule = calculateDaySchedule(day.items, route);
     const { data: scheduleRows, error: scheduleError } = await supabase.rpc(
-      'reschedule_itinerary_day',
+      options?.allowFinalizedMutation
+        ? 'reschedule_post_planning_itinerary_day'
+        : 'reschedule_itinerary_day',
       {
         p_trip_id: tripId,
         p_day_number: dayNumber,

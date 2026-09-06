@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
   ArrowRight,
@@ -67,6 +68,7 @@ const INTEREST_RATING_LABELS = {
 } as const;
 
 export function QuestionnaireWizard({ tripId }: { tripId: string }) {
+  const router = useRouter();
   const defaultBudgetPosition = PRESET_BUDGETS.indexOf(500) + 1;
   const [screen, setScreen] = useState<Screen>('loading');
   const [step, setStep] = useState(1);
@@ -115,6 +117,16 @@ export function QuestionnaireWizard({ tripId }: { tripId: string }) {
     try {
       await ensureAnonymousUser();
       const supabase = getSupabaseBrowserClient();
+      const { data: trip, error: tripError } = await supabase
+        .from('trips')
+        .select('finalized_at')
+        .eq('id', tripId)
+        .maybeSingle();
+      if (tripError) throw tripError;
+      if (trip?.finalized_at) {
+        router.replace(`/trip/${tripId}/plan`);
+        return;
+      }
       const [profileResult, statusRows] = await Promise.all([
         supabase
           .from('preference_profiles')
@@ -155,7 +167,7 @@ export function QuestionnaireWizard({ tripId }: { tripId: string }) {
       setError(getPreferenceError(loadError));
       setScreen('error');
     }
-  }, [loadStatus, tripId]);
+  }, [loadStatus, router, tripId]);
 
   useEffect(() => {
     void Promise.resolve().then(loadQuestionnaire);
@@ -187,6 +199,16 @@ export function QuestionnaireWizard({ tripId }: { tripId: string }) {
         },
         scheduleStatusRefresh,
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'trips',
+          filter: `id=eq.${tripId}`,
+        },
+        () => void loadQuestionnaire(),
+      )
       .subscribe(setRealtimeStatus);
     readinessChannelRef.current = channel;
 
@@ -197,7 +219,7 @@ export function QuestionnaireWizard({ tripId }: { tripId: string }) {
       }
       void supabase.removeChannel(channel);
     };
-  }, [loadStatus, tripId]);
+  }, [loadQuestionnaire, loadStatus, tripId]);
 
   function goForward() {
     setError(null);

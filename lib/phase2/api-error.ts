@@ -15,6 +15,8 @@ const messages: Record<string, string> = {
     'Everyone must complete their Travel DNA before generating the trip.',
   DESTINATION_REQUIRED: 'Choose a destination before generating the trip.',
   INVALID_TRIP_DURATION: 'This trip needs a duration from 1 to 30 days.',
+  ITINERARY_REQUIRED:
+    'Finish and save the itinerary before finalizing this trip.',
 };
 
 export function phase2ErrorResponse(error: unknown) {
@@ -27,7 +29,8 @@ export function phase2ErrorResponse(error: unknown) {
   const status =
     code === 'QUESTIONNAIRE_NOT_READY' ||
     code === 'DESTINATION_REQUIRED' ||
-    code === 'INVALID_TRIP_DURATION'
+    code === 'INVALID_TRIP_DURATION' ||
+    code === 'ITINERARY_REQUIRED'
       ? 409
       : code === 'NO_PLACE_CANDIDATES'
         ? 422

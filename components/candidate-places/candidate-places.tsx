@@ -32,12 +32,13 @@ import type { DeterministicDraftSchedule } from '@/lib/malaysia-places/determini
 import type { RankedCandidate } from '@/lib/malaysia-places/group-ranking';
 import { consensusTiers } from '@/lib/malaysia-places/consensus-core';
 import type { StayAreaRecommendation } from '@/lib/malaysia-places/stay-area-core';
-import { phase2Fetch } from '@/lib/phase2/client';
+import { phase2Fetch, TripApiError } from '@/lib/phase2/client';
 import { ensureAnonymousUser } from '@/lib/supabase/auth';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 type CandidateResponse = {
   supported: boolean;
+  isHost: boolean;
   availability?:
     | 'destination_required'
     | 'insufficient_candidates'
@@ -184,6 +185,13 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
         });
         setError(null);
       } catch (loadError) {
+        if (
+          loadError instanceof TripApiError &&
+          loadError.code === 'TRIP_FINALIZED'
+        ) {
+          router.replace(`/trip/${tripId}/plan`);
+          return;
+        }
         setErrorKind('load');
         setError(
           loadError instanceof Error
@@ -194,7 +202,7 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
         setLoading(false);
       }
     },
-    [tripId],
+    [router, tripId],
   );
 
   useEffect(() => {
@@ -364,6 +372,7 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
         data.scheduleFingerprint,
         replaceExisting,
       );
+      await phase2Fetch(`/api/trips/${tripId}/finalize`, { method: 'POST' });
       router.push(`/trip/${tripId}/plan`);
     } catch (confirmationError) {
       if (
@@ -599,6 +608,7 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
           saving={mapPlanSaving}
           error={mapPlanError}
           replacementWarning={replacementWarning}
+          isHost={data.isHost}
           onOpenMap={requestMapPlan}
           onCancelReplacement={() => setReplacementWarning(false)}
           onConfirmReplacement={() => {
@@ -1422,6 +1432,7 @@ function SchedulePresentation({
   saving,
   error,
   replacementWarning,
+  isHost,
   onOpenMap,
   onCancelReplacement,
   onConfirmReplacement,
@@ -1437,6 +1448,7 @@ function SchedulePresentation({
   saving: boolean;
   error: string | null;
   replacementWarning: boolean;
+  isHost: boolean;
   onOpenMap: () => void;
   onCancelReplacement: () => void;
   onConfirmReplacement: () => void;
@@ -1787,33 +1799,42 @@ function SchedulePresentation({
           />
         )}
 
-        <button
-          type="button"
-          disabled={saving}
-          onClick={onOpenMap}
-          aria-describedby="map-handoff-note"
-          className="inline-flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-ink px-6 text-sm font-semibold text-paper shadow-sm transition-colors hover:bg-ink/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/40 focus-visible:ring-offset-4 focus-visible:ring-offset-parchment disabled:cursor-wait disabled:opacity-60"
-        >
-          {saving ? (
-            <>
-              <LoaderCircle
-                className="size-4 animate-spin"
-                aria-hidden="true"
-              />
-              Saving map plan
-            </>
-          ) : (
-            <>
-              Open map plan
-              <ArrowRight className="size-4" aria-hidden="true" />
-            </>
-          )}
-        </button>
+        {isHost ? (
+          <button
+            type="button"
+            disabled={saving}
+            onClick={onOpenMap}
+            aria-describedby="map-handoff-note"
+            className="inline-flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-ink px-6 text-sm font-semibold text-paper shadow-sm transition-colors hover:bg-ink/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/40 focus-visible:ring-offset-4 focus-visible:ring-offset-parchment disabled:cursor-wait disabled:opacity-60"
+          >
+            {saving ? (
+              <>
+                <LoaderCircle
+                  className="size-4 animate-spin"
+                  aria-hidden="true"
+                />
+                Finalizing trip
+              </>
+            ) : (
+              <>
+                Finalize and open map
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </>
+            )}
+          </button>
+        ) : (
+          <SystemNotice
+            title="Waiting for the trip organiser"
+            description="The shared schedule is ready. The trip host will confirm the final map plan, and this page will update automatically."
+          />
+        )}
         <p
           id="map-handoff-note"
           className="mx-auto mt-3 max-w-xl text-center text-sm leading-6 text-warm-muted"
         >
-          {scheduleMatchesPersistedItinerary
+          {!isHost
+            ? 'Your votes and the shared schedule are saved.'
+            : scheduleMatchesPersistedItinerary
             ? 'This schedule is already saved, so your current map plan will open without replacing it.'
             : hasPersistedItinerary
               ? 'Confirming this schedule may replace changes made in your current map plan.'

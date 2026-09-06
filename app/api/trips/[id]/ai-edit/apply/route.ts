@@ -160,7 +160,7 @@ export async function POST(
     }
 
     const { data: saveRows, error: saveError } =
-      await authenticated.supabase.rpc('replace_itinerary_day', {
+      await authenticated.supabase.rpc('apply_ai_itinerary_day', {
         p_trip_id: id,
         p_day_number: dayNumber,
         p_items: nextItems as unknown as Json,
@@ -171,7 +171,9 @@ export async function POST(
     }
 
     return Response.json(
-      await finalizePlannerDay(authenticated.supabase, id, dayNumber),
+      await finalizePlannerDay(authenticated.supabase, id, dayNumber, {
+        allowFinalizedMutation: true,
+      }),
     );
   } catch (error) {
     return phase2ErrorResponse(error);

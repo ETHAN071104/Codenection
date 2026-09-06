@@ -26,7 +26,12 @@ import type { QuestionnaireStatusRow } from '@/lib/preferences/model';
 import { formatTripDuration } from '@/lib/trips/duration';
 import { getMemberDisplays } from '@/lib/trips/member-display';
 
-type Trip = { id: string; room_code: string; duration_days: number | null };
+type Trip = {
+  id: string;
+  room_code: string;
+  duration_days: number | null;
+  finalized_at: string | null;
+};
 type Member = {
   id: string;
   user_id: string;
@@ -65,7 +70,7 @@ export function TripRoom({ tripId }: { tripId: string }) {
           await Promise.all([
             supabase
               .from('trips')
-              .select('id, room_code, duration_days')
+              .select('id, room_code, duration_days, finalized_at')
               .eq('id', tripId)
               .maybeSingle(),
             supabase
@@ -113,6 +118,26 @@ export function TripRoom({ tripId }: { tripId: string }) {
   useEffect(() => {
     void Promise.resolve().then(() => loadTrip());
   }, [loadTrip]);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    const channel = supabase
+      .channel(`trip-room-lifecycle:${tripId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'trips',
+          filter: `id=eq.${tripId}`,
+        },
+        () => void loadTrip(true),
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [loadTrip, tripId]);
 
   async function copyRoomCode() {
     if (!trip) return;
@@ -229,6 +254,65 @@ export function TripRoom({ tripId }: { tripId: string }) {
               </>
             }
           />
+        ) : trip?.finalized_at ? (
+          <section className="mx-auto w-full max-w-3xl rounded-2xl border border-warm-border bg-paper p-6 shadow-editorial sm:p-10 lg:p-12">
+            <span className="flex size-12 items-center justify-center rounded-full bg-ink text-paper">
+              <MapPinned className="size-5" aria-hidden="true" />
+            </span>
+            <p className="mt-7 text-xs font-semibold tracking-[0.16em] text-brown-accent">
+              TRIP ALREADY PLANNED
+            </p>
+            <h1 className="mt-3 font-editorial text-4xl font-semibold tracking-[-0.05em] sm:text-6xl">
+              Join the trip and travel together.
+            </h1>
+            <p className="mt-5 max-w-xl text-lg leading-8 text-warm-muted">
+              The original planning round is closed. The saved itinerary, map,
+              Live Trip and group updates are ready for all {members.length}{' '}
+              {members.length === 1 ? 'traveller' : 'travellers'}.
+            </p>
+            <div className="mt-8 rounded-xl border border-warm-border bg-parchment p-5">
+              <p className="text-xs font-semibold tracking-[0.15em] text-warm-muted">
+                ROOM CODE
+              </p>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-4">
+                <p className="font-mono text-3xl font-semibold tracking-[0.18em]">
+                  {trip.room_code}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={copyRoomCode}
+                  className="h-10 border-warm-border bg-paper"
+                >
+                  {copied ? <Check aria-hidden="true" /> : <Clipboard aria-hidden="true" />}
+                  {copied ? 'Copied' : 'Copy'}
+                </Button>
+              </div>
+            </div>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href={`/trip/${tripId}/plan`}
+                className={buttonVariants({
+                  size: 'lg',
+                  className: 'h-12 bg-ink px-6 text-paper hover:bg-ink/85',
+                })}
+              >
+                View trip
+                <ArrowRight aria-hidden="true" />
+              </Link>
+              <Link
+                href={`/trip/${tripId}/live`}
+                className={buttonVariants({
+                  variant: 'outline',
+                  size: 'lg',
+                  className:
+                    'h-12 border-warm-border bg-paper px-6 text-ink hover:bg-parchment',
+                })}
+              >
+                Open Live Trip
+              </Link>
+            </div>
+          </section>
         ) : trip ? (
           <>
             <div className="mb-8 sm:mb-10">

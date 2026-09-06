@@ -460,6 +460,7 @@ function SortableItineraryCard({
   cardRef,
   segment,
   disabled,
+  editable,
   onRemove,
   weather,
 }: {
@@ -470,6 +471,7 @@ function SortableItineraryCard({
   cardRef: (element: HTMLButtonElement | null) => void;
   segment: RouteSegment | null;
   disabled: boolean;
+  editable: boolean;
   onRemove: () => void;
   weather: WeatherAtStop | null;
 }) {
@@ -501,6 +503,7 @@ function SortableItineraryCard({
         onSelect={onSelect}
         cardRef={cardRef}
         dragHandle={
+          editable ? (
           <button
             type="button"
             className="flex w-8 shrink-0 cursor-grab items-center justify-center text-warm-muted/45 outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-brown-accent focus-visible:ring-inset active:cursor-grabbing disabled:cursor-default disabled:opacity-35 sm:w-9"
@@ -512,8 +515,12 @@ function SortableItineraryCard({
           >
             <GripVertical className="size-4" aria-hidden="true" />
           </button>
+          ) : (
+            <span className="w-8 shrink-0 sm:w-9" aria-hidden="true" />
+          )
         }
         removeAction={
+          editable ? (
           <button
             type="button"
             aria-label={`Remove ${item.place.name}`}
@@ -524,6 +531,7 @@ function SortableItineraryCard({
           >
             <Trash2 className="size-4" aria-hidden="true" />
           </button>
+          ) : null
         }
         weather={weather}
       />
@@ -624,6 +632,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
   const days = data?.itinerary?.days ?? [];
   const activeDay =
     days.find((day) => day.day === selectedDay) ?? days[0] ?? null;
+  const planningLocked = Boolean(data?.trip.finalizedAt);
   const activeEndpoints = activeDay
     ? getDayEndpoints(data, activeDay.day)
     : { arrival: null, departure: null };
@@ -781,7 +790,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
   }
 
   async function handleDragEnd(event: DragEndEvent) {
-    if (isSaving || !activeDay || !data) return;
+    if (isSaving || planningLocked || !activeDay || !data) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -855,7 +864,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
   }
 
   async function handleAddPlace(externalPlaceId: string) {
-    if (!activeDay || isSaving) return;
+    if (!activeDay || isSaving || planningLocked) return;
     setIsSaving(true);
     setPlannerError(null);
     try {
@@ -883,7 +892,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
   }
 
   async function handleRemovePlace(item: ItineraryItemView) {
-    if (isSaving) return;
+    if (isSaving || planningLocked) return;
     const confirmed = window.confirm(
       `Remove ${item.place.name} from this day?`,
     );
@@ -995,7 +1004,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
           Map plan
         </div>
         <Link
-          href={`/trip/${tripId}/itinerary`}
+          href={`/trip/${tripId}/itinerary?step=result`}
           className="justify-self-end text-xs font-semibold text-warm-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
         >
           Full itinerary
@@ -1156,6 +1165,11 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                 {activeEditor.displayName} is editing {activeEditorPlace}
               </p>
             )}
+            {planningLocked && (
+              <p className="mt-2 text-[0.68rem] leading-5 text-warm-muted">
+                This trip is finalized. Use Adjust with AI or Live Trip for future changes.
+              </p>
+            )}
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
@@ -1216,7 +1230,8 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                           else cardRefs.current.delete(item.id);
                         }}
                         segment={segment}
-                        disabled={isSaving}
+                        disabled={isSaving || planningLocked}
+                        editable={!planningLocked}
                         onRemove={() => void handleRemovePlace(item)}
                         weather={weatherByItemId.get(item.id) ?? null}
                       />
@@ -1256,7 +1271,12 @@ export function MapPlanner({ tripId }: { tripId: string }) {
               </DndContext>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 border-b border-warm-border bg-[#fcfaf6] p-4 sm:px-5">
+            <div
+              className={cn(
+                'grid gap-2 border-b border-warm-border bg-[#fcfaf6] p-4 sm:px-5',
+                planningLocked ? 'grid-cols-1' : 'grid-cols-2',
+              )}
+            >
               <button
                 type="button"
                 disabled={isSaving}
@@ -1276,24 +1296,26 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                 <Bot className="size-3.5" aria-hidden="true" />
                 Adjust with AI
               </button>
-              <button
-                type="button"
-                disabled={isSaving}
-                onClick={() => {
-                  setAddPlaceOpen((open) => !open);
-                  setAiEditOpen(false);
-                }}
-                aria-expanded={addPlaceOpen}
-                className={cn(
-                  'inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brown-accent/40 disabled:opacity-45',
-                  addPlaceOpen
-                    ? 'border-ink bg-ink text-paper'
-                    : 'border-warm-border bg-white text-warm-muted hover:text-ink',
-                )}
-              >
-                <Plus className="size-3.5" aria-hidden="true" />
-                Add place
-              </button>
+              {!planningLocked && (
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={() => {
+                    setAddPlaceOpen((open) => !open);
+                    setAiEditOpen(false);
+                  }}
+                  aria-expanded={addPlaceOpen}
+                  className={cn(
+                    'inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brown-accent/40 disabled:opacity-45',
+                    addPlaceOpen
+                      ? 'border-ink bg-ink text-paper'
+                      : 'border-warm-border bg-white text-warm-muted hover:text-ink',
+                  )}
+                >
+                  <Plus className="size-3.5" aria-hidden="true" />
+                  Add place
+                </button>
+              )}
             </div>
 
             {addPlaceOpen && (
