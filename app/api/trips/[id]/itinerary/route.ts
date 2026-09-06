@@ -10,7 +10,9 @@ import { loadItineraryPageData } from '@/lib/phase2/storage';
 import { INTERESTS, parseAverageInterests } from '@/lib/preferences/model';
 import type { ExplorationPreference } from '@/lib/phase2/types';
 
-function parseExplorationPreference(value: unknown): ExplorationPreference | null {
+function parseExplorationPreference(
+  value: unknown,
+): ExplorationPreference | null {
   return value === 'stay_local' ||
     value === 'nearby_day_trips' ||
     value === 'explore_freely'
@@ -32,6 +34,67 @@ export async function GET(
   } catch (error) {
     return phase2ErrorResponse(error);
   }
+}
+
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const authenticated = await getAuthenticatedSupabase(request);
+  if (!authenticated) return unauthorizedResponse();
+
+  const body = (await request.json().catch(() => null)) as {
+    explorationPreference?: unknown;
+  } | null;
+  const explorationPreference = parseExplorationPreference(
+    body?.explorationPreference,
+  );
+  if (!explorationPreference) {
+    return Response.json(
+      {
+        error: {
+          code: 'INVALID_EXPLORATION_PREFERENCE',
+          message: 'Choose how broadly this trip should explore.',
+        },
+      },
+      { status: 400 },
+    );
+  }
+
+  const { id } = await context.params;
+  const { data: trip, error: tripError } = await authenticated.supabase
+    .from('trips')
+    .select('id, destination')
+    .eq('id', id)
+    .maybeSingle();
+  if (tripError || !trip) return unavailableTripResponse();
+  if (!trip.destination) {
+    return Response.json(
+      {
+        error: {
+          code: 'DESTINATION_REQUIRED',
+          message: 'Choose a destination before setting the trip scope.',
+        },
+      },
+      { status: 409 },
+    );
+  }
+
+  const { data, error } = await authenticated.supabase
+    .from('trips')
+    .update({
+      exploration_preference: explorationPreference,
+      geographic_scope: null,
+    })
+    .eq('id', id)
+    .select('id, destination, exploration_preference')
+    .maybeSingle();
+  if (error || !data) return unavailableTripResponse();
+  return Response.json({
+    explorationPreference: parseExplorationPreference(
+      data.exploration_preference,
+    ),
+  });
 }
 
 export async function POST(
@@ -56,8 +119,8 @@ export async function POST(
     if (!trip.destination) throw new Error('DESTINATION_REQUIRED');
     const explorationPreference =
       body.explorationPreference === undefined
-        ? parseExplorationPreference(trip.exploration_preference) ??
-          'nearby_day_trips'
+        ? (parseExplorationPreference(trip.exploration_preference) ??
+          'nearby_day_trips')
         : parseExplorationPreference(body.explorationPreference);
     if (!explorationPreference) {
       return Response.json(

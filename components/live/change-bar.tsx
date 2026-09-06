@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { SystemNotice } from '@/components/ui/system-state';
 import type { ItineraryItemView } from '@/lib/phase2/types';
 import type { WeatherAtStop } from '@/lib/planner/types';
 import type {
@@ -73,8 +74,14 @@ export function ChangeBar({
   weatherContext: string | null;
   weatherDisruptions: WeatherDisruption[];
   weatherAvailable: boolean;
-  schedule: { day: number; current: ItineraryItemView; later: ItineraryItemView[] } | null;
-  onScheduleApply: (event: Extract<TripChangeEvent, { type: 'stay_longer' | 'running_late' }>) => Promise<void>;
+  schedule: {
+    day: number;
+    current: ItineraryItemView;
+    later: ItineraryItemView[];
+  } | null;
+  onScheduleApply: (
+    event: Extract<TripChangeEvent, { type: 'stay_longer' | 'running_late' }>,
+  ) => Promise<void>;
   onWeatherDelay: (item: ItineraryItemView, minutes: number) => Promise<void>;
   onWeatherSkip: (item: ItineraryItemView) => Promise<void>;
 }) {
@@ -84,10 +91,15 @@ export function ChangeBar({
   const [capturedEvent, setCapturedEvent] = useState<TripChangeEvent | null>(
     null,
   );
-  const [scheduleEvent, setScheduleEvent] = useState<Extract<TripChangeEvent, { type: 'stay_longer' | 'running_late' }> | null>(null);
+  const [scheduleEvent, setScheduleEvent] = useState<Extract<
+    TripChangeEvent,
+    { type: 'stay_longer' | 'running_late' }
+  > | null>(null);
   const [applying, setApplying] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
-  const [weatherAction, setWeatherAction] = useState<'delay' | 'skip' | null>(null);
+  const [weatherAction, setWeatherAction] = useState<'delay' | 'skip' | null>(
+    null,
+  );
   const [weatherDelay, setWeatherDelay] = useState<number | null>(null);
 
   useEffect(() => {
@@ -123,7 +135,9 @@ export function ChangeBar({
     setWeatherDelay(null);
   }
 
-  const option = CHANGE_OPTIONS.find((candidate) => candidate.type === activeType);
+  const option = CHANGE_OPTIONS.find(
+    (candidate) => candidate.type === activeType,
+  );
 
   async function applySchedule() {
     if (!scheduleEvent || applying) return;
@@ -134,22 +148,27 @@ export function ChangeBar({
       setCapturedEvent(scheduleEvent);
       setScheduleEvent(null);
     } catch (error) {
-      setApplyError(error instanceof Error ? error.message : 'We could not update the schedule.');
+      setApplyError(
+        error instanceof Error
+          ? error.message
+          : 'We could not update the schedule.',
+      );
     } finally {
       setApplying(false);
     }
   }
 
   const weatherDisruption = weatherDisruptions[0] ?? null;
-  const weatherSchedule = weatherDisruption && schedule
-    ? {
-        day: schedule.day,
-        current: weatherDisruption.item,
-        later: schedule.later.filter(
-          (item) => item.sortOrder > weatherDisruption.item.sortOrder,
-        ),
-      }
-    : null;
+  const weatherSchedule =
+    weatherDisruption && schedule
+      ? {
+          day: schedule.day,
+          current: weatherDisruption.item,
+          later: schedule.later.filter(
+            (item) => item.sortOrder > weatherDisruption.item.sortOrder,
+          ),
+        }
+      : null;
 
   async function applyWeatherDelay() {
     if (!weatherDelay || !weatherSchedule || applying) return;
@@ -159,7 +178,11 @@ export function ChangeBar({
       await onWeatherDelay(weatherSchedule.current, weatherDelay);
       close();
     } catch (error) {
-      setApplyError(error instanceof Error ? error.message : 'We could not update the schedule.');
+      setApplyError(
+        error instanceof Error
+          ? error.message
+          : 'We could not update the schedule.',
+      );
     } finally {
       setApplying(false);
     }
@@ -173,7 +196,11 @@ export function ChangeBar({
       await onWeatherSkip(weatherDisruption.item);
       close();
     } catch (error) {
-      setApplyError(error instanceof Error ? error.message : 'We could not remove this stop.');
+      setApplyError(
+        error instanceof Error
+          ? error.message
+          : 'We could not remove this stop.',
+      );
     } finally {
       setApplying(false);
     }
@@ -236,7 +263,9 @@ export function ChangeBar({
                       className="flex min-h-24 flex-col items-start justify-between border border-[#8b8170]/35 bg-[#fffdf8] p-4 text-left text-[#35383d] transition-colors hover:bg-[#f2eee1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f3237]/30 active:translate-y-px"
                     >
                       <Icon className="size-5" aria-hidden="true" />
-                      <span className="text-sm font-semibold leading-5">{label}</span>
+                      <span className="text-sm font-semibold leading-5">
+                        {label}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -254,27 +283,47 @@ export function ChangeBar({
                     All changes
                   </button>
 
-                  {activeType === 'stay_longer' && (
-                    scheduleEvent?.type === 'stay_longer' && schedule ? <SchedulePreview event={scheduleEvent} schedule={schedule} applying={applying} error={applyError} onApply={() => void applySchedule()} onCancel={() => setScheduleEvent(null)} /> : <ChoiceCapture
-                      prompt="How much longer?"
-                      choices={MINUTE_CHOICES}
-                      suffix="min"
-                      onChoose={(minutes) =>
-                        setScheduleEvent({ type: 'stay_longer', minutes })
-                      }
-                    />
-                  )}
+                  {activeType === 'stay_longer' &&
+                    (scheduleEvent?.type === 'stay_longer' && schedule ? (
+                      <SchedulePreview
+                        event={scheduleEvent}
+                        schedule={schedule}
+                        applying={applying}
+                        error={applyError}
+                        onApply={() => void applySchedule()}
+                        onCancel={() => setScheduleEvent(null)}
+                      />
+                    ) : (
+                      <ChoiceCapture
+                        prompt="How much longer?"
+                        choices={MINUTE_CHOICES}
+                        suffix="min"
+                        onChoose={(minutes) =>
+                          setScheduleEvent({ type: 'stay_longer', minutes })
+                        }
+                      />
+                    ))}
 
-                  {activeType === 'running_late' && (
-                    scheduleEvent?.type === 'running_late' && schedule ? <SchedulePreview event={scheduleEvent} schedule={schedule} applying={applying} error={applyError} onApply={() => void applySchedule()} onCancel={() => setScheduleEvent(null)} /> : <ChoiceCapture
-                      prompt="How late are you?"
-                      choices={MINUTE_CHOICES}
-                      suffix="min"
-                      onChoose={(minutes) =>
-                        setScheduleEvent({ type: 'running_late', minutes })
-                      }
-                    />
-                  )}
+                  {activeType === 'running_late' &&
+                    (scheduleEvent?.type === 'running_late' && schedule ? (
+                      <SchedulePreview
+                        event={scheduleEvent}
+                        schedule={schedule}
+                        applying={applying}
+                        error={applyError}
+                        onApply={() => void applySchedule()}
+                        onCancel={() => setScheduleEvent(null)}
+                      />
+                    ) : (
+                      <ChoiceCapture
+                        prompt="How late are you?"
+                        choices={MINUTE_CHOICES}
+                        suffix="min"
+                        onChoose={(minutes) =>
+                          setScheduleEvent({ type: 'running_late', minutes })
+                        }
+                      />
+                    ))}
 
                   {activeType === 'lost_item' && (
                     <NoteCapture
@@ -282,14 +331,18 @@ export function ChangeBar({
                       placeholder="Forgot my bag at the previous cafe"
                       note={note}
                       onChange={setNote}
-                      onSave={() => capture({ type: 'lost_item', note: note.trim() })}
+                      onSave={() =>
+                        capture({ type: 'lost_item', note: note.trim() })
+                      }
                       disabled={note.trim().length === 0}
                     />
                   )}
 
                   {activeType === 'separated' && (
                     <div>
-                      <p className="text-sm font-semibold">Who got separated?</p>
+                      <p className="text-sm font-semibold">
+                        Who got separated?
+                      </p>
                       {members.length > 0 ? (
                         <div className="mt-4 grid gap-2">
                           {members.map((member) => (
@@ -297,7 +350,10 @@ export function ChangeBar({
                               key={member.id}
                               type="button"
                               onClick={() =>
-                                capture({ type: 'separated', memberId: member.id })
+                                capture({
+                                  type: 'separated',
+                                  memberId: member.id,
+                                })
                               }
                               className="border border-[#8b8170]/35 bg-[#fffdf8] px-4 py-3 text-left font-semibold text-[#35383d] hover:bg-[#f2eee1] active:translate-y-px"
                             >
@@ -308,7 +364,8 @@ export function ChangeBar({
                       ) : (
                         <div className="mt-4">
                           <p className="text-sm leading-6 text-[#5a5d61]">
-                            Record the separation now. Member selection is unavailable.
+                            Record the separation now. Member selection is
+                            unavailable.
                           </p>
                           <ActionButton
                             className="mt-4"
@@ -321,9 +378,69 @@ export function ChangeBar({
                     </div>
                   )}
 
-                  {activeType === 'weather_problem' && (
-                    !weatherAvailable ? <div><p className="text-sm font-semibold">Weather data is unavailable right now.</p><p className="mt-2 text-sm leading-6 text-[#5a5d61]">Your Live Trip remains available. Please check again shortly.</p><ActionButton className="mt-4" onClick={close}>Keep plan</ActionButton></div> : !weatherDisruption ? <div><p className="text-sm font-semibold">No significant weather disruption is currently detected for your upcoming stops.</p>{weatherContext && <p className="mt-2 text-sm leading-6 text-[#5a5d61]">Upcoming: {weatherContext}</p>}<ActionButton className="mt-4" onClick={close}>Keep plan</ActionButton></div> : weatherAction === 'delay' && weatherDelay && weatherSchedule ? <SchedulePreview event={{ type: 'running_late', minutes: weatherDelay }} schedule={weatherSchedule} applying={applying} error={applyError} onApply={() => void applyWeatherDelay()} onCancel={() => { setWeatherDelay(null); setWeatherAction(null); }} /> : weatherAction === 'skip' ? <SkipWeatherPreview item={weatherDisruption.item} applying={applying} error={applyError} onApply={() => void applyWeatherSkip()} onCancel={() => setWeatherAction(null)} /> : <WeatherDisruptionChoice disruption={weatherDisruption} laterCount={weatherDisruptions.length - 1} onDelay={(minutes) => { setWeatherAction('delay'); setWeatherDelay(minutes); }} onSkip={() => setWeatherAction('skip')} onKeepPlan={close} />
-                  )}
+                  {activeType === 'weather_problem' &&
+                    (!weatherAvailable ? (
+                      <div>
+                        <p className="text-sm font-semibold">
+                          Weather data is unavailable right now.
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-[#5a5d61]">
+                          Your Live Trip remains available. Please check again
+                          shortly.
+                        </p>
+                        <ActionButton className="mt-4" onClick={close}>
+                          Keep plan
+                        </ActionButton>
+                      </div>
+                    ) : !weatherDisruption ? (
+                      <div>
+                        <p className="text-sm font-semibold">
+                          No significant weather disruption is currently
+                          detected for your upcoming stops.
+                        </p>
+                        {weatherContext && (
+                          <p className="mt-2 text-sm leading-6 text-[#5a5d61]">
+                            Upcoming: {weatherContext}
+                          </p>
+                        )}
+                        <ActionButton className="mt-4" onClick={close}>
+                          Keep plan
+                        </ActionButton>
+                      </div>
+                    ) : weatherAction === 'delay' &&
+                      weatherDelay &&
+                      weatherSchedule ? (
+                      <SchedulePreview
+                        event={{ type: 'running_late', minutes: weatherDelay }}
+                        schedule={weatherSchedule}
+                        applying={applying}
+                        error={applyError}
+                        onApply={() => void applyWeatherDelay()}
+                        onCancel={() => {
+                          setWeatherDelay(null);
+                          setWeatherAction(null);
+                        }}
+                      />
+                    ) : weatherAction === 'skip' ? (
+                      <SkipWeatherPreview
+                        item={weatherDisruption.item}
+                        applying={applying}
+                        error={applyError}
+                        onApply={() => void applyWeatherSkip()}
+                        onCancel={() => setWeatherAction(null)}
+                      />
+                    ) : (
+                      <WeatherDisruptionChoice
+                        disruption={weatherDisruption}
+                        laterCount={weatherDisruptions.length - 1}
+                        onDelay={(minutes) => {
+                          setWeatherAction('delay');
+                          setWeatherDelay(minutes);
+                        }}
+                        onSkip={() => setWeatherAction('skip')}
+                        onKeepPlan={close}
+                      />
+                    ))}
 
                   {activeType === 'emergency' && (
                     <NoteCapture
@@ -361,22 +478,200 @@ export function ChangeBar({
   );
 }
 
-function WeatherDisruptionChoice({ disruption, laterCount, onDelay, onSkip, onKeepPlan }: { disruption: WeatherDisruption; laterCount: number; onDelay: (minutes: number) => void; onSkip: () => void; onKeepPlan: () => void }) {
+function WeatherDisruptionChoice({
+  disruption,
+  laterCount,
+  onDelay,
+  onSkip,
+  onKeepPlan,
+}: {
+  disruption: WeatherDisruption;
+  laterCount: number;
+  onDelay: (minutes: number) => void;
+  onSkip: () => void;
+  onKeepPlan: () => void;
+}) {
   const { item, weather } = disruption;
-  return <div><p className="text-xs font-semibold tracking-[0.12em] text-[#5a5d61]">WEATHER CHANGE AHEAD</p><div className="mt-3 border-l-2 border-[#2f3237] bg-[#f2eee1] p-4"><div className="flex items-baseline justify-between gap-3"><p className="font-semibold">{item.place.name}</p><time className="font-mono text-sm">{item.plannedTime}</time></div><p className="mt-2 text-sm text-[#5a5d61]">{weather.condition}{weather.precipitationProbability !== null ? ` · ${Math.round(weather.precipitationProbability)}% precipitation` : ''}{weather.temperatureC !== null ? ` · ${Math.round(weather.temperatureC)}°C` : ''}</p></div>{laterCount > 0 && <p className="mt-3 text-sm text-[#5a5d61]">{laterCount} later stop{laterCount === 1 ? '' : 's'} may also be affected.</p>}<p className="mt-5 text-sm font-semibold">Delay this stop</p><div className="mt-3 grid grid-cols-3 gap-2">{WEATHER_DELAY_CHOICES.map((minutes) => <button key={minutes} type="button" onClick={() => onDelay(minutes)} className="border border-[#35383d] bg-[#2f3237] px-3 py-3 text-sm font-semibold text-[#f8f4e8] hover:bg-[#1f2227]">+{minutes} min</button>)}</div><div className="mt-3 flex flex-wrap gap-3"><button type="button" onClick={onSkip} className="h-11 border border-[#35383d] px-4 text-sm font-semibold hover:bg-[#f2eee1]">Skip stop</button><button type="button" onClick={onKeepPlan} className="h-11 px-3 text-sm font-semibold underline-offset-4 hover:underline">Keep plan</button></div></div>;
+  return (
+    <div>
+      <p className="text-xs font-semibold tracking-[0.12em] text-[#5a5d61]">
+        WEATHER CHANGE AHEAD
+      </p>
+      <div className="mt-3 border-l-2 border-[#2f3237] bg-[#f2eee1] p-4">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="font-semibold">{item.place.name}</p>
+          <time className="font-mono text-sm">{item.plannedTime}</time>
+        </div>
+        <p className="mt-2 text-sm text-[#5a5d61]">
+          {weather.condition}
+          {weather.precipitationProbability !== null
+            ? ` · ${Math.round(weather.precipitationProbability)}% precipitation`
+            : ''}
+          {weather.temperatureC !== null
+            ? ` · ${Math.round(weather.temperatureC)}°C`
+            : ''}
+        </p>
+      </div>
+      {laterCount > 0 && (
+        <p className="mt-3 text-sm text-[#5a5d61]">
+          {laterCount} later stop{laterCount === 1 ? '' : 's'} may also be
+          affected.
+        </p>
+      )}
+      <p className="mt-5 text-sm font-semibold">Delay this stop</p>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {WEATHER_DELAY_CHOICES.map((minutes) => (
+          <button
+            key={minutes}
+            type="button"
+            onClick={() => onDelay(minutes)}
+            className="border border-[#35383d] bg-[#2f3237] px-3 py-3 text-sm font-semibold text-[#f8f4e8] hover:bg-[#1f2227]"
+          >
+            +{minutes} min
+          </button>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={onSkip}
+          className="h-11 border border-[#35383d] px-4 text-sm font-semibold hover:bg-[#f2eee1]"
+        >
+          Skip stop
+        </button>
+        <button
+          type="button"
+          onClick={onKeepPlan}
+          className="h-11 px-3 text-sm font-semibold underline-offset-4 hover:underline"
+        >
+          Keep plan
+        </button>
+      </div>
+    </div>
+  );
 }
 
-function SkipWeatherPreview({ item, applying, error, onApply, onCancel }: { item: ItineraryItemView; applying: boolean; error: string | null; onApply: () => void; onCancel: () => void }) {
-  return <div><p className="text-sm font-semibold">Skip {item.place.name}</p><p className="mt-2 text-sm leading-6 text-[#5a5d61]">Route and remaining schedule will be recalculated.</p>{error && <p role="alert" className="mt-4 rounded-lg border border-brown-accent/25 bg-parchment px-3 py-2 text-sm leading-6 text-ink">{error}</p>}<div className="mt-5 flex gap-3"><ActionButton onClick={onApply} disabled={applying}>{applying ? 'Applying' : 'Apply changes'}</ActionButton><button type="button" onClick={onCancel} disabled={applying} className="h-11 px-3 text-sm font-semibold underline-offset-4 hover:underline">Cancel</button></div></div>;
+function SkipWeatherPreview({
+  item,
+  applying,
+  error,
+  onApply,
+  onCancel,
+}: {
+  item: ItineraryItemView;
+  applying: boolean;
+  error: string | null;
+  onApply: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div>
+      <p className="text-sm font-semibold">Skip {item.place.name}</p>
+      <p className="mt-2 text-sm leading-6 text-[#5a5d61]">
+        Route and remaining schedule will be recalculated.
+      </p>
+      {error && (
+        <SystemNotice
+          role="alert"
+          className="mt-4 bg-parchment px-3 py-2.5"
+          title="We couldn’t apply this change."
+          description="Your saved schedule is unchanged. Try applying it again or keep the current plan."
+        />
+      )}
+      <div className="mt-5 flex gap-3">
+        <ActionButton onClick={onApply} disabled={applying}>
+          {applying ? 'Applying…' : 'Apply changes'}
+        </ActionButton>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={applying}
+          className="h-11 px-3 text-sm font-semibold underline-offset-4 hover:underline"
+        >
+          Keep current plan
+        </button>
+      </div>
+    </div>
+  );
 }
 
-function SchedulePreview({ event, schedule, applying, error, onApply, onCancel }: { event: Extract<TripChangeEvent, { type: 'stay_longer' | 'running_late' }>; schedule: { day: number; current: ItineraryItemView; later: ItineraryItemView[] }; applying: boolean; error: string | null; onApply: () => void; onCancel: () => void }) {
-  const affected = event.type === 'stay_longer' ? schedule.later : [schedule.current, ...schedule.later];
-  return <div><p className="text-sm font-semibold">{event.minutes} minute schedule shift</p><p className="mt-2 text-sm leading-6 text-[#5a5d61]">{event.type === 'stay_longer' ? `${schedule.current.place.name} ends ${formatTime(addMinutes(schedule.current.plannedTime, schedule.current.estimatedDurationMinutes))} → ${formatTime(addMinutes(schedule.current.plannedTime, schedule.current.estimatedDurationMinutes + event.minutes))}` : `${schedule.current.place.name} starts ${schedule.current.plannedTime} → ${formatTime(addMinutes(schedule.current.plannedTime, event.minutes))}`}</p><div className="mt-4 space-y-2">{affected.slice(0, 4).map((item) => <p key={item.id} className="text-sm"><span className="font-semibold">{item.place.name}</span><span className="text-[#5a5d61]"> {item.plannedTime} → {formatTime(addMinutes(item.plannedTime, event.minutes))}</span></p>)}</div>{error && <p role="alert" className="mt-4 rounded-lg border border-brown-accent/25 bg-parchment px-3 py-2 text-sm leading-6 text-ink">{error}</p>}<div className="mt-5 flex gap-3"><ActionButton onClick={onApply} disabled={applying}>{applying ? 'Applying' : 'Apply changes'}</ActionButton><button type="button" onClick={onCancel} disabled={applying} className="h-11 px-3 text-sm font-semibold underline-offset-4 hover:underline">Cancel</button></div></div>;
+function SchedulePreview({
+  event,
+  schedule,
+  applying,
+  error,
+  onApply,
+  onCancel,
+}: {
+  event: Extract<TripChangeEvent, { type: 'stay_longer' | 'running_late' }>;
+  schedule: {
+    day: number;
+    current: ItineraryItemView;
+    later: ItineraryItemView[];
+  };
+  applying: boolean;
+  error: string | null;
+  onApply: () => void;
+  onCancel: () => void;
+}) {
+  const affected =
+    event.type === 'stay_longer'
+      ? schedule.later
+      : [schedule.current, ...schedule.later];
+  return (
+    <div>
+      <p className="text-sm font-semibold">
+        {event.minutes} minute schedule shift
+      </p>
+      <p className="mt-2 text-sm leading-6 text-[#5a5d61]">
+        {event.type === 'stay_longer'
+          ? `${schedule.current.place.name} ends ${formatTime(addMinutes(schedule.current.plannedTime, schedule.current.estimatedDurationMinutes))} → ${formatTime(addMinutes(schedule.current.plannedTime, schedule.current.estimatedDurationMinutes + event.minutes))}`
+          : `${schedule.current.place.name} starts ${schedule.current.plannedTime} → ${formatTime(addMinutes(schedule.current.plannedTime, event.minutes))}`}
+      </p>
+      <div className="mt-4 space-y-2">
+        {affected.slice(0, 4).map((item) => (
+          <p key={item.id} className="text-sm">
+            <span className="font-semibold">{item.place.name}</span>
+            <span className="text-[#5a5d61]">
+              {' '}
+              {item.plannedTime} →{' '}
+              {formatTime(addMinutes(item.plannedTime, event.minutes))}
+            </span>
+          </p>
+        ))}
+      </div>
+      {error && (
+        <SystemNotice
+          role="alert"
+          className="mt-4 bg-parchment px-3 py-2.5"
+          title="We couldn’t apply this change."
+          description="Your saved schedule is unchanged. Try applying it again or keep the current plan."
+        />
+      )}
+      <div className="mt-5 flex gap-3">
+        <ActionButton onClick={onApply} disabled={applying}>
+          {applying ? 'Applying…' : 'Apply changes'}
+        </ActionButton>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={applying}
+          className="h-11 px-3 text-sm font-semibold underline-offset-4 hover:underline"
+        >
+          Keep current plan
+        </button>
+      </div>
+    </div>
+  );
 }
 
-function addMinutes(time: string, minutes: number) { const [hours, mins] = time.split(':').map(Number); return `${String(Math.floor((hours * 60 + mins + minutes) / 60) % 24).padStart(2, '0')}:${String((hours * 60 + mins + minutes) % 60).padStart(2, '0')}`; }
-function formatTime(time: string) { return time; }
+function addMinutes(time: string, minutes: number) {
+  const [hours, mins] = time.split(':').map(Number);
+  return `${String(Math.floor((hours * 60 + mins + minutes) / 60) % 24).padStart(2, '0')}:${String((hours * 60 + mins + minutes) % 60).padStart(2, '0')}`;
+}
+function formatTime(time: string) {
+  return time;
+}
 
 function ChoiceCapture({
   prompt,
@@ -431,7 +726,9 @@ function NoteCapture({
       <label htmlFor="trip-change-note" className="text-sm font-semibold">
         {prompt}
       </label>
-      {description && <p className="mt-2 text-sm leading-6 text-[#5a5d61]">{description}</p>}
+      {description && (
+        <p className="mt-2 text-sm leading-6 text-[#5a5d61]">{description}</p>
+      )}
       <Input
         id="trip-change-note"
         value={note}

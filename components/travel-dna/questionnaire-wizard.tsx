@@ -12,10 +12,13 @@ import {
   RefreshCw,
   Star,
 } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { SystemLoading, SystemState } from '@/components/ui/system-state';
+import {
+  SystemLoading,
+  SystemNotice,
+  SystemState,
+} from '@/components/ui/system-state';
 import {
   BUDGET_CUSTOM_POSITION,
   BUDGET_UNLIMITED_POSITION,
@@ -78,6 +81,7 @@ export function QuestionnaireWizard({ tripId }: { tripId: string }) {
   const [refreshing, setRefreshing] = useState(false);
   const [hasSavedPreferences, setHasSavedPreferences] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [realtimeStatus, setRealtimeStatus] = useState('CONNECTING');
   const readinessChannelRef = useRef<RealtimeChannel | null>(null);
 
   const customBudgetValue = useMemo(
@@ -183,7 +187,7 @@ export function QuestionnaireWizard({ tripId }: { tripId: string }) {
         },
         scheduleStatusRefresh,
       )
-      .subscribe();
+      .subscribe(setRealtimeStatus);
     readinessChannelRef.current = channel;
 
     return () => {
@@ -380,13 +384,50 @@ export function QuestionnaireWizard({ tripId }: { tripId: string }) {
           <ReadinessList rows={status} />
 
           {error && (
-            <Alert
-              variant="destructive"
+            <SystemNotice
+              role="alert"
               className="mt-5 border-brown-accent/35 bg-parchment"
-            >
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+              title="We couldn’t refresh the group status."
+              description={
+                <>
+                  <p>{error}</p>
+                  <p className="mt-1">
+                    Your saved Travel DNA is safe. Try refreshing the status
+                    again.
+                  </p>
+                </>
+              }
+              actions={
+                <button
+                  type="button"
+                  onClick={() => void refreshStatus()}
+                  className="font-semibold text-brown-accent underline-offset-4 hover:underline"
+                >
+                  Try again
+                </button>
+              }
+            />
           )}
+
+          {!error &&
+            ['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(
+              realtimeStatus,
+            ) && (
+              <SystemNotice
+                className="mt-5 bg-parchment"
+                title="Live readiness updates are paused."
+                description="Your saved Travel DNA is safe. Refresh the group status to check who is ready."
+                actions={
+                  <button
+                    type="button"
+                    onClick={() => void refreshStatus()}
+                    className="font-semibold text-brown-accent underline-offset-4 hover:underline"
+                  >
+                    Refresh status
+                  </button>
+                }
+              />
+            )}
 
           <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap">
             {allCompleted ? (
@@ -741,12 +782,20 @@ export function QuestionnaireWizard({ tripId }: { tripId: string }) {
           )}
 
           {error && (
-            <Alert
-              variant="destructive"
+            <SystemNotice
+              role="alert"
               className="mt-5 border-brown-accent/35 bg-parchment"
-            >
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+              title="We couldn’t continue yet."
+              description={
+                <>
+                  <p>{error}</p>
+                  <p className="mt-1">
+                    Your answers are still on this page. Review this step and
+                    try again.
+                  </p>
+                </>
+              }
+            />
           )}
 
           <div

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { LoaderCircle, Plus, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SystemNotice } from '@/components/ui/system-state';
 import { phase2Fetch } from '@/lib/phase2/client';
 import type { PlaceCandidate } from '@/lib/phase2/types';
 import type { PlaceSearchResponse } from '@/lib/planner/types';
@@ -26,6 +27,9 @@ export function AddPlacePanel({
   const [searching, setSearching] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<'empty' | 'search' | 'add'>(
+    'search',
+  );
 
   async function search(event: { preventDefault(): void }) {
     event.preventDefault();
@@ -40,9 +44,11 @@ export function AddPlacePanel({
       );
       setResults(payload.results);
       if (payload.results.length === 0) {
+        setErrorKind('empty');
         setError('No matching places found. Try a more specific search.');
       }
     } catch (searchError) {
+      setErrorKind('search');
       setError(
         searchError instanceof Error
           ? searchError.message
@@ -60,6 +66,7 @@ export function AddPlacePanel({
       await onAdd(place.externalPlaceId);
       onClose();
     } catch (addError) {
+      setErrorKind('add');
       setError(
         addError instanceof Error
           ? addError.message
@@ -118,12 +125,24 @@ export function AddPlacePanel({
       </form>
 
       {error && (
-        <p
-          role="alert"
-          className="mt-3 rounded-lg border border-brown-accent/25 bg-parchment px-3 py-2 text-xs leading-5 text-ink"
-        >
-          {error}
-        </p>
+        <SystemNotice
+          role={errorKind === 'empty' ? 'status' : 'alert'}
+          className="mt-3 bg-parchment px-3 py-2.5"
+          title={
+            errorKind === 'empty'
+              ? 'No matching places yet.'
+              : errorKind === 'add'
+                ? 'That place wasn’t added.'
+                : 'Place search is unavailable.'
+          }
+          description={
+            errorKind === 'add'
+              ? 'Your itinerary is unchanged. Try adding the place again.'
+              : errorKind === 'empty'
+                ? 'Your itinerary is unchanged. Try a more specific name or area in the search above.'
+                : 'Your itinerary is unchanged. Check your connection and try the search again.'
+          }
+        />
       )}
 
       {results.length > 0 && (

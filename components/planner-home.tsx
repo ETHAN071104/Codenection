@@ -16,9 +16,9 @@ import {
   Plane,
   UsersRound,
 } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SystemNotice } from '@/components/ui/system-state';
 import { ensureAnonymousUser } from '@/lib/supabase/auth';
 import {
   getSupabaseBrowserClient,
@@ -330,9 +330,14 @@ export function PlannerHome() {
                     ) : (
                       <Plane aria-hidden="true" />
                     )}
-                    Create Trip
+                    {pendingAction === 'create'
+                      ? 'Creating trip…'
+                      : 'Create Trip'}
                   </Button>
-                  <div className="border-t border-warm-border pt-6">
+                  <div
+                    id="join-trip"
+                    className="scroll-mt-6 border-t border-warm-border pt-6"
+                  >
                     <div className="flex items-start gap-3">
                       <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-parchment text-brown-accent">
                         <UsersRound className="size-4" aria-hidden="true" />
@@ -392,28 +397,27 @@ export function PlannerHome() {
                         ) : (
                           <ArrowRight aria-hidden="true" />
                         )}
-                        Join Trip
+                        {pendingAction === 'join'
+                          ? 'Joining trip…'
+                          : 'Join Trip'}
                       </Button>
                     </div>
                   </div>
                 </form>
                 {!configured && (
-                  <Alert className="mt-5 border-brown-accent/35 bg-parchment">
-                    <AlertDescription>
-                      Trip rooms are not available right now. Nothing has been
-                      submitted; try again after the connection is restored.
-                    </AlertDescription>
-                  </Alert>
+                  <SystemNotice
+                    className="mt-5 bg-parchment"
+                    title="Trip rooms are unavailable right now."
+                    description="Nothing has been submitted. Your form entries are still here, so try again after the connection is restored."
+                  />
                 )}
                 {error && (
-                  <Alert
+                  <SystemNotice
                     role="alert"
                     className="mt-5 border-brown-accent/30 bg-paper text-ink"
-                  >
-                    <AlertDescription className="leading-6">
-                      {error}
-                    </AlertDescription>
-                  </Alert>
+                    title="We couldn’t continue with that trip."
+                    description={`${error} Your form entries are still here, so you can correct them or try again.`}
+                  />
                 )}
               </div>
             </div>

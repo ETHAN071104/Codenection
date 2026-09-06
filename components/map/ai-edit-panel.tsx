@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Bot, LoaderCircle, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { SystemNotice } from '@/components/ui/system-state';
 import { phase2Fetch } from '@/lib/phase2/client';
 import type {
   AiEditProposal,
@@ -35,6 +36,7 @@ export function AiEditPanel({
   const [proposal, setProposal] = useState<AiEditProposal | null>(null);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorStage, setErrorStage] = useState<'preview' | 'apply'>('preview');
 
   async function createPreview(event: { preventDefault(): void }) {
     event.preventDefault();
@@ -53,6 +55,7 @@ export function AiEditPanel({
       );
       setProposal(nextProposal);
     } catch (previewError) {
+      setErrorStage('preview');
       setError(
         previewError instanceof Error
           ? previewError.message
@@ -76,6 +79,7 @@ export function AiEditPanel({
       onApplied(result);
       onClose();
     } catch (applyError) {
+      setErrorStage('apply');
       setError(
         applyError instanceof Error
           ? applyError.message
@@ -137,12 +141,20 @@ export function AiEditPanel({
       </form>
 
       {error && (
-        <p
+        <SystemNotice
           role="alert"
-          className="mt-3 rounded-lg border border-brown-accent/25 bg-parchment px-3 py-2 text-xs leading-5 text-ink"
-        >
-          {error}
-        </p>
+          className="mt-3 bg-parchment px-3 py-2.5"
+          title={
+            errorStage === 'apply'
+              ? 'Those changes weren’t applied.'
+              : 'We couldn’t prepare a preview.'
+          }
+          description={
+            errorStage === 'apply'
+              ? 'Your saved itinerary is unchanged. Try applying the preview again or close it.'
+              : 'Your saved itinerary is unchanged. Adjust the request or try previewing it again.'
+          }
+        />
       )}
 
       {proposal && (

@@ -15,7 +15,11 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { SystemLoading, SystemState } from '@/components/ui/system-state';
+import {
+  SystemLoading,
+  SystemNotice,
+  SystemState,
+} from '@/components/ui/system-state';
 import { ensureAnonymousUser } from '@/lib/supabase/auth';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { QuestionnaireStatusRow } from '@/lib/preferences/model';
@@ -199,7 +203,7 @@ export function TripRoom({ tripId }: { tripId: string }) {
                   </Button>
                 )}
                 <Link
-                  href="/"
+                  href={errorKind === 'access' ? '/#join-trip' : '/'}
                   className={buttonVariants({
                     variant: errorKind === 'load' ? 'outline' : 'default',
                     className:
@@ -208,8 +212,20 @@ export function TripRoom({ tripId }: { tripId: string }) {
                         : 'h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90',
                   })}
                 >
-                  Return home
+                  {errorKind === 'access' ? 'Join trip' : 'Return home'}
                 </Link>
+                {errorKind === 'access' && (
+                  <Link
+                    href="/"
+                    className={buttonVariants({
+                      variant: 'ghost',
+                      className:
+                        'h-11 rounded-xl px-5 text-warm-muted hover:bg-parchment hover:text-ink',
+                    })}
+                  >
+                    Return home
+                  </Link>
+                )}
               </>
             }
           />
@@ -285,13 +301,12 @@ export function TripRoom({ tripId }: { tripId: string }) {
                       </output>
                     )}
                     {copyError && (
-                      <p
+                      <SystemNotice
                         role="alert"
-                        className="mt-3 rounded-lg border border-brown-accent/25 bg-parchment px-3 py-2 text-sm leading-6 text-ink"
-                      >
-                        We could not copy automatically. Select the room code
-                        and copy it manually.
-                      </p>
+                        className="mt-3 bg-parchment px-3 py-2.5"
+                        title="The room code wasn’t copied."
+                        description="Your trip is unchanged. Select the code above and copy it manually."
+                      />
                     )}
                   </div>
                 </section>

@@ -20,7 +20,11 @@ import {
   X,
 } from 'lucide-react';
 import { JourneyShell } from '@/components/travel-dna/journey-shell';
-import { SystemLoading, SystemState } from '@/components/ui/system-state';
+import {
+  SystemLoading,
+  SystemNotice,
+  SystemState,
+} from '@/components/ui/system-state';
 import { buttonVariants } from '@/components/ui/button';
 import type { GeographicDayClustering } from '@/lib/malaysia-places/day-clustering-core';
 import type { DeterministicDraftSchedule } from '@/lib/malaysia-places/deterministic-scheduling-core';
@@ -32,6 +36,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 type CandidateResponse = {
   supported: boolean;
+  availability?: 'destination_required' | 'insufficient_candidates';
   destination: string;
   durationDays: number | null;
   candidates: RankedCandidate[];
@@ -133,6 +138,7 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
   const router = useRouter();
   const [data, setData] = useState<CandidateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<'load' | 'mutation'>('load');
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(new Set<string>());
   const [candidateOrder, setCandidateOrder] = useState<string[]>([]);
@@ -165,6 +171,7 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
         });
         setError(null);
       } catch (loadError) {
+        setErrorKind('load');
         setError(
           loadError instanceof Error
             ? loadError.message
@@ -213,13 +220,9 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
             if (!disposed) setRealtimeStatus(status);
           });
       })
-      .catch((subscriptionError) => {
+      .catch(() => {
         if (!disposed) {
-          setError(
-            subscriptionError instanceof Error
-              ? subscriptionError.message
-              : 'Live updates paused. Your choices are still saved; refresh to reconnect.',
-          );
+          setRealtimeStatus('CHANNEL_ERROR');
         }
       });
 
@@ -264,12 +267,13 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
       await load(false);
       return true;
     } catch (toggleError) {
-      setError(
+      const message =
         toggleError instanceof Error
           ? toggleError.message
-          : 'Could not save your selection.',
-      );
+          : 'Could not save your selection.';
       await load(false);
+      setErrorKind('mutation');
+      setError(message);
       return false;
     } finally {
       setPending((current) => {
@@ -351,7 +355,7 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
       <JourneyShell tripId={tripId} currentStep="Places">
         <SystemLoading
           title="Gathering places for your group"
-          description="We’re loading real Kuala Lumpur places and the group’s saved choices."
+          description="We’re loading real places for this destination and the group’s saved choices."
         />
       </JourneyShell>
     );
@@ -382,14 +386,24 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
                 Try again
               </button>
               <Link
-                href={`/trip/${tripId}`}
+                href={`/trip/${tripId}/itinerary?step=destination`}
                 className={buttonVariants({
                   variant: 'outline',
                   className:
                     'h-11 rounded-xl border-warm-border bg-paper px-5 text-ink hover:bg-parchment',
                 })}
               >
-                Back to trip room
+                Change destination
+              </Link>
+              <Link
+                href={`/trip/${tripId}/itinerary?step=mode`}
+                className={buttonVariants({
+                  variant: 'ghost',
+                  className:
+                    'h-11 rounded-xl px-5 text-warm-muted hover:bg-parchment hover:text-ink',
+                })}
+              >
+                Plan it for me with AI
               </Link>
             </>
           }
@@ -399,28 +413,51 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
   }
 
   if (!data?.supported) {
+    const destinationRequired = data?.availability === 'destination_required';
     return (
       <JourneyShell tripId={tripId} currentStep="Places">
-        <section className="mx-auto w-full max-w-3xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brown-accent">
-            Choose places
-          </p>
-          <h1 className="mt-4 max-w-2xl font-editorial text-5xl font-medium leading-[1.02] tracking-[-0.05em] sm:text-6xl">
-            Curated places are not available for{' '}
-            {data?.destination || 'this destination'} yet.
-          </h1>
-          <p className="mt-5 max-w-xl text-lg leading-8 text-warm-muted">
-            Malaysia-first candidate selection currently supports Kuala Lumpur.
-            Your existing trip-planning route is still available.
-          </p>
-          <Link
-            href={`/trip/${tripId}/itinerary`}
-            className="mt-8 inline-flex h-12 items-center gap-2 rounded-xl bg-ink px-6 text-sm font-semibold text-paper transition-colors hover:bg-ink/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/40 focus-visible:ring-offset-4 focus-visible:ring-offset-parchment"
-          >
-            Continue to trip planning
-            <ArrowRight className="size-4" aria-hidden="true" />
-          </Link>
-        </section>
+        <SystemState
+          eyebrow="Choose places"
+          title={
+            destinationRequired
+              ? 'Choose a destination first.'
+              : `We couldn’t prepare enough places for ${data?.destination || 'this destination'}.`
+          }
+          description={
+            destinationRequired
+              ? 'Your trip and Travel DNA are safe. Choose a destination before reviewing places together.'
+              : 'Your destination and group choices are still saved. Try the place search again, change destination, or use the existing AI planner.'
+          }
+          actions={
+            <>
+              {!destinationRequired && (
+                <button
+                  type="button"
+                  onClick={() => void load(true)}
+                  className="inline-flex h-12 items-center justify-center rounded-xl bg-ink px-6 text-sm font-semibold text-paper transition-colors hover:bg-ink/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/40"
+                >
+                  Try again
+                </button>
+              )}
+              <Link
+                href={`/trip/${tripId}/itinerary?step=destination`}
+                className="inline-flex h-12 items-center justify-center rounded-xl border border-warm-border bg-paper px-6 text-sm font-semibold text-ink hover:bg-parchment"
+              >
+                {destinationRequired
+                  ? 'Choose destination'
+                  : 'Change destination'}
+              </Link>
+              {!destinationRequired && (
+                <Link
+                  href={`/trip/${tripId}/itinerary?step=mode`}
+                  className="inline-flex h-12 items-center justify-center rounded-xl px-6 text-sm font-semibold text-warm-muted hover:bg-parchment hover:text-ink"
+                >
+                  Plan it for me with AI
+                </Link>
+              )}
+            </>
+          }
+        />
       </JourneyShell>
     );
   }
@@ -520,19 +557,46 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
         </div>
 
         {error && (
-          <div
+          <SystemNotice
             role="alert"
-            className="mt-5 flex flex-col gap-3 rounded-xl border border-brown-accent/30 bg-paper px-4 py-3 text-sm leading-6 text-ink sm:flex-row sm:items-center sm:justify-between"
-          >
-            <span>{error}</span>
-            <button
-              type="button"
-              onClick={() => void load(false)}
-              className="shrink-0 font-semibold text-brown-accent underline-offset-4 hover:underline"
-            >
-              Refresh choices
-            </button>
-          </div>
+            className="mt-5 border-brown-accent/30"
+            title={
+              errorKind === 'mutation'
+                ? 'That choice didn’t update.'
+                : 'We couldn’t refresh the latest choices.'
+            }
+            description={
+              errorKind === 'mutation'
+                ? 'Your previous selections are still saved. Refresh to load the latest group choices.'
+                : 'Your saved selections are safe. Refresh to try loading the latest group choices again.'
+            }
+            actions={
+              <button
+                type="button"
+                onClick={() => void load(false)}
+                className="font-semibold text-brown-accent underline-offset-4 hover:underline"
+              >
+                Refresh choices
+              </button>
+            }
+          />
+        )}
+
+        {['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(realtimeStatus) && (
+          <SystemNotice
+            className="mt-5"
+            title="Live updates are paused."
+            description="Your saved choices are safe. Refresh to check the latest group votes and reconnect."
+            actions={
+              <button
+                type="button"
+                onClick={() => void load(false)}
+                className="font-semibold text-brown-accent underline-offset-4 hover:underline"
+              >
+                Refresh
+              </button>
+            }
+          />
         )}
 
         {activePlace ? (
@@ -687,10 +751,10 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
                   Try again
                 </button>
                 <Link
-                  href={`/trip/${tripId}`}
+                  href={`/trip/${tripId}/itinerary?step=destination`}
                   className="inline-flex h-11 items-center justify-center rounded-xl border border-warm-border bg-paper px-5 text-sm font-semibold text-ink hover:bg-parchment"
                 >
-                  Back to trip room
+                  Change destination
                 </Link>
               </div>
             )}
@@ -911,7 +975,7 @@ function StayAreaPresentation({
           </button>
         </>
       ) : (
-        <StayAreaUnavailable recommendation={recommendation} />
+        <StayAreaUnavailable recommendation={recommendation} onBack={onBack} />
       )}
     </section>
   );
@@ -919,8 +983,10 @@ function StayAreaPresentation({
 
 function StayAreaUnavailable({
   recommendation,
+  onBack,
 }: {
   recommendation: StayAreaRecommendation;
+  onBack: () => void;
 }) {
   const message =
     recommendation.status === 'no_selection'
@@ -937,6 +1003,13 @@ function StayAreaUnavailable({
       <p className="mt-4 leading-7 text-warm-muted">
         {message} Your selected places are still saved.
       </p>
+      <button
+        type="button"
+        onClick={onBack}
+        className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-ink px-5 text-sm font-semibold text-paper hover:bg-ink/90"
+      >
+        Review selected places
+      </button>
     </div>
   );
 }
@@ -1120,9 +1193,16 @@ function SchedulePresentation({
             No schedule yet.
           </h1>
           <p className="mt-4 text-base leading-7 text-warm-muted">
-            Choose at least one place first. Then the schedule can arrange it
-            into a practical day.
+            Choose at least one place first. Your trip is safe, and the schedule
+            can arrange your selections into a practical day when you return.
           </p>
+          <button
+            type="button"
+            onClick={onBack}
+            className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-ink px-5 text-sm font-semibold text-paper hover:bg-ink/90"
+          >
+            Review stay area
+          </button>
         </div>
       </section>
     );
@@ -1418,12 +1498,20 @@ function SchedulePresentation({
         )}
 
         {error && (
-          <p
+          <SystemNotice
             role="alert"
-            className="mb-5 rounded-xl border border-brown-accent/30 bg-paper px-4 py-3 text-sm leading-6 text-ink"
-          >
-            {error}
-          </p>
+            className="mb-5 border-brown-accent/30"
+            title="We couldn’t update the map plan."
+            description={
+              <>
+                <p>{error}</p>
+                <p className="mt-1">
+                  Your current itinerary is still saved. Try opening the map
+                  plan again.
+                </p>
+              </>
+            }
+          />
         )}
 
         <button

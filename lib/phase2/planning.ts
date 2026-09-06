@@ -236,13 +236,13 @@ export async function generateGroundedItinerary(context: PlanningContext) {
     schemaName: 'grounded_itinerary',
     schema: itinerarySchema(context.durationDays, maxStopsPerDay),
     system:
-      'Arrange an itinerary using only the supplied Google Place candidate IDs. Never invent, alter, or autocomplete an externalPlaceId. Return structured data only.',
+      'Arrange an itinerary using only the supplied Google Place candidate IDs. Never invent, alter, or autocomplete an externalPlaceId. Use each externalPlaceId at most once across the entire itinerary. Return structured data only.',
     prompt: `Arrange this aggregate group plan:\n${JSON.stringify({
       context,
       geographicScope,
       maxStopsPerDay,
       candidates,
-    })}\nReturn exactly ${context.durationDays} numbered days. Use only externalPlaceId values from candidates. Keep each day realistic for the pace. Cost is an estimate: use null whenever confidence is low. Reasons should explain fit without claiming unverifiable facts.`,
+    })}\nReturn exactly ${context.durationDays} numbered days. Use only externalPlaceId values from candidates, and never repeat one on another day. Keep each day realistic for the pace. Cost is an estimate: use null whenever confidence is low. Reasons should explain fit without claiming unverifiable facts.`,
     maxTokens: Math.min(7000, 1400 + context.durationDays * 550),
   });
   const itinerary = parseSelectedItinerary(

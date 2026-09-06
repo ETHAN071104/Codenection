@@ -99,3 +99,43 @@ export function SystemState({
     </section>
   );
 }
+
+export function SystemNotice({
+  title,
+  description,
+  actions,
+  role = 'status',
+  className,
+}: {
+  title: string;
+  description: ReactNode;
+  actions?: ReactNode;
+  role?: 'status' | 'alert';
+  className?: string;
+}) {
+  return (
+    <div
+      role={role}
+      className={cn(
+        'rounded-xl border border-warm-border bg-paper px-4 py-3.5 shadow-[0_12px_28px_-26px_rgb(36_32_28/75%)]',
+        className,
+      )}
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="font-editorial text-lg font-medium leading-6 tracking-[-0.02em] text-ink">
+            {title}
+          </p>
+          <div className="mt-1 text-sm leading-6 text-warm-muted">
+            {description}
+          </div>
+        </div>
+        {actions && (
+          <div className="flex shrink-0 flex-wrap items-center gap-3 text-sm">
+            {actions}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

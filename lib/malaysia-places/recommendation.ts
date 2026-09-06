@@ -25,6 +25,6 @@ export function scoreMalaysiaPlace(place: MalaysiaPlace, dna: GroupPreferenceSum
   const reliabilityScore = place.googleRatingCount === null ? 0 : Math.min(10, Math.log10(place.googleRatingCount + 1) * 3);
   if (place.googleRating !== null && place.googleRating >= 4.4) reasons.push('Strong visitor rating');
   if (dna.finite_budget_average !== null && place.budgetScore !== null && place.budgetScore >= 3) reasons.push('Fits group budget');
-  if (reasons.length === 0) reasons.push('Curated Kuala Lumpur candidate');
+  if (reasons.length === 0) reasons.push('Grounded place for this destination');
   return { score: Math.round(Math.min(100, interestScore + popularityScore + reliabilityScore)), reasons: reasons.slice(0, 3) };
 }

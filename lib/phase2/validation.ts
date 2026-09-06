@@ -115,6 +115,8 @@ export function parseSelectedItinerary(
   const candidatesById = new Map(
     candidates.map((candidate) => [candidate.externalPlaceId, candidate]),
   );
+  const usedPlaceIds = new Set<string>();
+  let hasUnresolvedDuplicate = false;
   const seenDays = new Set<number>();
   const days = value.days
     .map((entry) => {
@@ -132,6 +134,9 @@ export function parseSelectedItinerary(
       }
       seenDays.add(day);
 
+      const dayArea = geographicScope?.days.find(
+        (scopeDay) => scopeDay.day === day,
+      )?.area;
       const items = entry.items
         .map((item) => {
           if (!isRecord(item)) return null;
@@ -147,9 +152,7 @@ export function parseSelectedItinerary(
             !externalPlaceId ||
             !candidateIds.has(externalPlaceId) ||
             (geographicScope &&
-              candidatesById.get(externalPlaceId)?.sourceArea !==
-                geographicScope.days.find((scopeDay) => scopeDay.day === day)
-                  ?.area) ||
+              candidatesById.get(externalPlaceId)?.sourceArea !== dayArea) ||
             !Number.isInteger(estimatedDurationMinutes) ||
             estimatedDurationMinutes < 15 ||
             estimatedDurationMinutes > 720 ||
@@ -160,11 +163,30 @@ export function parseSelectedItinerary(
             return null;
           }
 
+          let selectedPlaceId = externalPlaceId;
+          let selectedReason = reason;
+          if (usedPlaceIds.has(selectedPlaceId)) {
+            const replacement = candidates.find(
+              (candidate) =>
+                !usedPlaceIds.has(candidate.externalPlaceId) &&
+                (!geographicScope || candidate.sourceArea === dayArea),
+            );
+            if (!replacement) {
+              hasUnresolvedDuplicate = true;
+              return null;
+            }
+            selectedPlaceId = replacement.externalPlaceId;
+            selectedReason = geographicScope
+              ? `A grounded alternative in ${dayArea} that preserves this day's geographic scope and pace.`
+              : "A grounded alternative that preserves this day's pace.";
+          }
+          usedPlaceIds.add(selectedPlaceId);
+
           return {
-            externalPlaceId,
+            externalPlaceId: selectedPlaceId,
             estimatedDurationMinutes,
             estimatedCost,
-            reason,
+            reason: selectedReason,
           };
         })
         .filter((item): item is NonNullable<typeof item> => item !== null)
@@ -176,6 +198,7 @@ export function parseSelectedItinerary(
     .sort((a, b) => a.day - b.day);
 
   if (
+    hasUnresolvedDuplicate ||
     days.length !== durationDays ||
     days.some((day, index) => day.day !== index + 1)
   ) {

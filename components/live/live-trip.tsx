@@ -14,7 +14,11 @@ import {
 import { AtlasShell } from '@/components/travel-dna/atlas-shell';
 import { ChangeBar } from '@/components/live/change-bar';
 import { ActivityWeatherTimeline } from '@/components/live/activity-weather-timeline';
-import { SystemLoading, SystemState } from '@/components/ui/system-state';
+import {
+  SystemLoading,
+  SystemNotice,
+  SystemState,
+} from '@/components/ui/system-state';
 import {
   Map as Mapcn,
   MapControls,
@@ -27,7 +31,10 @@ import { phase2Fetch } from '@/lib/phase2/client';
 import type { ItineraryItemView, ItineraryPageData } from '@/lib/phase2/types';
 import type { WeatherAtStop, WeatherDayResponse } from '@/lib/planner/types';
 import type { RouteSegment, TripRoute } from '@/lib/routing/types';
-import { useTripRealtime } from '@/lib/realtime/use-trip-realtime';
+import {
+  useTripRealtime,
+  type TripRealtimeStatus,
+} from '@/lib/realtime/use-trip-realtime';
 import type { LiveTripMember } from '@/lib/live/trip-change';
 import type { TripChangeEvent } from '@/lib/live/trip-change';
 import { ensureAnonymousUser } from '@/lib/supabase/auth';
@@ -237,6 +244,8 @@ export function LiveTrip({ tripId }: { tripId: string }) {
   const [members, setMembers] = useState<LiveTripMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [realtimeStatus, setRealtimeStatus] =
+    useState<TripRealtimeStatus>('CONNECTING');
   const [now, setNow] = useState(() => new Date());
 
   const load = useCallback(
@@ -302,6 +311,7 @@ export function LiveTrip({ tripId }: { tripId: string }) {
     tripId,
     editingItemId: null,
     onItineraryChange: () => void load(false),
+    onStatusChange: setRealtimeStatus,
   });
 
   const activeDay = resolveActiveDay(data, now);
@@ -591,6 +601,23 @@ export function LiveTrip({ tripId }: { tripId: string }) {
             Weather is unavailable right now. Today’s saved schedule is still
             ready to use.
           </output>
+        )}
+
+        {['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(realtimeStatus) && (
+          <SystemNotice
+            className="mb-5"
+            title="Live group updates are paused."
+            description="Today’s saved plan is still available. Refresh the page to reconnect before relying on group changes."
+            actions={
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="font-semibold text-brown-accent underline-offset-4 hover:underline"
+              >
+                Refresh
+              </button>
+            }
+          />
         )}
 
         {current ? (

@@ -49,7 +49,11 @@ import {
   useMap,
 } from '@/components/ui/map';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { SystemLoading, SystemState } from '@/components/ui/system-state';
+import {
+  SystemLoading,
+  SystemNotice,
+  SystemState,
+} from '@/components/ui/system-state';
 import { AddPlacePanel } from '@/components/map/add-place-panel';
 import { AiEditPanel } from '@/components/map/ai-edit-panel';
 import { cn } from '@/lib/utils';
@@ -61,7 +65,10 @@ import type {
   WeatherAtStop,
   WeatherDayResponse,
 } from '@/lib/planner/types';
-import { useTripRealtime } from '@/lib/realtime/use-trip-realtime';
+import {
+  useTripRealtime,
+  type TripRealtimeStatus,
+} from '@/lib/realtime/use-trip-realtime';
 
 type Screen = 'loading' | 'ready' | 'error';
 type RouteStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -441,6 +448,8 @@ export function MapPlanner({ tripId }: { tripId: string }) {
   );
   const [weatherStatus, setWeatherStatus] = useState<WeatherStatus>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [realtimeStatus, setRealtimeStatus] =
+    useState<TripRealtimeStatus>('CONNECTING');
   const cardRefs = useRef(new Map<string, HTMLButtonElement>());
   const routeCache = useRef(new Map<string, TripRoute>());
   const routeRequests = useRef(new Map<string, Promise<TripRoute>>());
@@ -485,6 +494,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
           ? current
           : (payload.itinerary?.days[0]?.day ?? null),
       );
+      setPlannerError(null);
     } catch {
       setPlannerError('Live updates paused. Refresh to reconnect.');
     }
@@ -501,6 +511,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
     tripId,
     editingItemId: selectedItemId,
     onItineraryChange: refreshFromRealtime,
+    onStatusChange: setRealtimeStatus,
   });
   const activeEditor = realtimeMembers.find((member) => member.editingItemId);
   const activeEditorPlace = activeEditor?.editingItemId
@@ -762,8 +773,8 @@ export function MapPlanner({ tripId }: { tripId: string }) {
     return (
       <AtlasShell tripId={tripId} sectionLabel="MAP PLAN">
         <SystemLoading
-          title="Opening your map plan"
-          description="We’re loading the saved stops, day order, and map details."
+          title="Preparing your map"
+          description="We’re loading the saved stops, day order, and route context."
         />
       </AtlasShell>
     );
@@ -954,7 +965,8 @@ export function MapPlanner({ tripId }: { tripId: string }) {
             )}
             {weatherStatus === 'error' && (
               <p className="mt-2 rounded-lg border border-brown-accent/25 bg-paper px-3 py-2 text-[0.68rem] leading-5 text-ink">
-                Weather is unavailable. The itinerary and route still work.
+                Weather is unavailable right now. Your itinerary and route are
+                still ready to use.
               </p>
             )}
             {isSaving && (
@@ -963,20 +975,41 @@ export function MapPlanner({ tripId }: { tripId: string }) {
               </p>
             )}
             {plannerError && (
-              <div
+              <SystemNotice
                 role="alert"
-                className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-brown-accent/25 bg-paper px-3 py-2 text-[0.68rem] leading-5 text-ink"
-              >
-                <span>{plannerError}</span>
-                <button
-                  type="button"
-                  onClick={() => void load()}
-                  className="shrink-0 font-semibold text-brown-accent underline-offset-2 hover:underline"
-                >
-                  Refresh
-                </button>
-              </div>
+                className="mt-2 px-3 py-2 text-[0.68rem]"
+                title="That update didn’t save."
+                description="Your previous itinerary is still saved. Refresh to restore the latest plan."
+                actions={
+                  <button
+                    type="button"
+                    onClick={() => void load()}
+                    className="font-semibold text-brown-accent underline-offset-2 hover:underline"
+                  >
+                    Refresh
+                  </button>
+                }
+              />
             )}
+            {!plannerError &&
+              ['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(
+                realtimeStatus,
+              ) && (
+                <SystemNotice
+                  className="mt-2 px-3 py-2"
+                  title="Live updates are paused."
+                  description="Your saved itinerary is safe. Refresh to reconnect and check for group changes."
+                  actions={
+                    <button
+                      type="button"
+                      onClick={() => void load()}
+                      className="font-semibold text-brown-accent underline-offset-2 hover:underline"
+                    >
+                      Refresh
+                    </button>
+                  }
+                />
+              )}
             {activeEditor && activeEditorPlace && (
               <p className="mt-1.5 text-[0.68rem] font-medium text-ink">
                 {activeEditor.displayName} is editing {activeEditorPlace}

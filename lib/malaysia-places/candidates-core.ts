@@ -24,7 +24,7 @@ function mapPlace(row: Record<string, unknown>): MalaysiaPlace {
 }
 
 export async function getCandidatePlaces(client: SupabaseClient<Database>, query: CandidateQuery): Promise<CandidatePlace[]> {
-  let request = client.from('malaysia_places').select('*').eq('country', 'Malaysia').ilike('city', query.city).limit(Math.min(query.limit ?? 24, 50));
+  let request = client.from('malaysia_places').select('*').ilike('city', query.city).limit(Math.min(query.limit ?? 24, 50));
   if (query.area) request = request.ilike('area', query.area);
   const { data, error } = await request;
   if (error) throw error;

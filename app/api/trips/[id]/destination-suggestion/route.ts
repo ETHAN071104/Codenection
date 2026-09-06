@@ -19,6 +19,7 @@ export async function POST(
     const body = (await request.json().catch(() => null)) as {
       destinationInput?: unknown;
       previousSuggestions?: unknown;
+      replaceExisting?: unknown;
     } | null;
     const geographicScope =
       typeof body?.destinationInput === 'string'
@@ -50,7 +51,7 @@ export async function POST(
       .maybeSingle();
     if (tripError) throw tripError;
     if (!trip) return unavailableTripResponse();
-    if (trip.destination) {
+    if (trip.destination && body?.replaceExisting !== true) {
       return Response.json({
         suggestion: {
           destination: trip.destination,

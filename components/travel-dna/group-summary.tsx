@@ -163,7 +163,14 @@ export function GroupSummary({ tripId }: { tripId: string }) {
           role="alert"
           eyebrow="Group summary"
           title="We could not load the group picture."
-          description={error}
+          description={
+            <>
+              <p>{error}</p>
+              <p className="mt-2">
+                Your group’s saved Travel DNA has not been changed.
+              </p>
+            </>
+          }
           actions={
             <>
               <Button
@@ -374,13 +381,13 @@ export function GroupSummary({ tripId }: { tripId: string }) {
 
         <div className="mt-8">
           <Link
-            href={`/trip/${tripId}/places`}
+            href={`/trip/${tripId}/itinerary?step=destination`}
             className={buttonVariants({
               className:
                 'h-12 w-full rounded-xl bg-ink px-6 text-paper shadow-sm hover:bg-ink/90',
             })}
           >
-            Start choosing places
+            Choose destination
             <ArrowRight aria-hidden="true" />
           </Link>
           <div className="mt-4 text-center">
