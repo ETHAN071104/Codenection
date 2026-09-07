@@ -143,6 +143,10 @@ export type MalaysiaPlaceRow = {
   google_rating: number | null;
   google_rating_count: number | null;
   price_level: string | null;
+  photo_name: string | null;
+  photo_width_px: number | null;
+  photo_height_px: number | null;
+  photo_attributions: Json;
   source: string;
   last_verified_at: string | null;
   created_at: string;

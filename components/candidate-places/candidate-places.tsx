@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
@@ -32,9 +33,11 @@ import type { DeterministicDraftSchedule } from '@/lib/malaysia-places/determini
 import type { RankedCandidate } from '@/lib/malaysia-places/group-ranking';
 import { consensusTiers } from '@/lib/malaysia-places/consensus-core';
 import type { StayAreaRecommendation } from '@/lib/malaysia-places/stay-area-core';
+import { hasUsablePlacePhoto } from '@/lib/malaysia-places/photo-core';
 import { phase2Fetch, TripApiError } from '@/lib/phase2/client';
 import { ensureAnonymousUser } from '@/lib/supabase/auth';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { cn } from '@/lib/utils';
 
 type CandidateResponse = {
   supported: boolean;
@@ -382,7 +385,7 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
         setReplacementWarning(false);
         await load(false);
         setMapPlanError(
-          "Your group's choices changed while you were reviewing. We've refreshed the schedule—please check it and open the map again.",
+          "Your group's choices changed while you were reviewing. We've refreshed the schedule. Please check it and open the map again.",
         );
       } else if (
         confirmationError instanceof MapPlanConfirmationError &&
@@ -721,73 +724,11 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
               className="absolute inset-x-3 bottom-[4.75rem] top-2 -rotate-[1deg] rounded-2xl border border-warm-border bg-[#f8f4ee]"
             />
 
-            <article
+            <CandidatePlaceCard
               key={activePlace.id}
-              className="relative flex min-h-[430px] flex-col rounded-2xl border border-warm-border bg-paper p-6 shadow-editorial motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-300 sm:p-8"
-            >
-              <div className="flex items-start justify-between gap-5">
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-parchment text-brown-accent">
-                  <MapPin className="size-5" aria-hidden="true" />
-                </span>
-                {activePlace.googleRating !== null && (
-                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
-                    <Star
-                      className="size-4 fill-brown-accent text-brown-accent"
-                      aria-hidden="true"
-                    />
-                    {activePlace.googleRating.toFixed(1)}
-                    <span className="sr-only">Google rating</span>
-                  </span>
-                )}
-              </div>
-
-              <div className="mt-8">
-                <h2 className="font-editorial text-4xl font-medium leading-[1.05] tracking-[-0.045em] sm:text-5xl">
-                  {activePlace.name}
-                </h2>
-                {(activePlace.area || activePlace.category) && (
-                  <p className="mt-3 text-sm font-medium text-warm-muted">
-                    {[activePlace.area, label(activePlace.category)]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </p>
-                )}
-              </div>
-
-              <ul className="mt-8 space-y-3 text-sm leading-6 text-warm-muted">
-                {activePlace.reasons.slice(0, 3).map((reason) => (
-                  <li key={reason} className="flex gap-3">
-                    <Minus
-                      className="mt-1 size-4 shrink-0 text-brown-accent"
-                      aria-hidden="true"
-                    />
-                    <span>{humanReason(reason)}</span>
-                  </li>
-                ))}
-                {activePlace.voteCount > 0 && (
-                  <li className="flex gap-3 font-medium text-ink">
-                    <Users
-                      className="mt-1 size-4 shrink-0 text-brown-accent"
-                      aria-hidden="true"
-                    />
-                    <span>
-                      {activePlace.voteCount}{' '}
-                      {activePlace.voteCount === 1
-                        ? 'traveller wants'
-                        : 'travellers want'}{' '}
-                      this
-                    </span>
-                  </li>
-                )}
-              </ul>
-
-              {activePlace.currentUserSelected && (
-                <p className="mt-auto flex items-center gap-2 pt-8 text-sm font-semibold text-brown-accent">
-                  <Check className="size-4" aria-hidden="true" />
-                  This is on your list
-                </p>
-              )}
-            </article>
+              tripId={tripId}
+              place={activePlace}
+            />
 
             <div className="absolute inset-x-0 bottom-0 grid grid-cols-2 gap-3">
               <button
@@ -873,6 +814,200 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
         )}
       </section>
     </JourneyShell>
+  );
+}
+
+function CandidatePlaceCard({
+  tripId,
+  place,
+}: {
+  tripId: string;
+  place: RankedCandidate;
+}) {
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const photoName = place.photoName;
+
+  useEffect(() => {
+    if (!hasUsablePlacePhoto({ photoName })) return;
+    const controller = new AbortController();
+    let objectUrl: string | null = null;
+
+    void ensureAnonymousUser()
+      .then(() => getSupabaseBrowserClient().auth.getSession())
+      .then(async ({ data: sessionData, error: sessionError }) => {
+        const token = sessionData.session?.access_token;
+        if (sessionError || !token || !photoName) return;
+        const response = await fetch(
+          `/api/trips/${tripId}/place-photo?name=${encodeURIComponent(photoName)}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          },
+        );
+        if (!response.ok) return;
+        objectUrl = URL.createObjectURL(await response.blob());
+        setPhotoUrl(objectUrl);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [photoName, tripId]);
+
+  const attribution = place.photoAttributions[0] ?? null;
+  const contentTone = photoUrl ? 'text-paper' : 'text-ink';
+  const secondaryTone = photoUrl ? 'text-paper/80' : 'text-warm-muted';
+
+  return (
+    <article
+      className={cn(
+        'relative flex min-h-[430px] overflow-hidden rounded-2xl border border-warm-border shadow-editorial motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-300',
+        photoUrl ? 'min-h-[500px] bg-ink' : 'bg-paper',
+      )}
+    >
+      {photoUrl && (
+        <>
+          {/* Google Place photo is factual supporting media; the visible title supplies context. */}
+          <Image
+            src={photoUrl}
+            alt=""
+            fill
+            sizes="(max-width: 640px) 100vw, 576px"
+            unoptimized
+            className="object-cover"
+          />
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-gradient-to-b from-ink/20 via-transparent to-ink/88"
+          />
+        </>
+      )}
+
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col p-6 sm:p-8">
+        <div className="flex items-start justify-between gap-5">
+          <span
+            className={cn(
+              'flex size-11 shrink-0 items-center justify-center rounded-full',
+              photoUrl
+                ? 'border border-paper/35 bg-ink/55 text-paper backdrop-blur-sm'
+                : 'bg-parchment text-brown-accent',
+            )}
+          >
+            <MapPin className="size-5" aria-hidden="true" />
+          </span>
+          {place.googleRating !== null && (
+            <span
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold',
+                photoUrl
+                  ? 'border border-paper/30 bg-ink/60 text-paper backdrop-blur-sm'
+                  : 'text-ink',
+              )}
+            >
+              <Star
+                className={cn(
+                  'size-4 fill-current',
+                  photoUrl ? 'text-[#f5cf87]' : 'text-brown-accent',
+                )}
+                aria-hidden="true"
+              />
+              {place.googleRating.toFixed(1)}
+              <span className="sr-only">Google rating</span>
+            </span>
+          )}
+        </div>
+
+        <div
+          className={cn(
+            'mt-auto',
+            photoUrl &&
+              'rounded-xl border border-paper/15 bg-ink/64 p-5 backdrop-blur-[3px] sm:p-6',
+          )}
+        >
+          <h2
+            className={cn(
+              'font-editorial text-4xl font-medium leading-[1.05] tracking-[-0.045em] sm:text-5xl',
+              contentTone,
+            )}
+          >
+            {place.name}
+          </h2>
+          {(place.area || place.category) && (
+            <p className={cn('mt-3 text-sm font-medium', secondaryTone)}>
+              {[place.area, label(place.category)].filter(Boolean).join(' · ')}
+            </p>
+          )}
+
+          <ul className={cn('mt-6 space-y-2.5 text-sm leading-6', secondaryTone)}>
+            {place.reasons.slice(0, 3).map((reason) => (
+              <li key={reason} className="flex gap-3">
+                <Minus
+                  className={cn(
+                    'mt-1 size-4 shrink-0',
+                    photoUrl ? 'text-[#f5cf87]' : 'text-brown-accent',
+                  )}
+                  aria-hidden="true"
+                />
+                <span>{humanReason(reason)}</span>
+              </li>
+            ))}
+            {place.voteCount > 0 && (
+              <li className={cn('flex gap-3 font-medium', contentTone)}>
+                <Users
+                  className={cn(
+                    'mt-1 size-4 shrink-0',
+                    photoUrl ? 'text-[#f5cf87]' : 'text-brown-accent',
+                  )}
+                  aria-hidden="true"
+                />
+                <span>
+                  {place.voteCount}{' '}
+                  {place.voteCount === 1
+                    ? 'traveller wants'
+                    : 'travellers want'}{' '}
+                  this
+                </span>
+              </li>
+            )}
+          </ul>
+
+          <div className="mt-5 flex flex-wrap items-end justify-between gap-3">
+            {place.currentUserSelected ? (
+              <p
+                className={cn(
+                  'flex items-center gap-2 text-sm font-semibold',
+                  photoUrl ? 'text-[#f5cf87]' : 'text-brown-accent',
+                )}
+              >
+                <Check className="size-4" aria-hidden="true" />
+                This is on your list
+              </p>
+            ) : (
+              <span />
+            )}
+            {photoUrl && attribution && (
+              <p className="text-[0.65rem] text-paper/70">
+                Photo by{' '}
+                {attribution.uri ? (
+                  <a
+                    href={attribution.uri}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline underline-offset-2 hover:text-paper"
+                  >
+                    {attribution.displayName}
+                  </a>
+                ) : (
+                  attribution.displayName
+                )}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -1195,7 +1330,7 @@ function StayAreaPresentation({
             <em className="font-normal text-brown-accent">{primary.area}.</em>
           </h1>
           <p className="mt-5 max-w-xl text-lg leading-8 text-warm-muted">
-            A practical base for the places your group chose—without turning
+            A practical base for the places your group chose, without turning
             this into a hotel decision.
           </p>
 
@@ -1716,7 +1851,7 @@ function SchedulePresentation({
       {day.overflow.length > 0 && (
         <aside className="mt-6 rounded-2xl border border-warm-border bg-transparent p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brown-accent">
-            Optional — if you have time
+            Optional, if you have time
           </p>
           <ul className="mt-4 divide-y divide-warm-border">
             {day.overflow.map((item) => (

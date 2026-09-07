@@ -106,6 +106,10 @@ function rowForPlace(
     google_rating: place.rating,
     google_rating_count: place.ratingCount,
     price_level: place.priceLevel,
+    photo_name: place.photo?.name ?? null,
+    photo_width_px: place.photo?.widthPx ?? null,
+    photo_height_px: place.photo?.heightPx ?? null,
+    photo_attributions: place.photo?.attributions ?? [],
     source: 'google_places',
     last_verified_at: new Date().toISOString(),
   };

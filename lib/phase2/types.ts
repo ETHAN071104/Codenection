@@ -55,6 +55,20 @@ export type PlaceCandidate = {
   types: string[];
   sourceArea?: string;
   addressComponents?: GoogleAddressComponent[];
+  photo?: GooglePlacePhoto | null;
+};
+
+export type GooglePlacePhotoAttribution = {
+  displayName: string;
+  uri: string | null;
+  photoUri: string | null;
+};
+
+export type GooglePlacePhoto = {
+  name: string;
+  widthPx: number | null;
+  heightPx: number | null;
+  attributions: GooglePlacePhotoAttribution[];
 };
 
 export type GoogleAddressComponent = {

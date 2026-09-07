@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/supabase/database.types';
 import { scoreMalaysiaPlace } from './recommendation';
 import type { CandidatePlace, CandidateQuery, MalaysiaPlace } from './types';
+import { parsePlacePhotoAttributions } from './photo-core';
 
 function mapPlace(row: Record<string, unknown>): MalaysiaPlace {
   return {
@@ -19,7 +20,12 @@ function mapPlace(row: Record<string, unknown>): MalaysiaPlace {
     adventureScore: typeof row.adventure_score === 'number' ? row.adventure_score : null, nightlifeScore: typeof row.nightlife_score === 'number' ? row.nightlife_score : null,
     photographyScore: typeof row.photography_score === 'number' ? row.photography_score : null, budgetScore: typeof row.budget_score === 'number' ? row.budget_score : null,
     googleRating: typeof row.google_rating === 'number' ? row.google_rating : null, googleRatingCount: typeof row.google_rating_count === 'number' ? row.google_rating_count : null,
-    priceLevel: typeof row.price_level === 'string' ? row.price_level : null, source: String(row.source), lastVerifiedAt: typeof row.last_verified_at === 'string' ? row.last_verified_at : null,
+    priceLevel: typeof row.price_level === 'string' ? row.price_level : null,
+    photoName: typeof row.photo_name === 'string' ? row.photo_name : null,
+    photoWidthPx: typeof row.photo_width_px === 'number' ? row.photo_width_px : null,
+    photoHeightPx: typeof row.photo_height_px === 'number' ? row.photo_height_px : null,
+    photoAttributions: parsePlacePhotoAttributions(row.photo_attributions),
+    source: String(row.source), lastVerifiedAt: typeof row.last_verified_at === 'string' ? row.last_verified_at : null,
   };
 }
 

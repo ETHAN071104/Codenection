@@ -2,6 +2,7 @@
 
 import {
   type ReactNode,
+  type RefObject,
   useCallback,
   useEffect,
   useMemo,
@@ -72,6 +73,12 @@ import type {
   WeatherAtStop,
   WeatherDayResponse,
 } from '@/lib/planner/types';
+import {
+  nextAiPanelState,
+  routeColorForDay,
+  visibleRouteDayNumbers,
+  type MapDaySelection,
+} from '@/lib/planner/map-view-core';
 import {
   useTripRealtime,
   type TripRealtimeStatus,
@@ -214,14 +221,14 @@ function MapDayViewport({
 
 function MapCanvas({
   items,
-  route,
+  routes,
   arrivalPoint,
   departurePoint,
   selectedItemId,
   onSelect,
 }: {
   items: ItineraryItemView[];
-  route: TripRoute | null;
+  routes: { day: number; route: TripRoute; color: string }[];
   arrivalPoint: TripEndpoint | null;
   departurePoint: TripEndpoint | null;
   selectedItemId: string | null;
@@ -274,15 +281,18 @@ function MapCanvas({
         arrivalPoint={arrivalPoint}
         departurePoint={departurePoint}
       />
-      {route?.geometry && (
-        <MapRoute
-          id="saved-driving-route"
-          coordinates={route.geometry.coordinates}
-          color="#24201c"
-          width={4}
-          opacity={0.72}
-          interactive={false}
-        />
+      {routes.map(({ day, route, color }) =>
+        route.geometry ? (
+          <MapRoute
+            key={day}
+            id={`saved-driving-route-day-${day}`}
+            coordinates={route.geometry.coordinates}
+            color={color}
+            width={4}
+            opacity={0.82}
+            interactive={false}
+          />
+        ) : null,
       )}
       <MapControls />
       {arrivalPoint && (
@@ -342,12 +352,13 @@ function MapCanvas({
               <button
                 type="button"
                 aria-label={`${index + 1}. ${item.place.name}`}
-                className={cn(
-                  'flex size-9 items-center justify-center rounded-full border-2 border-paper text-sm font-bold shadow-[0_6px_16px_rgb(55_43_34/28%)] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent focus-visible:ring-offset-2',
+              className={cn(
+                  'flex size-9 items-center justify-center rounded-full border-2 border-paper text-sm font-bold text-paper shadow-[0_6px_16px_rgb(55_43_34/28%)] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent focus-visible:ring-offset-2',
                   selected
-                    ? 'scale-125 bg-brown-accent text-paper'
-                    : 'bg-ink text-paper hover:scale-110',
+                    ? 'scale-125'
+                    : 'hover:scale-110',
                 )}
+                style={{ backgroundColor: routeColorForDay(item.day) }}
               >
                 {index + 1}
               </button>
@@ -554,16 +565,90 @@ function TravelSegment({ segment }: { segment: RouteSegment | null }) {
   );
 }
 
+function AllDaysItinerary({
+  days,
+  selectedItemId,
+  onSelect,
+  cardRefs,
+}: {
+  days: NonNullable<ItineraryPageData['itinerary']>['days'];
+  selectedItemId: string | null;
+  onSelect: (itemId: string) => void;
+  cardRefs: RefObject<Map<string, HTMLButtonElement>>;
+}) {
+  return (
+    <div role="tabpanel" aria-label="Full itinerary across all days">
+      {days.map((day) => (
+        <section key={day.day} aria-labelledby={`all-day-${day.day}`}>
+          <div className="flex items-center gap-3 border-b border-warm-border bg-[#fcfaf6] px-5 py-3 sm:px-6">
+            <span
+              className="size-2.5 rounded-full"
+              style={{ backgroundColor: routeColorForDay(day.day) }}
+              aria-hidden="true"
+            />
+            <h2
+              id={`all-day-${day.day}`}
+              className="font-editorial text-base font-medium text-ink"
+            >
+              Day {day.day}
+            </h2>
+            <span className="truncate text-xs text-warm-muted">
+              {day.theme.replace(/^Day\s+\d+:\s*/i, '')}
+            </span>
+          </div>
+          <ol>
+            {day.items.map((item, index) => (
+              <li
+                key={item.id}
+                className={cn(
+                  'border-b border-warm-border/80 bg-white',
+                  selectedItemId === item.id &&
+                    'bg-[#fbf7f0] shadow-[inset_3px_0_0_#8c6b51]',
+                )}
+              >
+                <button
+                  ref={(element) => {
+                    if (element) cardRefs.current.set(item.id, element);
+                    else cardRefs.current.delete(item.id);
+                  }}
+                  type="button"
+                  onClick={() => onSelect(item.id)}
+                  className="flex w-full items-start gap-3 px-5 py-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-brown-accent focus-visible:ring-inset sm:px-6"
+                  aria-pressed={selectedItemId === item.id}
+                >
+                  <span
+                    className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-[0.65rem] font-semibold text-paper"
+                    style={{ backgroundColor: routeColorForDay(day.day) }}
+                  >
+                    {index + 1}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <time className="text-[0.68rem] font-semibold uppercase tracking-[0.13em] text-brown-accent">
+                      {item.plannedTime}
+                    </time>
+                    <span className="mt-1 block font-editorial text-[1.05rem] font-medium leading-snug text-ink">
+                      {item.place.name}
+                    </span>
+                    <span className="mt-1 block text-xs text-warm-muted">
+                      {formatDuration(item.estimatedDurationMinutes)}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 export function MapPlanner({ tripId }: { tripId: string }) {
   const [screen, setScreen] = useState<Screen>('loading');
   const [data, setData] = useState<ItineraryPageData | null>(null);
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [selectedDay, setSelectedDay] = useState<MapDaySelection | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const [routeState, setRouteState] = useState<RouteState>({
-    key: null,
-    status: 'idle',
-    route: null,
-  });
+  const [routeStates, setRouteStates] = useState<Record<number, RouteState>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [plannerError, setPlannerError] = useState<string | null>(null);
   const [addPlaceOpen, setAddPlaceOpen] = useState(false);
@@ -578,7 +663,6 @@ export function MapPlanner({ tripId }: { tripId: string }) {
   const cardRefs = useRef(new Map<string, HTMLButtonElement>());
   const routeCache = useRef(new Map<string, TripRoute>());
   const routeRequests = useRef(new Map<string, Promise<TripRoute>>());
-  const activeRouteKey = useRef<string | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, {
@@ -615,6 +699,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
       );
       setData(payload);
       setSelectedDay((current) =>
+        current === 'all' ||
         payload.itinerary?.days.some((day) => day.day === current)
           ? current
           : (payload.itinerary?.days[0]?.day ?? null),
@@ -629,13 +714,32 @@ export function MapPlanner({ tripId }: { tripId: string }) {
     void Promise.resolve().then(load);
   }, [load]);
 
-  const days = data?.itinerary?.days ?? [];
+  const days = useMemo(
+    () => data?.itinerary?.days ?? [],
+    [data?.itinerary?.days],
+  );
+  const isAllDays = selectedDay === 'all';
   const activeDay =
-    days.find((day) => day.day === selectedDay) ?? days[0] ?? null;
+    (!isAllDays ? days.find((day) => day.day === selectedDay) : null) ??
+    days[0] ??
+    null;
   const planningLocked = Boolean(data?.trip.finalizedAt);
   const activeEndpoints = activeDay
     ? getDayEndpoints(data, activeDay.day)
     : { arrival: null, departure: null };
+  const visibleItems = useMemo(
+    () =>
+      isAllDays
+        ? days.flatMap((day) => day.items)
+        : (activeDay?.items ?? []),
+    [activeDay?.items, days, isAllDays],
+  );
+  const visibleArrivalPoint = isAllDays
+    ? data?.trip.arrivalPoint ?? null
+    : activeEndpoints.arrival;
+  const visibleDeparturePoint = isAllDays
+    ? data?.trip.departurePoint ?? null
+    : activeEndpoints.departure;
   const realtimeMembers = useTripRealtime({
     tripId,
     editingItemId: selectedItemId,
@@ -648,7 +752,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
         .flatMap((day) => day.items)
         .find((item) => item.id === activeEditor.editingItemId)?.place.name
     : null;
-  const routeKey = activeDay
+  const routeKey = !isAllDays && activeDay
     ? getRouteCacheKey(
         tripId,
         activeDay.day,
@@ -661,7 +765,6 @@ export function MapPlanner({ tripId }: { tripId: string }) {
     async (day: { day: number; items: ItineraryItemView[] }) => {
       const endpoints = getDayEndpoints(data, day.day);
       const key = getRouteCacheKey(tripId, day.day, day.items, endpoints);
-      activeRouteKey.current = key;
 
       const validPointCount =
         day.items.filter(hasValidCoordinates).length +
@@ -675,17 +778,26 @@ export function MapPlanner({ tripId }: { tripId: string }) {
           segments: [],
         };
         routeCache.current.set(key, emptyRoute);
-        setRouteState({ key, status: 'ready', route: emptyRoute });
+        setRouteStates((current) => ({
+          ...current,
+          [day.day]: { key, status: 'ready', route: emptyRoute },
+        }));
         return;
       }
 
       const cached = routeCache.current.get(key);
       if (cached) {
-        setRouteState({ key, status: 'ready', route: cached });
+        setRouteStates((current) => ({
+          ...current,
+          [day.day]: { key, status: 'ready', route: cached },
+        }));
         return;
       }
 
-      setRouteState({ key, status: 'loading', route: null });
+      setRouteStates((current) => ({
+        ...current,
+        [day.day]: { key, status: 'loading', route: null },
+      }));
       let request = routeRequests.current.get(key);
       if (!request) {
         request = phase2Fetch<TripRoute>(
@@ -697,13 +809,23 @@ export function MapPlanner({ tripId }: { tripId: string }) {
       try {
         const route = await request;
         routeCache.current.set(key, route);
-        if (activeRouteKey.current === key) {
-          setRouteState({ key, status: 'ready', route });
-        }
+        setRouteStates((current) =>
+          current[day.day]?.key === key
+            ? {
+                ...current,
+                [day.day]: { key, status: 'ready', route },
+              }
+            : current,
+        );
       } catch {
-        if (activeRouteKey.current === key) {
-          setRouteState({ key, status: 'error', route: null });
-        }
+        setRouteStates((current) =>
+          current[day.day]?.key === key
+            ? {
+                ...current,
+                [day.day]: { key, status: 'error', route: null },
+              }
+            : current,
+        );
       } finally {
         routeRequests.current.delete(key);
       }
@@ -713,12 +835,20 @@ export function MapPlanner({ tripId }: { tripId: string }) {
 
   useEffect(() => {
     if (!activeDay || isSaving) return;
-    void Promise.resolve().then(() => loadRoute(activeDay));
-  }, [activeDay, isSaving, loadRoute]);
+    const visibleDayNumbers = visibleRouteDayNumbers(
+      days.map((day) => day.day),
+      selectedDay ?? activeDay.day,
+    );
+    void Promise.resolve().then(() => {
+      for (const day of days) {
+        if (visibleDayNumbers.includes(day.day)) void loadRoute(day);
+      }
+    });
+  }, [activeDay, days, isSaving, loadRoute, selectedDay]);
 
   useEffect(() => {
     let cancelled = false;
-    if (!activeDay) return;
+    if (!activeDay || isAllDays) return;
     void Promise.resolve().then(() => {
       if (!cancelled) setWeatherStatus('loading');
     });
@@ -742,10 +872,48 @@ export function MapPlanner({ tripId }: { tripId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [activeDay, tripId]);
+  }, [activeDay, isAllDays, tripId]);
 
-  const route = routeState.key === routeKey ? routeState.route : null;
-  const routeStatus = routeState.key === routeKey ? routeState.status : 'idle';
+  const activeRouteState = activeDay ? routeStates[activeDay.day] : undefined;
+  const route =
+    !isAllDays && activeRouteState?.key === routeKey
+      ? activeRouteState.route
+      : null;
+  const visibleRoutes = days.flatMap((day) => {
+    const endpoints = getDayEndpoints(data, day.day);
+    const key = getRouteCacheKey(tripId, day.day, day.items, endpoints);
+    const state = routeStates[day.day];
+    if (
+      (isAllDays || day.day === activeDay?.day) &&
+      state?.key === key &&
+      state.route
+    ) {
+      return [
+        {
+          day: day.day,
+          route: state.route,
+          color: routeColorForDay(day.day),
+        },
+      ];
+    }
+    return [];
+  });
+  const routeStatus: RouteStatus = isAllDays
+    ? days.some((day) => routeStates[day.day]?.status === 'error')
+      ? 'error'
+      : visibleRoutes.length < days.length
+        ? 'loading'
+        : 'ready'
+    : activeRouteState?.key === routeKey
+      ? activeRouteState.status
+      : 'idle';
+  const routeTotals = visibleRoutes.reduce(
+    (total, entry) => ({
+      distance: total.distance + entry.route.totalDistanceMeters,
+      duration: total.duration + entry.route.totalDurationSeconds,
+    }),
+    { distance: 0, duration: 0 },
+  );
   const routeSegments = useMemo(
     () =>
       new Map(
@@ -781,8 +949,10 @@ export function MapPlanner({ tripId }: { tripId: string }) {
         getDayEndpoints(result.data, result.day),
       );
       routeCache.current.set(key, result.route);
-      activeRouteKey.current = key;
-      setRouteState({ key, status: 'ready', route: result.route });
+      setRouteStates((current) => ({
+        ...current,
+        [result.day]: { key, status: 'ready', route: result.route },
+      }));
       setSelectedDay(result.day);
     }
     setData(result.data);
@@ -1017,10 +1187,10 @@ export function MapPlanner({ tripId }: { tripId: string }) {
           className="relative h-[48dvh] min-h-[360px] overflow-hidden bg-warm-border lg:h-full lg:min-h-0"
         >
           <MapCanvas
-            items={activeDay.items}
-            route={route}
-            arrivalPoint={activeEndpoints.arrival}
-            departurePoint={activeEndpoints.departure}
+            items={visibleItems}
+            routes={visibleRoutes}
+            arrivalPoint={visibleArrivalPoint}
+            departurePoint={visibleDeparturePoint}
             selectedItemId={selectedItemId}
             onSelect={selectItem}
           />
@@ -1037,8 +1207,14 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                   {data.itinerary.destination}
                 </h1>
                 <p className="mt-1 text-xs leading-5 text-warm-muted">
-                  Day {activeDay.day} ·{' '}
-                  {activeDay.theme.replace(/^Day\s+\d+:\s*/i, '')}
+                  {isAllDays ? (
+                    `${visibleItems.length} stops across the full trip`
+                  ) : (
+                    <>
+                      Day {activeDay.day} ·{' '}
+                      {activeDay.theme.replace(/^Day\s+\d+:\s*/i, '')}
+                    </>
+                  )}
                 </p>
               </div>
               <span className="shrink-0 rounded-full bg-parchment px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-warm-muted">
@@ -1047,13 +1223,33 @@ export function MapPlanner({ tripId }: { tripId: string }) {
             </div>
           </div>
 
-          <div
-            className="flex gap-2 overflow-x-auto border-b border-warm-border px-5 py-3 sm:px-6"
-            role="tablist"
-            aria-label="Itinerary days"
-          >
-            {days.map((day) => {
-              const active = day.day === activeDay.day;
+          <div className="flex items-center gap-3 border-b border-warm-border px-5 py-3 sm:px-6">
+            <div
+              className="flex min-w-0 flex-1 gap-2 overflow-x-auto"
+              role="tablist"
+              aria-label="Itinerary days"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={isAllDays}
+                onClick={() => {
+                  setSelectedDay('all');
+                  setSelectedItemId(null);
+                  setAiEditOpen(false);
+                  setAddPlaceOpen(false);
+                }}
+                className={cn(
+                  'h-8 shrink-0 rounded-full border px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/45 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
+                  isAllDays
+                    ? 'border-ink bg-ink text-paper'
+                    : 'border-warm-border bg-parchment text-warm-muted hover:border-brown-accent/45 hover:text-ink',
+                )}
+              >
+                All
+              </button>
+              {days.map((day) => {
+              const active = !isAllDays && day.day === activeDay.day;
               return (
                 <button
                   key={day.day}
@@ -1063,6 +1259,8 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                   onClick={() => {
                     setSelectedDay(day.day);
                     setSelectedItemId(null);
+                    setAiEditOpen(false);
+                    setAddPlaceOpen(false);
                   }}
                   className={cn(
                     'h-8 shrink-0 rounded-full border px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/45 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
@@ -1071,11 +1269,48 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                       : 'border-warm-border bg-parchment text-warm-muted hover:border-brown-accent/45 hover:text-ink',
                   )}
                 >
+                  <span
+                    className="mr-1.5 inline-block size-1.5 rounded-full align-middle"
+                    style={{ backgroundColor: routeColorForDay(day.day) }}
+                    aria-hidden="true"
+                  />
                   Day {day.day}
                 </button>
               );
-            })}
+              })}
+            </div>
+            <button
+              type="button"
+              disabled={isSaving || isAllDays}
+              onClick={() => {
+                setAiEditOpen((open) => nextAiPanelState(open, selectedDay ?? 'all'));
+                setAddPlaceOpen(false);
+              }}
+              aria-expanded={aiEditOpen}
+              aria-label={isAllDays ? 'Choose a day before asking AI' : 'Ask AI to adjust this day'}
+              title={isAllDays ? 'Choose a day to edit with AI' : 'Adjust this day with AI'}
+              className={cn(
+                'inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brown-accent/40 disabled:cursor-not-allowed disabled:opacity-45',
+                aiEditOpen
+                  ? 'border-ink bg-ink text-paper'
+                  : 'border-warm-border bg-white text-ink hover:bg-parchment',
+              )}
+            >
+              <Bot className="size-3.5" aria-hidden="true" />
+              Ask AI
+            </button>
           </div>
+
+          {aiEditOpen && !isAllDays && (
+            <AiEditPanel
+              tripId={tripId}
+              day={activeDay.day}
+              disabled={isSaving}
+              onApplied={(result) => applyPlannerMutation(result)}
+              onApplyStateChange={setIsSaving}
+              onClose={() => setAiEditOpen(false)}
+            />
+          )}
 
           <div className="border-b border-warm-border bg-[#fcfaf6] px-5 py-3 sm:px-6">
             <div className="flex items-center gap-2 text-xs text-warm-muted">
@@ -1084,12 +1319,12 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                 aria-hidden="true"
               />
               <span>
-                {activeDay.items.length} stops
-                {route && route.totalDistanceMeters > 0 && (
+                {visibleItems.length} stops
+                {routeTotals.distance > 0 && (
                   <>
                     {' · '}
-                    {formatRouteDistance(route.totalDistanceMeters)} ·{' '}
-                    {formatRouteDuration(route.totalDurationSeconds)} travel
+                    {formatRouteDistance(routeTotals.distance)} ·{' '}
+                    {formatRouteDuration(routeTotals.duration)} travel
                   </>
                 )}
               </span>
@@ -1106,7 +1341,13 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                 </span>
                 <button
                   type="button"
-                  onClick={() => void loadRoute(activeDay)}
+                  onClick={() => {
+                    if (isAllDays) {
+                      for (const day of days) void loadRoute(day);
+                    } else {
+                      void loadRoute(activeDay);
+                    }
+                  }}
                   className="shrink-0 font-semibold text-brown-accent underline-offset-2 hover:underline"
                 >
                   Retry
@@ -1167,12 +1408,34 @@ export function MapPlanner({ tripId }: { tripId: string }) {
             )}
             {planningLocked && (
               <p className="mt-2 text-[0.68rem] leading-5 text-warm-muted">
-                This trip is finalized. Use Adjust with AI or Live Trip for future changes.
+                This trip is finalized. Use Ask AI or Live Trip for future changes.
               </p>
+            )}
+            {isAllDays && (
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5" aria-label="Day route colors">
+                {days.map((day) => (
+                  <span key={day.day} className="inline-flex items-center gap-1.5 text-[0.68rem] text-warm-muted">
+                    <span
+                      className="size-2 rounded-full"
+                      style={{ backgroundColor: routeColorForDay(day.day) }}
+                      aria-hidden="true"
+                    />
+                    Day {day.day}
+                  </span>
+                ))}
+              </div>
             )}
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            {isAllDays ? (
+              <AllDaysItinerary
+                days={days}
+                selectedItemId={selectedItemId}
+                onSelect={selectItem}
+                cardRefs={cardRefs}
+              />
+            ) : (
             <div role="tabpanel" aria-label={`Day ${activeDay.day} itinerary`}>
               <DndContext
                 sensors={sensors}
@@ -1270,33 +1533,10 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                 </SortableContext>
               </DndContext>
             </div>
+            )}
 
-            <div
-              className={cn(
-                'grid gap-2 border-b border-warm-border bg-[#fcfaf6] p-4 sm:px-5',
-                planningLocked ? 'grid-cols-1' : 'grid-cols-2',
-              )}
-            >
-              <button
-                type="button"
-                disabled={isSaving}
-                onClick={() => {
-                  setAiEditOpen((open) => !open);
-                  setAddPlaceOpen(false);
-                }}
-                aria-expanded={aiEditOpen}
-                aria-label="Adjust itinerary with AI"
-                className={cn(
-                  'inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brown-accent/40 disabled:opacity-45',
-                  aiEditOpen
-                    ? 'border-ink bg-ink text-paper'
-                    : 'border-warm-border bg-white text-warm-muted hover:text-ink',
-                )}
-              >
-                <Bot className="size-3.5" aria-hidden="true" />
-                Adjust with AI
-              </button>
-              {!planningLocked && (
+            {!planningLocked && !isAllDays && (
+              <div className="border-b border-warm-border bg-[#fcfaf6] p-4 sm:px-5">
                 <button
                   type="button"
                   disabled={isSaving}
@@ -1306,7 +1546,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                   }}
                   aria-expanded={addPlaceOpen}
                   className={cn(
-                    'inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brown-accent/40 disabled:opacity-45',
+                    'inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brown-accent/40 disabled:opacity-45',
                     addPlaceOpen
                       ? 'border-ink bg-ink text-paper'
                       : 'border-warm-border bg-white text-warm-muted hover:text-ink',
@@ -1315,8 +1555,8 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                   <Plus className="size-3.5" aria-hidden="true" />
                   Add place
                 </button>
-              )}
-            </div>
+              </div>
+            )}
 
             {addPlaceOpen && (
               <AddPlacePanel
@@ -1325,16 +1565,6 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                 disabled={isSaving}
                 onAdd={handleAddPlace}
                 onClose={() => setAddPlaceOpen(false)}
-              />
-            )}
-            {aiEditOpen && (
-              <AiEditPanel
-                tripId={tripId}
-                day={activeDay.day}
-                disabled={isSaving}
-                onApplied={(result) => applyPlannerMutation(result)}
-                onApplyStateChange={setIsSaving}
-                onClose={() => setAiEditOpen(false)}
               />
             )}
           </div>

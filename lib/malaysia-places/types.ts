@@ -1,4 +1,5 @@
 import type { GroupPreferenceSummary } from '@/lib/preferences/model';
+import type { GooglePlacePhotoAttribution } from '@/lib/phase2/types';
 
 export type MalaysiaPlace = {
   id: string;
@@ -26,6 +27,10 @@ export type MalaysiaPlace = {
   googleRating: number | null;
   googleRatingCount: number | null;
   priceLevel: string | null;
+  photoName: string | null;
+  photoWidthPx: number | null;
+  photoHeightPx: number | null;
+  photoAttributions: GooglePlacePhotoAttribution[];
   source: string;
   lastVerifiedAt: string | null;
 };
