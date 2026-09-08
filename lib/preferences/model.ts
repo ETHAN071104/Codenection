@@ -14,11 +14,11 @@ export const BUDGET_CUSTOM_POSITION = 0;
 export const BUDGET_UNLIMITED_POSITION = PRESET_BUDGETS.length + 1;
 
 export const PACE_LABELS = {
-  1: 'Packed Explorer',
-  2: 'Fast-Paced',
+  1: 'Very Relaxed',
+  2: 'Relaxed',
   3: 'Balanced',
-  4: 'Chill Vacation',
-  5: 'Ultra Relaxed',
+  4: 'Active',
+  5: 'Packed',
 } as const;
 
 export const INTERESTS = [
@@ -120,11 +120,11 @@ export function formatMyr(value: number) {
 }
 
 export function paceSummaryLabel(value: number) {
-  if (value < 1.5) return 'Packed';
-  if (value < 2.5) return 'Fast-paced';
+  if (value < 1.5) return 'Very relaxed';
+  if (value < 2.5) return 'Relaxed';
   if (value < 3.5) return 'Balanced';
-  if (value < 4.5) return 'Relaxed';
-  return 'Ultra relaxed';
+  if (value < 4.5) return 'Active';
+  return 'Packed';
 }
 
 export function getPreferenceError(error: unknown) {

@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  CANDIDATE_PLACE_PHOTO_WIDTH_PX,
+  googlePlacePhotoMediaRequestUrl,
   hasUsablePlacePhoto,
+  isTrustedGooglePhotoUrl,
   parsePlacePhotoAttributions,
 } from '../lib/malaysia-places/photo-core';
 import {
@@ -30,6 +33,21 @@ void test('place photo metadata falls back safely when unavailable', () => {
       },
     ],
   );
+});
+
+void test('place photo requests use a card-sized redirect target safely', () => {
+  const url = new URL(
+    googlePlacePhotoMediaRequestUrl('places/example/photos/photo-id'),
+  );
+  assert.equal(CANDIDATE_PLACE_PHOTO_WIDTH_PX, 900);
+  assert.equal(url.searchParams.get('maxWidthPx'), '900');
+  assert.equal(url.searchParams.get('skipHttpRedirect'), 'true');
+  assert.equal(
+    isTrustedGooglePhotoUrl('https://lh3.googleusercontent.com/example'),
+    true,
+  );
+  assert.equal(isTrustedGooglePhotoUrl('https://example.com/photo'), false);
+  assert.equal(isTrustedGooglePhotoUrl('javascript:alert(1)'), false);
 });
 
 void test('Ask AI starts collapsed, toggles for a day, and stays closed in All', () => {

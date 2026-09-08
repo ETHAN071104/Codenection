@@ -4,6 +4,7 @@ import type { Database } from '@/lib/supabase/database.types';
 import { scoreMalaysiaPlace } from './recommendation';
 import type { CandidatePlace, CandidateQuery, MalaysiaPlace } from './types';
 import { parsePlacePhotoAttributions } from './photo-core';
+import { parseStoredOpeningPeriods } from './opening-hours-core';
 
 function mapPlace(row: Record<string, unknown>): MalaysiaPlace {
   return {
@@ -15,6 +16,7 @@ function mapPlace(row: Record<string, unknown>): MalaysiaPlace {
     estimatedDurationMinutes: typeof row.estimated_duration_minutes === 'number' ? row.estimated_duration_minutes : null,
     indoorOutdoor: row.indoor_outdoor === 'indoor' || row.indoor_outdoor === 'outdoor' || row.indoor_outdoor === 'mixed' ? row.indoor_outdoor : null,
     bestTimeOfDay: typeof row.best_time_of_day === 'string' ? row.best_time_of_day : null,
+    openingPeriods: parseStoredOpeningPeriods(row.opening_periods),
     cultureScore: typeof row.culture_score === 'number' ? row.culture_score : null, foodScore: typeof row.food_score === 'number' ? row.food_score : null,
     natureScore: typeof row.nature_score === 'number' ? row.nature_score : null, shoppingScore: typeof row.shopping_score === 'number' ? row.shopping_score : null,
     adventureScore: typeof row.adventure_score === 'number' ? row.adventure_score : null, nightlifeScore: typeof row.nightlife_score === 'number' ? row.nightlife_score : null,

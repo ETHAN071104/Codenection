@@ -1,5 +1,6 @@
 import type { GroupPreferenceSummary } from '@/lib/preferences/model';
 import type { GooglePlacePhotoAttribution } from '@/lib/phase2/types';
+import type { WeeklyOpeningPeriod } from './opening-hours-core';
 
 export type MalaysiaPlace = {
   id: string;
@@ -16,6 +17,7 @@ export type MalaysiaPlace = {
   estimatedDurationMinutes: number | null;
   indoorOutdoor: 'indoor' | 'outdoor' | 'mixed' | null;
   bestTimeOfDay: string | null;
+  openingPeriods: WeeklyOpeningPeriod[] | null;
   cultureScore: number | null;
   foodScore: number | null;
   natureScore: number | null;

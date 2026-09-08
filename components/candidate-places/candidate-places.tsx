@@ -824,51 +824,36 @@ function CandidatePlaceCard({
   tripId: string;
   place: RankedCandidate;
 }) {
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const photoName = place.photoName;
-
-  useEffect(() => {
-    if (!hasUsablePlacePhoto({ photoName })) return;
-    const controller = new AbortController();
-    let objectUrl: string | null = null;
-
-    void ensureAnonymousUser()
-      .then(() => getSupabaseBrowserClient().auth.getSession())
-      .then(async ({ data: sessionData, error: sessionError }) => {
-        const token = sessionData.session?.access_token;
-        if (sessionError || !token || !photoName) return;
-        const response = await fetch(
-          `/api/trips/${tripId}/place-photo?name=${encodeURIComponent(photoName)}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            signal: controller.signal,
-          },
-        );
-        if (!response.ok) return;
-        objectUrl = URL.createObjectURL(await response.blob());
-        setPhotoUrl(objectUrl);
-      })
-      .catch(() => undefined);
-
-    return () => {
-      controller.abort();
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [photoName, tripId]);
+  const hasPhoto = hasUsablePlacePhoto({ photoName });
+  const [photoState, setPhotoState] = useState<'loading' | 'ready' | 'failed'>(
+    hasPhoto ? 'loading' : 'failed',
+  );
+  const photoVisible = hasPhoto && photoState !== 'failed';
+  const photoUrl = photoName
+    ? `/api/trips/${tripId}/place-photo?name=${encodeURIComponent(photoName)}`
+    : null;
 
   const attribution = place.photoAttributions[0] ?? null;
-  const contentTone = photoUrl ? 'text-paper' : 'text-ink';
-  const secondaryTone = photoUrl ? 'text-paper/80' : 'text-warm-muted';
+  const contentTone = photoVisible ? 'text-paper' : 'text-ink';
+  const secondaryTone = photoVisible ? 'text-paper/80' : 'text-warm-muted';
 
   return (
     <article
       className={cn(
-        'relative flex min-h-[430px] overflow-hidden rounded-2xl border border-warm-border shadow-editorial motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-300',
-        photoUrl ? 'min-h-[500px] bg-ink' : 'bg-paper',
+        'relative flex overflow-hidden rounded-2xl border border-warm-border shadow-editorial motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-300',
+        hasPhoto ? 'min-h-[500px]' : 'min-h-[430px]',
+        photoVisible ? 'bg-ink' : 'bg-paper',
       )}
     >
-      {photoUrl && (
+      {photoVisible && photoUrl && (
         <>
+          {photoState === 'loading' && (
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 animate-pulse bg-warm-border/70"
+            />
+          )}
           {/* Google Place photo is factual supporting media; the visible title supplies context. */}
           <Image
             src={photoUrl}
@@ -876,7 +861,14 @@ function CandidatePlaceCard({
             fill
             sizes="(max-width: 640px) 100vw, 576px"
             unoptimized
-            className="object-cover"
+            loading="eager"
+            fetchPriority="high"
+            onLoad={() => setPhotoState('ready')}
+            onError={() => setPhotoState('failed')}
+            className={cn(
+              'object-cover transition-opacity duration-300',
+              photoState === 'ready' ? 'opacity-100' : 'opacity-0',
+            )}
           />
           <div
             aria-hidden="true"
@@ -890,7 +882,7 @@ function CandidatePlaceCard({
           <span
             className={cn(
               'flex size-11 shrink-0 items-center justify-center rounded-full',
-              photoUrl
+              photoVisible
                 ? 'border border-paper/35 bg-ink/55 text-paper backdrop-blur-sm'
                 : 'bg-parchment text-brown-accent',
             )}
@@ -901,7 +893,7 @@ function CandidatePlaceCard({
             <span
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold',
-                photoUrl
+                photoVisible
                   ? 'border border-paper/30 bg-ink/60 text-paper backdrop-blur-sm'
                   : 'text-ink',
               )}
@@ -909,7 +901,7 @@ function CandidatePlaceCard({
               <Star
                 className={cn(
                   'size-4 fill-current',
-                  photoUrl ? 'text-[#f5cf87]' : 'text-brown-accent',
+                  photoVisible ? 'text-[#f5cf87]' : 'text-brown-accent',
                 )}
                 aria-hidden="true"
               />
@@ -922,7 +914,7 @@ function CandidatePlaceCard({
         <div
           className={cn(
             'mt-auto',
-            photoUrl &&
+            photoVisible &&
               'rounded-xl border border-paper/15 bg-ink/64 p-5 backdrop-blur-[3px] sm:p-6',
           )}
         >
@@ -946,7 +938,7 @@ function CandidatePlaceCard({
                 <Minus
                   className={cn(
                     'mt-1 size-4 shrink-0',
-                    photoUrl ? 'text-[#f5cf87]' : 'text-brown-accent',
+                    photoVisible ? 'text-[#f5cf87]' : 'text-brown-accent',
                   )}
                   aria-hidden="true"
                 />
@@ -958,7 +950,7 @@ function CandidatePlaceCard({
                 <Users
                   className={cn(
                     'mt-1 size-4 shrink-0',
-                    photoUrl ? 'text-[#f5cf87]' : 'text-brown-accent',
+                    photoVisible ? 'text-[#f5cf87]' : 'text-brown-accent',
                   )}
                   aria-hidden="true"
                 />
@@ -978,7 +970,7 @@ function CandidatePlaceCard({
               <p
                 className={cn(
                   'flex items-center gap-2 text-sm font-semibold',
-                  photoUrl ? 'text-[#f5cf87]' : 'text-brown-accent',
+                  photoVisible ? 'text-[#f5cf87]' : 'text-brown-accent',
                 )}
               >
                 <Check className="size-4" aria-hidden="true" />
@@ -987,7 +979,7 @@ function CandidatePlaceCard({
             ) : (
               <span />
             )}
-            {photoUrl && attribution && (
+            {photoState === 'ready' && attribution && (
               <p className="text-[0.65rem] text-paper/70">
                 Photo by{' '}
                 {attribution.uri ? (

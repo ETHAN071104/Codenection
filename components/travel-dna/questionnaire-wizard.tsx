@@ -650,7 +650,7 @@ export function QuestionnaireWizard({ tripId }: { tripId: string }) {
                 How should each day feel?
               </h1>
               <p className="mt-4 max-w-xl leading-7 text-warm-muted">
-                Move from a packed itinerary to slower, open-ended days.
+                Move from slower, open-ended days to a packed itinerary.
               </p>
 
               <div className="mt-9 rounded-xl border border-warm-border bg-parchment p-5 sm:p-7">
@@ -663,7 +663,7 @@ export function QuestionnaireWizard({ tripId }: { tripId: string }) {
                   </span>
                 </div>
                 <label htmlFor="travel-pace" className="sr-only">
-                  Travel pace from packed to relaxed
+                  Travel pace from relaxed to packed
                 </label>
                 <input
                   id="travel-pace"
@@ -681,8 +681,8 @@ export function QuestionnaireWizard({ tripId }: { tripId: string }) {
                   }
                 />
                 <div className="mt-3 flex justify-between gap-6 text-xs font-semibold tracking-[0.06em] text-warm-muted">
-                  <span>MORE STOPS</span>
-                  <span className="text-right">MORE REST</span>
+                  <span>MORE REST</span>
+                  <span className="text-right">MORE STOPS</span>
                 </div>
 
                 <div className="mt-6 grid grid-cols-5 gap-1.5 sm:gap-2">

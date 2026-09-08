@@ -53,6 +53,7 @@ export type PlaceCandidate = {
   ratingCount: number | null;
   priceLevel: string | null;
   types: string[];
+  openingPeriods?: import('@/lib/malaysia-places/opening-hours-core').WeeklyOpeningPeriod[] | null;
   sourceArea?: string;
   addressComponents?: GoogleAddressComponent[];
   photo?: GooglePlacePhoto | null;

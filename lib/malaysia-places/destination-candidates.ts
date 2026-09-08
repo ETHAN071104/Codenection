@@ -95,6 +95,7 @@ function rowForPlace(
     estimated_duration_minutes: null,
     indoor_outdoor: null,
     best_time_of_day: null,
+    opening_periods: place.openingPeriods ?? null,
     culture_score: null,
     food_score: null,
     nature_score: null,

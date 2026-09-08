@@ -5,10 +5,11 @@ import type {
   GooglePlacePhotoAttribution,
   PlaceCandidate,
 } from './types';
+import { normalizeGoogleOpeningPeriods } from '@/lib/malaysia-places/opening-hours-core';
 
 const url = 'https://places.googleapis.com/v1/places:searchText';
 const detailsUrl = 'https://places.googleapis.com/v1/places';
-export const GOOGLE_PLACES_FIELD_MASK = 'places.id,places.displayName,places.formattedAddress,places.addressComponents,places.location,places.rating,places.userRatingCount,places.priceLevel,places.types,places.photos';
+export const GOOGLE_PLACES_FIELD_MASK = 'places.id,places.displayName,places.formattedAddress,places.addressComponents,places.location,places.rating,places.userRatingCount,places.priceLevel,places.types,places.photos,places.regularOpeningHours.periods';
 
 type GooglePlacePayload = {
   id?: string;
@@ -30,6 +31,12 @@ type GooglePlacePayload = {
       photoUri?: string;
     }[];
   }[];
+  regularOpeningHours?: {
+    periods?: {
+      open?: { day?: number; hour?: number; minute?: number };
+      close?: { day?: number; hour?: number; minute?: number };
+    }[];
+  };
 };
 
 type GooglePhotoPayload = NonNullable<GooglePlacePayload['photos']>[number];
@@ -73,7 +80,7 @@ export async function searchPlannerPlaces(query: string, destination: string, li
   const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': GOOGLE_PLACES_FIELD_MASK }, body: JSON.stringify({ textQuery: `${query} in ${destination}`, pageSize: Math.min(Math.max(limit, 3), 8), languageCode: 'en' }), cache: 'no-store' });
   if (!response.ok) throw new Phase2ProviderError('GOOGLE_PLACES_UNAVAILABLE');
   const payload = await response.json() as { places?: GooglePlacePayload[] };
-  return (payload.places ?? []).flatMap((place) => place.id && place.displayName?.text && Number.isFinite(place.location?.latitude) && Number.isFinite(place.location?.longitude) ? [{ externalPlaceId: place.id, name: place.displayName.text, address: place.formattedAddress ?? null, addressComponents: place.addressComponents ?? [], latitude: place.location!.latitude!, longitude: place.location!.longitude!, rating: Number.isFinite(place.rating) ? place.rating! : null, ratingCount: Number.isInteger(place.userRatingCount) ? place.userRatingCount! : null, priceLevel: place.priceLevel ?? null, types: place.types ?? [], photo: primaryPhoto(place.photos) }] : []);
+  return (payload.places ?? []).flatMap((place) => place.id && place.displayName?.text && Number.isFinite(place.location?.latitude) && Number.isFinite(place.location?.longitude) ? [{ externalPlaceId: place.id, name: place.displayName.text, address: place.formattedAddress ?? null, addressComponents: place.addressComponents ?? [], latitude: place.location!.latitude!, longitude: place.location!.longitude!, rating: Number.isFinite(place.rating) ? place.rating! : null, ratingCount: Number.isInteger(place.userRatingCount) ? place.userRatingCount! : null, priceLevel: place.priceLevel ?? null, types: place.types ?? [], openingPeriods: place.regularOpeningHours ? normalizeGoogleOpeningPeriods(place.regularOpeningHours.periods ?? []) : null, photo: primaryPhoto(place.photos) }] : []);
 }
 
 export async function getPlaceAddressDetails(placeId: string) {

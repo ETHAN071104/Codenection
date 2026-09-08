@@ -132,6 +132,7 @@ export type MalaysiaPlaceRow = {
   estimated_duration_minutes: number | null;
   indoor_outdoor: string | null;
   best_time_of_day: string | null;
+  opening_periods: Json | null;
   culture_score: number | null;
   food_score: number | null;
   nature_score: number | null;

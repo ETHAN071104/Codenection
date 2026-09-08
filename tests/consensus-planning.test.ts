@@ -14,7 +14,7 @@ import type {
 function place(
   id: string,
   voteCount: number,
-  durationMinutes = 300,
+  durationMinutes = 180,
 ): DayClusterSelection {
   return {
     id,
@@ -31,6 +31,7 @@ function place(
     estimatedDurationMinutes: durationMinutes,
     indoorOutdoor: 'mixed',
     bestTimeOfDay: 'any',
+    openingPeriods: null,
     cultureScore: 80,
     foodScore: 50,
     natureScore: 20,
@@ -123,9 +124,9 @@ void test('scheduler protects consensus capacity and remains deterministic', () 
   assert.deepEqual(second, first);
   assert.deepEqual(first.days[0].items.map(({ placeId }) => placeId), [
     'unanimous',
-    'majority',
   ]);
   assert.deepEqual(first.days[0].overflow.map(({ placeId }) => placeId), [
+    'majority',
     'single',
   ]);
   assert.match(
