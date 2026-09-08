@@ -86,6 +86,45 @@ export async function searchPlannerPlaces(
   );
 }
 
+export async function resolveDestinationLocation(query: string) {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey) throw new Phase2ProviderError('GOOGLE_PLACES_UNAVAILABLE');
+
+  let response: Response;
+  try {
+    response = await fetch(GOOGLE_PLACES_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask':
+          'places.id,places.displayName,places.formattedAddress,places.location',
+      },
+      body: JSON.stringify({
+        textQuery: query,
+        pageSize: 1,
+        languageCode: 'en',
+      }),
+      cache: 'no-store',
+    });
+  } catch {
+    throw new Phase2ProviderError('GOOGLE_PLACES_UNAVAILABLE');
+  }
+
+  if (!response.ok) {
+    throw new Phase2ProviderError('GOOGLE_PLACES_UNAVAILABLE');
+  }
+  const payload = (await response.json()) as { places?: GooglePlace[] };
+  const place = payload.places?.map(normalizePlace).find(Boolean);
+  if (!place) throw new Phase2ProviderError('NO_PLACE_CANDIDATES');
+  return {
+    name: place.name,
+    address: place.address,
+    latitude: place.latitude,
+    longitude: place.longitude,
+  };
+}
+
 export async function getPlaceCandidateById(externalPlaceId: string) {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) throw new Phase2ProviderError('GOOGLE_PLACES_UNAVAILABLE');

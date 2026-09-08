@@ -166,14 +166,32 @@ export function TripRoom({ tripId }: { tripId: string }) {
   const allCompleted = Boolean(questionnaireStatus[0]?.all_completed);
 
   return (
-    <main className="atlas-page min-h-[100dvh] bg-parchment text-ink">
-      <header className="border-b border-warm-border bg-paper/80">
+    <main className="atlas-page relative isolate min-h-[100dvh] overflow-hidden bg-[#1b211f] text-white">
+      <video
+        className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+        disablePictureInPicture
+        aria-hidden="true"
+      >
+        <source src="/videos/welcome_page.mp4" type="video/mp4" />
+      </video>
+      <div aria-hidden="true" className="absolute inset-0 bg-black/38" />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,12,12,.64)_0%,rgba(7,12,12,.18)_34%,rgba(7,12,12,.5)_100%)]"
+      />
+
+      <header className="relative z-10 border-b border-white/20 bg-black/18 backdrop-blur-[8px]">
         <div className="mx-auto flex h-16 w-full max-w-[1180px] items-center justify-between gap-4 px-5 sm:px-8">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight outline-none transition-opacity hover:opacity-65 focus-visible:ring-2 focus-visible:ring-ink/30"
+            className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight text-white outline-none transition-opacity hover:opacity-70 focus-visible:ring-2 focus-visible:ring-white/65"
           >
-            <Plane className="size-4 text-brown-accent" aria-hidden="true" />
+            <Plane className="size-4 text-[#e2b98f]" aria-hidden="true" />
             Travel Planner
           </Link>
           {trip && (
@@ -181,7 +199,7 @@ export function TripRoom({ tripId }: { tripId: string }) {
               type="button"
               variant="ghost"
               size="sm"
-              className="h-10 rounded-lg px-3 text-warm-muted hover:bg-parchment hover:text-ink"
+              className="h-10 rounded-lg px-3 text-white/70 hover:bg-white/10 hover:text-white"
               onClick={() => void loadTrip(true)}
               disabled={refreshing}
             >
@@ -195,7 +213,7 @@ export function TripRoom({ tripId }: { tripId: string }) {
         </div>
       </header>
 
-      <div className="mx-auto w-full max-w-[1180px] px-5 py-8 sm:px-8 sm:py-12 lg:py-14">
+      <div className="relative z-10 mx-auto w-full max-w-[1180px] px-5 py-8 sm:px-8 sm:py-10 lg:py-12">
         {loading ? (
           <SystemLoading
             className="my-10"
@@ -255,7 +273,7 @@ export function TripRoom({ tripId }: { tripId: string }) {
             }
           />
         ) : trip?.finalized_at ? (
-          <section className="mx-auto w-full max-w-3xl rounded-2xl border border-warm-border bg-paper p-6 shadow-editorial sm:p-10 lg:p-12">
+          <section className="mx-auto w-full max-w-3xl rounded-2xl border border-white/45 bg-[#fffaf0]/92 p-6 text-ink shadow-editorial backdrop-blur-xl sm:p-10 lg:p-12">
             <span className="flex size-12 items-center justify-center rounded-full bg-ink text-paper">
               <MapPinned className="size-5" aria-hidden="true" />
             </span>
@@ -284,7 +302,11 @@ export function TripRoom({ tripId }: { tripId: string }) {
                   onClick={copyRoomCode}
                   className="h-10 border-warm-border bg-paper"
                 >
-                  {copied ? <Check aria-hidden="true" /> : <Clipboard aria-hidden="true" />}
+                  {copied ? (
+                    <Check aria-hidden="true" />
+                  ) : (
+                    <Clipboard aria-hidden="true" />
+                  )}
                   {copied ? 'Copied' : 'Copy'}
                 </Button>
               </div>
@@ -315,29 +337,29 @@ export function TripRoom({ tripId }: { tripId: string }) {
           </section>
         ) : trip ? (
           <>
-            <div className="mb-8 sm:mb-10">
-              <p className="text-xs font-semibold tracking-[0.18em] text-brown-accent">
+            <div className="mb-7 sm:mb-8">
+              <p className="text-xs font-semibold tracking-[0.18em] text-[#e2b98f]">
                 SHARED TRIP ROOM
               </p>
               <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
                 <div>
-                  <h1 className="max-w-3xl text-balance font-editorial text-4xl leading-[0.98] font-semibold tracking-[-0.045em] sm:text-5xl lg:text-6xl">
+                  <h1 className="max-w-3xl text-balance font-editorial text-4xl leading-[0.98] font-semibold tracking-[-0.045em] text-white sm:text-5xl">
                     Ready when your group is.
                   </h1>
-                  <p className="mt-4 max-w-2xl text-base leading-7 text-warm-muted">
+                  <p className="mt-3 max-w-2xl text-base leading-7 text-white/72">
                     Invite your travel companions, then complete your individual
                     Travel DNA when you&apos;re ready.
                   </p>
                 </div>
-                <span className="w-fit rounded-full border border-warm-border bg-paper px-4 py-2 text-sm font-semibold text-warm-muted">
+                <span className="w-fit rounded-full border border-white/45 bg-[#fffaf0]/92 px-4 py-2 text-sm font-semibold text-ink shadow-sm backdrop-blur-md">
                   {durationLabel ? `${durationLabel} trip` : 'Shared trip'}
                 </span>
               </div>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)] lg:items-start">
-              <div className="space-y-6">
-                <section className="overflow-hidden rounded-2xl border border-warm-border bg-paper shadow-editorial">
+            <div className="grid gap-5 lg:grid-cols-2">
+              <div className="contents">
+                <section className="order-1 h-full overflow-hidden rounded-2xl border border-white/45 bg-[#fffaf0]/92 text-ink shadow-[0_22px_60px_-36px_rgba(0,0,0,.85)] backdrop-blur-xl">
                   <div className="border-b border-warm-border px-6 py-5 sm:px-8">
                     <p className="text-xs font-semibold tracking-[0.16em] text-brown-accent">
                       INVITE YOUR FRIENDS
@@ -395,7 +417,7 @@ export function TripRoom({ tripId }: { tripId: string }) {
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-warm-border bg-paper shadow-editorial">
+                <section className="order-3 rounded-2xl border border-white/45 bg-[#fffaf0]/92 text-ink shadow-[0_22px_60px_-36px_rgba(0,0,0,.85)] backdrop-blur-xl lg:col-span-2">
                   <div className="flex items-end justify-between gap-4 border-b border-warm-border px-6 py-5 sm:px-8">
                     <div>
                       <p className="text-xs font-semibold tracking-[0.16em] text-brown-accent">
@@ -453,7 +475,7 @@ export function TripRoom({ tripId }: { tripId: string }) {
                 </section>
               </div>
 
-              <aside className="rounded-2xl border border-warm-border bg-paper p-6 shadow-editorial sm:p-7 lg:sticky lg:top-6">
+              <aside className="order-2 h-full rounded-2xl border border-white/45 bg-[#fffaf0]/92 p-6 text-ink shadow-[0_22px_60px_-36px_rgba(0,0,0,.85)] backdrop-blur-xl sm:p-7">
                 <p className="text-xs font-semibold tracking-[0.16em] text-brown-accent">
                   TRAVEL DNA
                 </p>

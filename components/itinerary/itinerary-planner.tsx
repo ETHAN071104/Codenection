@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
+  ArrowLeft,
   ArrowRight,
   Check,
   Clock3,
@@ -32,6 +33,10 @@ import type {
   ItineraryPageData,
   ItineraryView,
 } from '@/lib/phase2/types';
+import {
+  DestinationGlobe,
+  type DestinationGlobeHandle,
+} from './destination-globe';
 
 type Screen = 'loading' | 'ready' | 'error';
 export type PlanningStep =
@@ -101,7 +106,9 @@ function HostSetupWaiting({
           SHARED TRIP SETUP
         </p>
         <h1 className="mt-4 font-editorial text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">
-          {trip.isHost ? 'Your shared setup is in progress' : `${organiser} is setting up the trip`}
+          {trip.isHost
+            ? 'Your shared setup is in progress'
+            : `${organiser} is setting up the trip`}
         </h1>
         <p className="mt-5 max-w-2xl leading-7 text-warm-muted">
           {trip.isHost
@@ -111,10 +118,17 @@ function HostSetupWaiting({
 
         <dl className="mt-8 divide-y divide-warm-border rounded-xl border border-warm-border bg-parchment px-5">
           <div className="flex items-center justify-between gap-4 py-4">
-            <dt className="text-sm font-semibold text-warm-muted">Destination</dt>
+            <dt className="text-sm font-semibold text-warm-muted">
+              Destination
+            </dt>
             <dd className="inline-flex items-center gap-2 text-right font-semibold text-ink">
               {trip.destination || 'Waiting…'}
-              {trip.destination && <Check className="size-4 text-brown-accent" aria-hidden="true" />}
+              {trip.destination && (
+                <Check
+                  className="size-4 text-brown-accent"
+                  aria-hidden="true"
+                />
+              )}
             </dd>
           </div>
           <div className="flex items-start justify-between gap-4 py-4">
@@ -142,23 +156,37 @@ function HostSetupWaiting({
             </dd>
           </div>
           <div className="flex items-center justify-between gap-4 py-4">
-            <dt className="text-sm font-semibold text-warm-muted">Travel range</dt>
+            <dt className="text-sm font-semibold text-warm-muted">
+              Travel range
+            </dt>
             <dd className="inline-flex items-center gap-2 text-right font-semibold text-ink">
               {scopeReady
                 ? explorationLabel(trip.explorationPreference)
                 : 'Waiting…'}
-              {scopeReady && <Check className="size-4 text-brown-accent" aria-hidden="true" />}
+              {scopeReady && (
+                <Check
+                  className="size-4 text-brown-accent"
+                  aria-hidden="true"
+                />
+              )}
             </dd>
           </div>
           <div className="flex items-center justify-between gap-4 py-4">
-            <dt className="text-sm font-semibold text-warm-muted">Planning style</dt>
+            <dt className="text-sm font-semibold text-warm-muted">
+              Planning style
+            </dt>
             <dd className="inline-flex items-center gap-2 text-right font-semibold text-ink">
               {trip.planningMode === 'collaborative'
                 ? 'Choose places together'
                 : trip.planningMode === 'ai'
                   ? 'Plan it for me with AI'
                   : 'Waiting…'}
-              {trip.planningMode && <Check className="size-4 text-brown-accent" aria-hidden="true" />}
+              {trip.planningMode && (
+                <Check
+                  className="size-4 text-brown-accent"
+                  aria-hidden="true"
+                />
+              )}
             </dd>
           </div>
         </dl>
@@ -187,7 +215,9 @@ function HostSetupWaiting({
                 'mt-7 h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90',
             })}
           >
-            {collaborativeReady ? 'Continue to choose places' : 'View generated plan'}
+            {collaborativeReady
+              ? 'Continue to choose places'
+              : 'View generated plan'}
             <ArrowRight aria-hidden="true" />
           </Link>
         )}
@@ -305,6 +335,7 @@ export function ItineraryPlanner({
 }) {
   const router = useRouter();
   const initialStepRef = useRef(initialStep);
+  const globeRef = useRef<DestinationGlobeHandle>(null);
   const [screen, setScreen] = useState<Screen>('loading');
   const [data, setData] = useState<ItineraryPageData | null>(null);
   const [suggestion, setSuggestion] = useState<DestinationSuggestion | null>(
@@ -330,48 +361,51 @@ export function ItineraryPlanner({
     else router.push(href);
   }
 
-  const load = useCallback(async (showLoading = true) => {
-    if (showLoading) setScreen('loading');
-    setError(null);
-    try {
-      const payload = await phase2Fetch<ItineraryPageData>(
-        `/api/trips/${tripId}/itinerary`,
-      );
-      setData(payload);
-      setDestinationInput(payload.trip.destinationInput ?? '');
-      setExplorationPreference(payload.trip.explorationPreference);
-      const requestedStep = initialStepRef.current;
-      if (payload.trip.finalizedAt) {
-        if (requestedStep === 'result') {
+  const load = useCallback(
+    async (showLoading = true) => {
+      if (showLoading) setScreen('loading');
+      setError(null);
+      try {
+        const payload = await phase2Fetch<ItineraryPageData>(
+          `/api/trips/${tripId}/itinerary`,
+        );
+        setData(payload);
+        setDestinationInput(payload.trip.destinationInput ?? '');
+        setExplorationPreference(payload.trip.explorationPreference);
+        const requestedStep = initialStepRef.current;
+        if (payload.trip.finalizedAt) {
+          if (requestedStep === 'result') {
+            setPlanningStep('result');
+          } else {
+            router.replace(`/trip/${tripId}/plan`);
+          }
+          setScreen('ready');
+          return;
+        }
+        if (
+          (requestedStep === 'timing' ||
+            requestedStep === 'scope' ||
+            requestedStep === 'mode') &&
+          !payload.trip.destination
+        ) {
+          setPlanningStep('destination');
+        } else if (requestedStep === 'result' && !payload.itinerary) {
+          setPlanningStep('destination');
+        } else if (!requestedStep && payload.itinerary) {
           setPlanningStep('result');
-        } else {
-          router.replace(`/trip/${tripId}/plan`);
         }
         setScreen('ready');
-        return;
+      } catch (loadError) {
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : 'We could not load this itinerary.',
+        );
+        if (showLoading) setScreen('error');
       }
-      if (
-        (requestedStep === 'timing' ||
-          requestedStep === 'scope' ||
-          requestedStep === 'mode') &&
-        !payload.trip.destination
-      ) {
-        setPlanningStep('destination');
-      } else if (requestedStep === 'result' && !payload.itinerary) {
-        setPlanningStep('destination');
-      } else if (!requestedStep && payload.itinerary) {
-        setPlanningStep('result');
-      }
-      setScreen('ready');
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : 'We could not load this itinerary.',
-      );
-      if (showLoading) setScreen('error');
-    }
-  }, [router, tripId]);
+    },
+    [router, tripId],
+  );
 
   useEffect(() => {
     void Promise.resolve().then(() => load(true));
@@ -454,6 +488,7 @@ export function ItineraryPlanner({
           replaceExisting: editingDestination,
         }),
       });
+      await globeRef.current?.flyTo(payload.suggestion.destination);
       if (
         acceptSpecificInput &&
         geographicScope &&
@@ -744,159 +779,204 @@ export function ItineraryPlanner({
 
   const destinationEditing = !data.trip.destination || editingDestination;
 
-  return (
-    <AtlasShell tripId={tripId} sectionLabel="TRIP PLANNING">
-      <section className="mx-auto w-full max-w-3xl rounded-2xl border border-warm-border bg-paper p-6 shadow-[var(--journey-shadow)] sm:p-10">
-        <p className="text-xs font-semibold tracking-[0.16em] text-brown-accent">
-          {planningStep === 'destination'
-            ? 'DESTINATION'
-            : planningStep === 'timing'
-              ? 'TRAVEL TIMES'
-            : planningStep === 'scope'
-              ? 'GEOGRAPHIC SCOPE'
-              : 'PLANNING MODE'}
-        </p>
+  if (planningStep === 'destination') {
+    const normalizedDestination = destinationInput.trim().replace(/\s+/g, ' ');
+    const isBusy = pendingAction !== null;
 
-        {planningStep === 'destination' && (
-          <>
-            <h1 className="mt-4 font-editorial text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">
-              Where do you want to go?
-            </h1>
-            <p className="mt-5 max-w-2xl leading-7 text-warm-muted">
-              Enter a city, state, region, or country. For broad areas, we can
-              suggest a practical destination using the group summary for this{' '}
-              {formatTripDuration(data.trip.durationDays)} trip.
+    return (
+      <main className="relative isolate min-h-[100dvh] overflow-x-hidden bg-[#071019] text-white lg:h-[100dvh] lg:overflow-hidden">
+        <DestinationGlobe
+          ref={globeRef}
+          tripId={tripId}
+          idleEnabled={
+            destinationEditing &&
+            !suggestion &&
+            !destinationInput.trim() &&
+            pendingAction === null
+          }
+        />
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(2,8,13,0.86)_0%,rgba(2,8,13,0.52)_32%,rgba(2,8,13,0.08)_62%,rgba(2,8,13,0.36)_100%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(2,7,11,0.66)_0%,transparent_25%,transparent_70%,rgba(2,7,11,0.72)_100%)]" />
+
+        <div className="pointer-events-none relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-[1500px] flex-col px-5 sm:px-8 lg:px-12">
+          <header className="pointer-events-auto grid min-h-20 grid-cols-[1fr_auto_1fr] items-center border-b border-white/18 text-sm sm:min-h-24">
+            <Link
+              href={`/trip/${tripId}`}
+              className="inline-flex w-fit items-center gap-2 rounded-full py-2 pr-3 font-medium text-white/80 transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+            >
+              <ArrowLeft className="size-4" aria-hidden="true" />
+              Trip room
+            </Link>
+            <p className="text-[11px] font-semibold tracking-[0.2em] text-white/78 sm:text-xs">
+              TRIP PLANNING
             </p>
+            <p className="justify-self-end text-xs font-medium text-white/55 sm:text-sm">
+              {formatTripDuration(data.trip.durationDays)} trip
+            </p>
+          </header>
 
-            {data.trip.destination && !editingDestination && (
-              <div className="mt-8 rounded-xl border border-warm-border border-l-2 border-l-brown-accent bg-parchment p-5 sm:p-6">
-                <p className="text-xs font-semibold tracking-[0.14em] text-brown-accent">
-                  CURRENT DESTINATION
-                </p>
-                <h2 className="mt-3 font-editorial text-2xl font-semibold">
-                  {data.trip.destination}
-                </h2>
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <Button
-                    type="button"
-                    className="h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90"
-                    onClick={() => goToStep('timing')}
-                  >
-                    Continue
-                    <ArrowRight aria-hidden="true" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-11 rounded-xl border-warm-border bg-paper px-5 text-ink hover:bg-paper/65"
-                    onClick={() => {
-                      setDestinationInput(
-                        data.trip.destinationInput ??
-                          data.trip.destination ??
-                          '',
-                      );
-                      setSuggestion(null);
-                      setEditingDestination(true);
-                    }}
-                  >
-                    Choose another
-                  </Button>
+          <div className="grid flex-1 items-center gap-8 py-8 lg:grid-cols-[minmax(0,34rem)_1fr] lg:py-12">
+            <section className="pointer-events-auto self-center">
+              <p className="text-xs font-semibold tracking-[0.2em] text-[#dfb483]">
+                DESTINATION
+              </p>
+              <h1 className="mt-4 max-w-xl font-editorial text-[clamp(3.1rem,6vw,6.6rem)] font-semibold leading-[0.88] tracking-[-0.065em] text-white text-shadow-[0_2px_22px_rgba(0,0,0,0.38)]">
+                Where do you want to go?
+              </h1>
+              <p className="mt-6 max-w-lg text-base leading-7 text-white/70 sm:text-lg">
+                Enter a place, or let your group&apos;s Travel DNA choose a
+                destination for this{' '}
+                {formatTripDuration(data.trip.durationDays)} trip.
+              </p>
+
+              {data.trip.destination && !editingDestination ? (
+                <div className="mt-8 max-w-lg rounded-2xl border border-white/20 bg-black/35 p-5 shadow-2xl backdrop-blur-xl sm:p-6">
+                  <p className="text-[11px] font-semibold tracking-[0.18em] text-[#dfb483]">
+                    CURRENT DESTINATION
+                  </p>
+                  <h2 className="mt-3 font-editorial text-3xl font-semibold tracking-[-0.035em]">
+                    {data.trip.destination}
+                  </h2>
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <Button
+                      type="button"
+                      className="h-12 rounded-full bg-white px-6 text-[#0a1117] hover:bg-white/90"
+                      onClick={() => goToStep('timing')}
+                    >
+                      Continue
+                      <ArrowRight aria-hidden="true" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-12 rounded-full border-white/25 bg-white/10 px-6 text-white backdrop-blur-md hover:bg-white/18 hover:text-white"
+                      onClick={() => {
+                        setDestinationInput(
+                          data.trip.destinationInput ??
+                            data.trip.destination ??
+                            '',
+                        );
+                        setSuggestion(null);
+                        setEditingDestination(true);
+                        void globeRef.current?.returnToGlobe(false);
+                      }}
+                    >
+                      Choose another
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
-
-            {destinationEditing && !suggestion && (
-              <form
-                className="mt-8"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const scope = destinationInput.trim().replace(/\s+/g, ' ');
-                  if (scope.length >= 3) {
-                    void suggestDestination(scope, true);
-                  }
-                }}
-              >
-                <label
-                  htmlFor="destination-input"
-                  className="text-sm font-semibold text-ink"
+              ) : !suggestion ? (
+                <form
+                  className="mt-8 max-w-lg rounded-2xl border border-white/20 bg-black/35 p-4 shadow-2xl backdrop-blur-xl sm:p-5"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (normalizedDestination.length >= 3) {
+                      globeRef.current?.pauseIdle();
+                      void suggestDestination(normalizedDestination, true);
+                    }
+                  }}
                 >
-                  City, state, region, or country
-                </label>
-                <Input
-                  id="destination-input"
-                  value={destinationInput}
-                  onChange={(event) => setDestinationInput(event.target.value)}
-                  placeholder="Johor Bahru, Kedah, or Japan"
-                  autoComplete="off"
-                  maxLength={120}
-                  className="mt-2 h-12 rounded-xl border-warm-border bg-paper px-4 focus-visible:border-brown-accent focus-visible:ring-brown-accent/20"
-                />
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <Button
-                    type="submit"
-                    className="h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90"
-                    disabled={
-                      pendingAction !== null ||
-                      destinationInput.trim().length < 3
-                    }
+                  <label
+                    htmlFor="destination-input"
+                    className="text-xs font-semibold tracking-[0.08em] text-white/75"
                   >
-                    {pendingAction === 'resolve' ? (
-                      <LoaderCircle
-                        className="animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <MapPin aria-hidden="true" />
-                    )}
-                    Use this destination
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-11 rounded-xl border-warm-border bg-paper px-5 text-ink hover:bg-parchment"
-                    onClick={() =>
-                      void suggestDestination(
-                        destinationInput.trim().replace(/\s+/g, ' ') || null,
-                      )
-                    }
-                    disabled={pendingAction !== null}
-                  >
-                    {pendingAction === 'suggest' ? (
-                      <LoaderCircle
-                        className="animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <Sparkles aria-hidden="true" />
-                    )}
-                    Suggest for us
-                  </Button>
-                </div>
-              </form>
-            )}
+                    CITY, STATE, REGION, OR COUNTRY
+                  </label>
+                  <Input
+                    id="destination-input"
+                    value={destinationInput}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setDestinationInput(value);
+                      if (value.trim()) globeRef.current?.pauseIdle();
+                      else globeRef.current?.resumeIdle();
+                    }}
+                    onFocus={() => globeRef.current?.pauseIdle()}
+                    placeholder="Johor Bahru, Kedah, or Japan"
+                    autoComplete="off"
+                    maxLength={120}
+                    className="mt-3 h-14 rounded-xl border-white/20 bg-white/12 px-4 text-base text-white placeholder:text-white/42 focus-visible:border-white/55 focus-visible:ring-white/15"
+                  />
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <Button
+                      type="submit"
+                      className="h-12 rounded-full bg-white px-5 text-[#0a1117] hover:bg-white/90"
+                      disabled={isBusy || normalizedDestination.length < 3}
+                    >
+                      {pendingAction === 'resolve' ? (
+                        <LoaderCircle
+                          className="animate-spin"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <MapPin aria-hidden="true" />
+                      )}
+                      Use this destination
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-12 rounded-full border-white/25 bg-white/10 px-5 text-white backdrop-blur-md hover:bg-white/18 hover:text-white"
+                      onClick={() => {
+                        globeRef.current?.pauseIdle();
+                        void suggestDestination(normalizedDestination || null);
+                      }}
+                      disabled={isBusy}
+                    >
+                      {pendingAction === 'suggest' ? (
+                        <LoaderCircle
+                          className="animate-spin"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <Sparkles aria-hidden="true" />
+                      )}
+                      Suggest for us
+                    </Button>
+                  </div>
+                </form>
+              ) : null}
+
+              {error && (
+                <p
+                  role="alert"
+                  className="mt-4 max-w-lg rounded-xl border border-red-200/25 bg-red-950/55 px-4 py-3 text-sm leading-6 text-red-50 backdrop-blur-lg"
+                >
+                  {error}
+                </p>
+              )}
+
+              <Link
+                href={`/trip/${tripId}/summary`}
+                className="mt-6 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-white/65 underline-offset-4 transition hover:text-white hover:underline"
+              >
+                <ArrowLeft className="size-4" aria-hidden="true" />
+                Back to group summary
+              </Link>
+            </section>
 
             {suggestion && destinationEditing && (
-              <div className="mt-8 rounded-xl border border-warm-border border-l-2 border-l-brown-accent bg-parchment p-5 sm:p-6">
-                <p className="text-xs font-semibold tracking-[0.14em] text-brown-accent">
+              <aside className="pointer-events-auto w-full max-w-md self-end justify-self-end rounded-2xl border border-white/20 bg-black/42 p-5 shadow-2xl backdrop-blur-xl sm:p-6 lg:mb-10">
+                <p className="text-[11px] font-semibold tracking-[0.18em] text-[#dfb483]">
                   PROPOSED DESTINATION
                 </p>
-                <h2 className="mt-3 font-editorial text-2xl font-semibold">
+                <h2 className="mt-3 font-editorial text-4xl font-semibold tracking-[-0.045em]">
                   {suggestion.destination}
                 </h2>
-                <p className="mt-3 leading-7 text-warm-muted">
+                <p className="mt-3 leading-7 text-white/72">
                   {suggestion.reason}
                 </p>
                 {suggestionScope && (
-                  <p className="mt-4 text-sm text-warm-muted">
+                  <p className="mt-4 text-sm text-white/55">
                     Your chosen area: {suggestionScope}
                   </p>
                 )}
-                <div className="mt-5 flex flex-wrap gap-3">
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
                   <Button
                     type="button"
-                    className="h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90"
+                    className="h-12 rounded-full bg-white px-5 text-[#0a1117] hover:bg-white/90"
                     onClick={() => void acceptDestination()}
-                    disabled={pendingAction !== null}
+                    disabled={isBusy}
                   >
                     {pendingAction === 'accept' ? (
                       <LoaderCircle
@@ -906,14 +986,17 @@ export function ItineraryPlanner({
                     ) : (
                       <MapPin aria-hidden="true" />
                     )}
-                    Use this destination
+                    Use destination
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-11 rounded-xl border-warm-border bg-paper px-5 text-ink hover:bg-parchment"
-                    onClick={() => void suggestDestination(suggestionScope)}
-                    disabled={pendingAction !== null}
+                    className="h-12 rounded-full border-white/25 bg-white/10 px-5 text-white backdrop-blur-md hover:bg-white/18 hover:text-white"
+                    onClick={() => {
+                      globeRef.current?.pauseIdle();
+                      void suggestDestination(suggestionScope);
+                    }}
+                    disabled={isBusy}
                   >
                     {pendingAction === 'suggest' ? (
                       <LoaderCircle
@@ -928,27 +1011,37 @@ export function ItineraryPlanner({
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-11 rounded-xl border-warm-border bg-paper px-5 text-ink hover:bg-parchment"
+                    className="h-12 rounded-full border-white/20 bg-black/15 px-5 text-white/80 hover:bg-white/12 hover:text-white sm:col-span-2"
                     onClick={() => {
                       setSuggestion(null);
                       setError(null);
+                      void globeRef.current?.returnToGlobe(
+                        destinationInput.trim().length === 0,
+                      );
                     }}
-                    disabled={pendingAction !== null}
+                    disabled={isBusy}
                   >
                     Choose manually
                   </Button>
                 </div>
-              </div>
+              </aside>
             )}
+          </div>
+        </div>
+      </main>
+    );
+  }
 
-            <Link
-              href={`/trip/${tripId}/summary`}
-              className="mt-8 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-warm-muted underline-offset-4 hover:text-ink hover:underline"
-            >
-              Back to group summary
-            </Link>
-          </>
-        )}
+  return (
+    <AtlasShell tripId={tripId} sectionLabel="TRIP PLANNING">
+      <section className="mx-auto w-full max-w-3xl rounded-2xl border border-warm-border bg-paper p-6 shadow-[var(--journey-shadow)] sm:p-10">
+        <p className="text-xs font-semibold tracking-[0.16em] text-brown-accent">
+          {planningStep === 'timing'
+            ? 'TRAVEL TIMES'
+            : planningStep === 'scope'
+              ? 'GEOGRAPHIC SCOPE'
+              : 'PLANNING MODE'}
+        </p>
 
         {planningStep === 'timing' && data.trip.destination && (
           <TravelBoundariesStep
@@ -1060,7 +1153,9 @@ export function ItineraryPlanner({
                   selected places into a deterministic schedule.
                 </span>
                 <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold">
-                  {pendingAction === 'mode' ? 'Preparing places' : 'Start choosing'}
+                  {pendingAction === 'mode'
+                    ? 'Preparing places'
+                    : 'Start choosing'}
                   <ArrowRight
                     className="transition-transform group-hover:translate-x-1"
                     aria-hidden="true"

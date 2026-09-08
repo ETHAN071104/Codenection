@@ -7,18 +7,18 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   ArrowRight,
+  Camera,
   CalendarDays,
   Check,
   Clock3,
   Heart,
+  Landmark,
+  Leaf,
   LoaderCircle,
-  MapPin,
-  Minus,
   Route,
   RotateCcw,
   Star,
   Utensils,
-  Users,
   X,
 } from 'lucide-react';
 import { JourneyShell } from '@/components/travel-dna/journey-shell';
@@ -573,10 +573,7 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
     );
   }
 
-  if (
-    data.allSelectionComplete &&
-    (view === 'choose' || view === 'review')
-  ) {
+  if (data.allSelectionComplete && (view === 'choose' || view === 'review')) {
     return (
       <JourneyShell tripId={tripId} currentStep="Places">
         <ConsensusResult data={data} onOrganise={() => setView('stay')} />
@@ -647,188 +644,144 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
     );
   }
 
-  return (
-    <JourneyShell tripId={tripId} currentStep="Places">
-      <section
-        className="mx-auto w-full max-w-xl"
-        data-testid="choose-places"
-        data-realtime-status={realtimeStatus}
-      >
-        <div className="flex items-end justify-between gap-4 border-b border-warm-border pb-5">
-          <div>
-            <h1 className="font-editorial text-4xl font-medium tracking-[-0.045em]">
-              Suggested for your group
-            </h1>
-            <p className="mt-1.5 text-sm text-warm-muted">
-              We picked places that match your group’s Travel DNA.
-            </p>
-            <p className="mt-1 text-sm text-warm-muted" aria-live="polite">
-              {activePlace ? currentIndex + 1 : 0} of {orderedCandidates.length}{' '}
-              · {selectedByCurrentUser} kept by you
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setView('review')}
-            className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-warm-border bg-paper px-4 text-sm font-semibold text-ink shadow-sm transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/35 focus-visible:ring-offset-4 focus-visible:ring-offset-parchment"
-          >
-            Done ({selectedByCurrentUser})
-          </button>
-        </div>
-
-        {error && (
-          <SystemNotice
-            role="alert"
-            className="mt-5 border-brown-accent/30"
-            title={
-              errorKind === 'mutation'
-                ? 'That choice didn’t update.'
-                : 'We couldn’t refresh the latest choices.'
-            }
-            description={
-              errorKind === 'mutation'
-                ? 'Your previous selections are still saved. Refresh to load the latest group choices.'
-                : 'Your saved selections are safe. Refresh to try loading the latest group choices again.'
-            }
-            actions={
-              <button
-                type="button"
-                onClick={() => void load(false)}
-                className="font-semibold text-brown-accent underline-offset-4 hover:underline"
-              >
-                Refresh choices
-              </button>
-            }
-          />
-        )}
-
-        {['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(realtimeStatus) && (
-          <SystemNotice
-            className="mt-5"
-            title="Live updates are paused."
-            description="Your saved choices are safe. Refresh to check the latest group votes and reconnect."
-            actions={
-              <button
-                type="button"
-                onClick={() => void load(false)}
-                className="font-semibold text-brown-accent underline-offset-4 hover:underline"
-              >
-                Refresh
-              </button>
-            }
-          />
-        )}
-
-        {activePlace ? (
-          <div className="relative mt-7 pb-20">
-            <div
-              aria-hidden="true"
-              className="absolute inset-x-6 bottom-[4.25rem] top-5 rotate-[2deg] rounded-2xl border border-warm-border bg-[#eee7dd]"
-            />
-            <div
-              aria-hidden="true"
-              className="absolute inset-x-3 bottom-[4.75rem] top-2 -rotate-[1deg] rounded-2xl border border-warm-border bg-[#f8f4ee]"
-            />
-
-            <CandidatePlaceCard
-              key={activePlace.id}
-              tripId={tripId}
-              place={activePlace}
-            />
-
-            <div className="absolute inset-x-0 bottom-0 grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={advance}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-warm-border bg-paper px-4 text-sm font-semibold text-warm-muted shadow-sm transition-colors hover:bg-white hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/35 focus-visible:ring-offset-4 focus-visible:ring-offset-parchment"
-              >
-                <X className="size-4" aria-hidden="true" />
-                Skip
-              </button>
-              <button
-                type="button"
-                aria-pressed={activePlace.currentUserSelected}
-                disabled={pending.has(activePlace.id)}
-                onClick={async () => {
-                  if (await toggle(activePlace)) advance();
-                }}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-ink px-4 text-sm font-semibold text-paper shadow-sm transition-colors hover:bg-ink/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/40 focus-visible:ring-offset-4 focus-visible:ring-offset-parchment disabled:cursor-wait disabled:opacity-60"
-              >
-                {pending.has(activePlace.id) ? (
-                  <LoaderCircle
-                    className="size-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : activePlace.currentUserSelected ? (
-                  <Check className="size-4" aria-hidden="true" />
-                ) : (
-                  <Heart className="size-4" aria-hidden="true" />
-                )}
-                {activePlace.currentUserSelected ? 'Kept' : 'Keep'}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="mt-7 rounded-2xl border border-warm-border bg-paper p-8 text-center shadow-editorial">
-            {orderedCandidates.length > 0 ? (
-              <Check
-                className="mx-auto size-8 text-brown-accent"
-                aria-hidden="true"
-              />
-            ) : (
-              <MapPin
-                className="mx-auto size-8 text-brown-accent"
-                aria-hidden="true"
-              />
-            )}
-            <h2 className="mt-4 font-editorial text-3xl font-medium">
-              {orderedCandidates.length > 0
-                ? 'You have reviewed every place.'
-                : 'No place suggestions are available yet.'}
-            </h2>
-            <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-warm-muted">
-              {orderedCandidates.length > 0
-                ? 'Your saved choices are ready to review.'
-                : 'We could not find curated places for this trip. Your trip room and Travel DNA are still available.'}
-            </p>
-            {orderedCandidates.length > 0 ? (
+  if (!activePlace) {
+    return (
+      <JourneyShell tripId={tripId} currentStep="Places">
+        <SystemState
+          eyebrow="Suggested places"
+          title={
+            orderedCandidates.length > 0
+              ? 'You have reviewed every place.'
+              : 'No place suggestions are available yet.'
+          }
+          description={
+            orderedCandidates.length > 0
+              ? 'Your saved choices are ready to review.'
+              : 'We could not find curated places for this trip. Your trip room and Travel DNA are still available.'
+          }
+          actions={
+            orderedCandidates.length > 0 ? (
               <button
                 type="button"
                 onClick={() => setView('review')}
-                className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-ink px-5 text-sm font-semibold text-paper"
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-ink px-5 text-sm font-semibold text-paper"
               >
                 Review kept places
               </button>
             ) : (
-              <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={() => void load(true)}
-                  className="inline-flex h-11 items-center justify-center rounded-xl bg-ink px-5 text-sm font-semibold text-paper"
-                >
-                  Try again
-                </button>
-                <Link
-                  href={`/trip/${tripId}/itinerary?step=destination`}
-                  className="inline-flex h-11 items-center justify-center rounded-xl border border-warm-border bg-paper px-5 text-sm font-semibold text-ink hover:bg-parchment"
-                >
-                  Change destination
-                </Link>
-              </div>
-            )}
-          </div>
-        )}
-      </section>
-    </JourneyShell>
+              <button
+                type="button"
+                onClick={() => void load(true)}
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-ink px-5 text-sm font-semibold text-paper"
+              >
+                Try again
+              </button>
+            )
+          }
+        />
+      </JourneyShell>
+    );
+  }
+
+  return (
+    <PlaceEditorialScreen
+      key={activePlace.id}
+      tripId={tripId}
+      place={activePlace}
+      currentIndex={currentIndex}
+      totalCount={orderedCandidates.length}
+      selectedCount={selectedByCurrentUser}
+      realtimeStatus={realtimeStatus}
+      error={error}
+      errorKind={errorKind}
+      pending={pending.has(activePlace.id)}
+      onRefresh={() => void load(false)}
+      onDone={() => setView('review')}
+      onSkip={advance}
+      onKeep={async () => {
+        if (await toggle(activePlace)) advance();
+      }}
+    />
   );
 }
 
-function CandidatePlaceCard({
+const JOURNEY_STEPS = ['Preferences', 'Places', 'Plan', 'Ready'] as const;
+
+function reasonTitle(reason: string) {
+  const normalized = reason.toLowerCase();
+  if (normalized.includes('food')) return 'Food';
+  if (normalized.includes('photo')) return 'Photography';
+  if (normalized.includes('culture') || normalized.includes('heritage'))
+    return 'Culture & heritage';
+  if (normalized.includes('nature')) return 'Nature';
+  if (normalized.includes('budget') || normalized.includes('cost'))
+    return 'Value';
+  if (normalized.includes('rating') || normalized.includes('visitor'))
+    return 'Visitor favourite';
+  return 'Group fit';
+}
+
+function ReasonIcon({ reason }: { reason: string }) {
+  const normalized = reason.toLowerCase();
+  const className = 'mt-0.5 size-4 shrink-0 text-white/70';
+  if (normalized.includes('food'))
+    return <Utensils className={className} aria-hidden="true" />;
+  if (normalized.includes('photo'))
+    return <Camera className={className} aria-hidden="true" />;
+  if (normalized.includes('culture') || normalized.includes('heritage'))
+    return <Landmark className={className} aria-hidden="true" />;
+  if (normalized.includes('nature'))
+    return <Leaf className={className} aria-hidden="true" />;
+  return <Star className={className} aria-hidden="true" />;
+}
+
+function placeDescription(place: RankedCandidate) {
+  const placeType = label(place.category)?.toLowerCase();
+  const location = place.area ?? place.city ?? place.country;
+  const rating = place.googleRating
+    ? ` Rated ${place.googleRating.toFixed(1)} by Google visitors.`
+    : '';
+  return `${placeType ? `A ${placeType}` : 'A group-matched place'} in ${location}, selected for how well it fits your group.${rating}`;
+}
+
+function googleMapsUrl(place: RankedCandidate) {
+  const query = encodeURIComponent(
+    [place.name, place.city, place.country].filter(Boolean).join(', '),
+  );
+  const placeId = place.googlePlaceId
+    ? `&query_place_id=${encodeURIComponent(place.googlePlaceId)}`
+    : '';
+  return `https://www.google.com/maps/search/?api=1&query=${query}${placeId}`;
+}
+
+function PlaceEditorialScreen({
   tripId,
   place,
+  currentIndex,
+  totalCount,
+  selectedCount,
+  realtimeStatus,
+  error,
+  errorKind,
+  pending,
+  onRefresh,
+  onDone,
+  onSkip,
+  onKeep,
 }: {
   tripId: string;
   place: RankedCandidate;
+  currentIndex: number;
+  totalCount: number;
+  selectedCount: number;
+  realtimeStatus: string;
+  error: string | null;
+  errorKind: 'load' | 'mutation';
+  pending: boolean;
+  onRefresh: () => void;
+  onDone: () => void;
+  onSkip: () => void;
+  onKeep: () => void;
 }) {
   const photoName = place.photoName;
   const hasPhoto = hasUsablePlacePhoto({ photoName });
@@ -841,15 +794,17 @@ function CandidatePlaceCard({
     : null;
 
   const attribution = place.photoAttributions[0] ?? null;
-  const contentTone = photoVisible ? 'text-paper' : 'text-ink';
-  const secondaryTone = photoVisible ? 'text-paper/80' : 'text-warm-muted';
+  const selectionPaused = ['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(
+    realtimeStatus,
+  );
 
   return (
-    <article
+    <main
+      data-testid="choose-places"
+      data-realtime-status={realtimeStatus}
       className={cn(
-        'relative flex overflow-hidden rounded-2xl border border-warm-border shadow-editorial motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-300',
-        hasPhoto ? 'min-h-[500px]' : 'min-h-[430px]',
-        photoVisible ? 'bg-ink' : 'bg-paper',
+        'relative isolate min-h-[100dvh] overflow-x-hidden bg-[#151714] text-white',
+        !photoVisible && 'bg-[#232722]',
       )}
     >
       {photoVisible && photoUrl && (
@@ -857,155 +812,259 @@ function CandidatePlaceCard({
           {photoState === 'loading' && (
             <div
               aria-hidden="true"
-              className="absolute inset-0 animate-pulse bg-warm-border/70"
+              className="absolute inset-0 animate-pulse bg-[#30352f]"
             />
           )}
-          {/* Google Place photo is factual supporting media; the visible title supplies context. */}
           <Image
             src={photoUrl}
             alt=""
             fill
-            sizes="(max-width: 640px) 100vw, 576px"
+            sizes="100vw"
             unoptimized
             loading="eager"
             fetchPriority="high"
             onLoad={() => setPhotoState('ready')}
             onError={() => setPhotoState('failed')}
             className={cn(
-              'object-cover transition-opacity duration-300',
+              'object-cover object-center transition-opacity duration-500 motion-reduce:transition-none',
               photoState === 'ready' ? 'opacity-100' : 'opacity-0',
             )}
           />
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 bg-gradient-to-b from-ink/20 via-transparent to-ink/88"
-          />
         </>
       )}
+      <div aria-hidden="true" className="absolute inset-0 bg-black/20" />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,9,12,.64)_0%,rgba(5,9,12,.08)_25%,rgba(5,9,12,.12)_47%,rgba(5,8,10,.84)_100%)]"
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-[linear-gradient(90deg,rgba(4,8,9,.48)_0%,transparent_52%,rgba(4,8,9,.58)_100%)]"
+      />
 
-      <div className="relative z-10 flex min-h-0 flex-1 flex-col p-6 sm:p-8">
-        <div className="flex items-start justify-between gap-5">
-          <span
-            className={cn(
-              'flex size-11 shrink-0 items-center justify-center rounded-full',
-              photoVisible
-                ? 'border border-paper/35 bg-ink/55 text-paper backdrop-blur-sm'
-                : 'bg-parchment text-brown-accent',
-            )}
+      <div className="relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-[1760px] flex-col px-5 sm:px-8 lg:px-12 xl:px-16">
+        <header className="grid min-h-20 items-center gap-4 border-b border-white/20 py-4 md:grid-cols-[1fr_auto_1fr]">
+          <Link
+            href={`/trip/${tripId}`}
+            className="inline-flex w-fit items-center gap-2 text-sm font-medium text-white/85 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
           >
-            <MapPin className="size-5" aria-hidden="true" />
-          </span>
-          {place.googleRating !== null && (
-            <span
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold',
-                photoVisible
-                  ? 'border border-paper/30 bg-ink/60 text-paper backdrop-blur-sm'
-                  : 'text-ink',
-              )}
+            <ArrowLeft className="size-4" aria-hidden="true" />
+            Trip room
+          </Link>
+          <nav
+            aria-label="Trip planning progress"
+            className="order-3 md:order-none"
+          >
+            <ol className="grid grid-cols-4 gap-3 sm:gap-5">
+              {JOURNEY_STEPS.map((step) => {
+                const active = step === 'Places';
+                return (
+                  <li
+                    key={step}
+                    aria-current={active ? 'step' : undefined}
+                    className={cn(
+                      'min-w-16 border-b pb-2 text-center text-[0.64rem] font-medium uppercase tracking-[0.15em] sm:min-w-24 sm:text-xs',
+                      active
+                        ? 'border-white text-white'
+                        : 'border-white/20 text-white/45',
+                    )}
+                  >
+                    {step}
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
+          <button
+            type="button"
+            onClick={onDone}
+            className="inline-flex justify-self-end text-sm font-medium text-white/85 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+          >
+            Done ({selectedCount})
+          </button>
+        </header>
+
+        {(error || selectionPaused) && (
+          <div
+            role={error ? 'alert' : 'status'}
+            className="mt-4 flex flex-wrap items-center justify-between gap-3 border-y border-white/25 bg-black/25 px-4 py-3 text-sm text-white/85"
+          >
+            <span>
+              {error
+                ? errorKind === 'mutation'
+                  ? 'That choice did not update. Your previous selection is safe.'
+                  : 'We could not refresh the latest choices.'
+                : 'Live updates are paused. Your saved choices are safe.'}
+            </span>
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="font-semibold underline underline-offset-4 hover:text-white"
             >
-              <Star
-                className={cn(
-                  'size-4 fill-current',
-                  photoVisible ? 'text-[#f5cf87]' : 'text-brown-accent',
+              Refresh
+            </button>
+          </div>
+        )}
+
+        <section className="grid flex-1 gap-10 pb-4 pt-10 md:grid-cols-[minmax(0,1fr)_17rem] md:items-end md:gap-12 md:pb-28 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-20 xl:gap-28">
+          <div className="max-w-[52rem] md:self-end">
+            <p className="font-editorial text-2xl tracking-[-0.025em] text-white sm:text-3xl">
+              Suggested for your group
+            </p>
+            <div className="mt-3 h-px w-full max-w-[32rem] bg-white/70" />
+            <h1 className="mt-5 text-balance font-editorial text-[clamp(3.6rem,7vw,7.8rem)] font-medium leading-[0.82] tracking-[-0.065em] text-white [text-shadow:0_2px_24px_rgba(0,0,0,.35)]">
+              {place.name}
+            </h1>
+            {(place.city || place.area) && (
+              <p className="mt-4 text-lg font-medium uppercase tracking-[0.16em] text-white/90 sm:text-2xl">
+                {[place.area, place.city]
+                  .filter((value, index, values) =>
+                    value
+                      ? values.findIndex(
+                          (candidate) =>
+                            candidate?.toLowerCase() === value.toLowerCase(),
+                        ) === index &&
+                        !place.name.toLowerCase().includes(value.toLowerCase())
+                      : false,
+                  )
+                  .slice(0, 1)
+                  .map((value) => `of ${value}`)}
+              </p>
+            )}
+            <p className="mt-5 max-w-[42rem] text-base leading-7 text-white/82 sm:text-lg sm:leading-8">
+              {placeDescription(place)}
+            </p>
+            <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-white/60 sm:text-sm">
+              <span aria-live="polite">
+                {currentIndex + 1} of {totalCount} · {selectedCount} kept by you
+              </span>
+              {photoState === 'ready' && attribution && (
+                <span>
+                  Photo by{' '}
+                  {attribution.uri ? (
+                    <a
+                      href={attribution.uri}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline underline-offset-4 hover:text-white"
+                    >
+                      {attribution.displayName}
+                    </a>
+                  ) : (
+                    attribution.displayName
+                  )}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <aside className="space-y-10 text-sm text-white/78 md:self-start md:pt-10 lg:text-base">
+            <section>
+              <div className="h-px w-full bg-white/75" />
+              <h2 className="mt-4 text-sm font-semibold uppercase tracking-[0.05em] text-white lg:text-base">
+                Location &amp; details
+              </h2>
+              <dl className="mt-3 space-y-1.5 leading-6">
+                {place.area && (
+                  <div>
+                    <dt className="sr-only">Area</dt>
+                    <dd>{place.area}</dd>
+                  </div>
                 )}
+                {place.city && (
+                  <div className="grid grid-cols-[auto_1fr] gap-1.5">
+                    <dt>City:</dt>
+                    <dd>{place.city}</dd>
+                  </div>
+                )}
+                <div className="grid grid-cols-[auto_1fr] gap-1.5">
+                  <dt>Country:</dt>
+                  <dd>{place.country}</dd>
+                </div>
+                {place.category && (
+                  <div className="grid grid-cols-[auto_1fr] gap-1.5">
+                    <dt>Type:</dt>
+                    <dd>{label(place.category)}</dd>
+                  </div>
+                )}
+                {place.googleRating !== null && (
+                  <div className="grid grid-cols-[auto_1fr] gap-1.5">
+                    <dt>Rating:</dt>
+                    <dd>
+                      {place.googleRating.toFixed(1)}
+                      {place.googleRatingCount
+                        ? ` (${place.googleRatingCount.toLocaleString()} reviews)`
+                        : ''}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+              <a
+                href={googleMapsUrl(place)}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex items-center gap-2 font-medium text-white underline decoration-white/40 underline-offset-4 transition-colors hover:decoration-white"
+              >
+                View on Google Maps
+                <ArrowRight className="size-3.5" aria-hidden="true" />
+              </a>
+            </section>
+
+            <section>
+              <div className="h-px w-full bg-white/75" />
+              <h2 className="mt-4 text-sm font-semibold uppercase tracking-[0.05em] text-white lg:text-base">
+                Group match details
+              </h2>
+              <ul className="mt-4 space-y-4">
+                {place.reasons.slice(0, 3).map((reason) => (
+                  <li key={reason} className="flex gap-3">
+                    <ReasonIcon reason={reason} />
+                    <div>
+                      <h3 className="font-semibold text-white">
+                        {reasonTitle(reason)}
+                      </h3>
+                      <p className="mt-0.5 leading-5 text-white/72">
+                        {humanReason(reason).replace(/[.!?]+$/, '')}.
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </aside>
+        </section>
+
+        <footer className="sticky bottom-0 z-20 -mx-5 mt-6 grid grid-cols-2 gap-2 border-t border-white/15 bg-black/45 p-3 backdrop-blur-md sm:-mx-8 sm:px-8 md:absolute md:bottom-6 md:left-1/2 md:mx-0 md:mt-0 md:w-[min(42rem,48vw)] md:-translate-x-1/2 md:rounded-[1.6rem] md:border md:border-white/30 md:bg-white/30 md:p-2 md:shadow-2xl">
+          <button
+            type="button"
+            onClick={onSkip}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-[1.1rem] bg-white/78 px-5 text-sm font-medium text-[#242424] transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
+          >
+            <X className="size-4" aria-hidden="true" />
+            Skip
+          </button>
+          <button
+            type="button"
+            aria-pressed={place.currentUserSelected}
+            disabled={pending}
+            onClick={onKeep}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-[1.1rem] bg-white px-5 text-sm font-semibold text-[#20211f] transition-colors hover:bg-[#f4f1ea] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-wait disabled:opacity-65"
+          >
+            {pending ? (
+              <LoaderCircle
+                className="size-4 animate-spin"
                 aria-hidden="true"
               />
-              {place.googleRating.toFixed(1)}
-              <span className="sr-only">Google rating</span>
-            </span>
-          )}
-        </div>
-
-        <div
-          className={cn(
-            'mt-auto',
-            photoVisible &&
-              'rounded-xl border border-paper/15 bg-ink/64 p-5 backdrop-blur-[3px] sm:p-6',
-          )}
-        >
-          <h2
-            className={cn(
-              'font-editorial text-4xl font-medium leading-[1.05] tracking-[-0.045em] sm:text-5xl',
-              contentTone,
-            )}
-          >
-            {place.name}
-          </h2>
-          {(place.area || place.category) && (
-            <p className={cn('mt-3 text-sm font-medium', secondaryTone)}>
-              {[place.area, label(place.category)].filter(Boolean).join(' · ')}
-            </p>
-          )}
-
-          <ul className={cn('mt-6 space-y-2.5 text-sm leading-6', secondaryTone)}>
-            {place.reasons.slice(0, 3).map((reason) => (
-              <li key={reason} className="flex gap-3">
-                <Minus
-                  className={cn(
-                    'mt-1 size-4 shrink-0',
-                    photoVisible ? 'text-[#f5cf87]' : 'text-brown-accent',
-                  )}
-                  aria-hidden="true"
-                />
-                <span>{humanReason(reason)}</span>
-              </li>
-            ))}
-            {place.voteCount > 0 && (
-              <li className={cn('flex gap-3 font-medium', contentTone)}>
-                <Users
-                  className={cn(
-                    'mt-1 size-4 shrink-0',
-                    photoVisible ? 'text-[#f5cf87]' : 'text-brown-accent',
-                  )}
-                  aria-hidden="true"
-                />
-                <span>
-                  {place.voteCount}{' '}
-                  {place.voteCount === 1
-                    ? 'traveller wants'
-                    : 'travellers want'}{' '}
-                  this
-                </span>
-              </li>
-            )}
-          </ul>
-
-          <div className="mt-5 flex flex-wrap items-end justify-between gap-3">
-            {place.currentUserSelected ? (
-              <p
-                className={cn(
-                  'flex items-center gap-2 text-sm font-semibold',
-                  photoVisible ? 'text-[#f5cf87]' : 'text-brown-accent',
-                )}
-              >
-                <Check className="size-4" aria-hidden="true" />
-                This is on your list
-              </p>
+            ) : place.currentUserSelected ? (
+              <Check className="size-4" aria-hidden="true" />
             ) : (
-              <span />
+              <Heart className="size-4" aria-hidden="true" />
             )}
-            {photoState === 'ready' && attribution && (
-              <p className="text-[0.65rem] text-paper/70">
-                Photo by{' '}
-                {attribution.uri ? (
-                  <a
-                    href={attribution.uri}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline underline-offset-2 hover:text-paper"
-                  >
-                    {attribution.displayName}
-                  </a>
-                ) : (
-                  attribution.displayName
-                )}
-              </p>
-            )}
-          </div>
-        </div>
+            {place.currentUserSelected ? 'Kept' : 'Keep'}
+          </button>
+        </footer>
       </div>
-    </article>
+    </main>
   );
 }
 
@@ -1125,7 +1184,10 @@ function ConsensusResult({
   }
 
   return (
-    <section className="mx-auto w-full max-w-3xl" data-testid="consensus-result">
+    <section
+      className="mx-auto w-full max-w-3xl"
+      data-testid="consensus-result"
+    >
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brown-accent">
         Group result
       </p>
@@ -1145,7 +1207,7 @@ function ConsensusResult({
         0,
       )}
       {tier(
-        "Also on someone’s list",
+        'Also on someone’s list',
         'Chosen by at least one traveller without unanimous agreement.',
         tiers.additional,
         tiers.unanimous.length,
@@ -1201,8 +1263,8 @@ function SelectedPlacesReview({
         kept.
       </h1>
       <p className="mt-4 max-w-xl text-lg leading-8 text-warm-muted">
-        These are the places your group has kept so far. Everyone keeps
-        control of their own choices.
+        These are the places your group has kept so far. Everyone keeps control
+        of their own choices.
       </p>
 
       {error && (
@@ -1968,10 +2030,10 @@ function SchedulePresentation({
           {!isHost
             ? 'Your votes and the shared schedule are saved.'
             : scheduleMatchesPersistedItinerary
-            ? 'This schedule is already saved, so your current map plan will open without replacing it.'
-            : hasPersistedItinerary
-              ? 'Confirming this schedule may replace changes made in your current map plan.'
-              : 'Only the planned real places will be saved. Meal breaks and optional places stay here.'}
+              ? 'This schedule is already saved, so your current map plan will open without replacing it.'
+              : hasPersistedItinerary
+                ? 'Confirming this schedule may replace changes made in your current map plan.'
+                : 'Only the planned real places will be saved. Meal breaks and optional places stay here.'}
         </p>
       </div>
     </section>

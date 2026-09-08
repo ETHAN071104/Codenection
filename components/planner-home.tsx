@@ -9,13 +9,7 @@ import {
 } from 'react';
 import { useRouter } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
-import {
-  ArrowRight,
-  LoaderCircle,
-  MapPin,
-  Plane,
-  UsersRound,
-} from 'lucide-react';
+import { ArrowRight, LoaderCircle, Plane } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SystemNotice } from '@/components/ui/system-state';
@@ -40,29 +34,6 @@ import {
 
 type Action = 'create' | 'join';
 const TRIP_LENGTH_PRESETS = [1, 2, 3, 4, 5] as const;
-
-const COLLAGE_IMAGES = [
-  {
-    label: 'European city street',
-    url: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=700&q=82',
-  },
-  {
-    label: 'Tropical coast',
-    url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=700&q=82',
-  },
-  {
-    label: 'Mountain landscape',
-    url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=700&q=82',
-  },
-  {
-    label: 'Cultural landmark',
-    url: 'https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=700&q=82',
-  },
-  {
-    label: 'Coastal town',
-    url: 'https://images.unsplash.com/photo-1516483638261-f4dbaf036963?auto=format&fit=crop&w=700&q=82',
-  },
-];
 
 export function PlannerHome() {
   const router = useRouter();
@@ -158,294 +129,254 @@ export function PlannerHome() {
   const selectedCustomDays = parseTripDuration(customTripDays);
 
   return (
-    <main className="homepage-page min-h-[100dvh] bg-parchment text-ink">
-      <div className="mx-auto grid min-h-[100dvh] w-full max-w-[1400px] items-center gap-10 px-5 py-8 sm:px-8 sm:py-12 lg:grid-cols-[minmax(0,0.86fr)_minmax(520px,1.14fr)] lg:gap-16 lg:px-12 lg:py-14">
-        <aside
-          className="relative hidden min-h-[680px] overflow-hidden lg:block"
-          aria-label="Travel inspiration"
-        >
-          <div className="relative z-10 max-w-md pt-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brown-accent">
-              Travel is better together
-            </p>
-            <h2 className="mt-4 text-balance font-editorial text-5xl leading-[0.98] font-semibold tracking-[-0.045em]">
-              A shared room for the places you&apos;ll remember.
-            </h2>
-          </div>
-          <div className="absolute inset-x-0 bottom-10 top-44">
-            <div
-              aria-hidden="true"
-              className="absolute left-0 top-14 h-64 w-44 rotate-[-5deg] rounded-2xl border-[5px] border-parchment bg-cover bg-center shadow-editorial"
-              style={{ backgroundImage: `url(${COLLAGE_IMAGES[0].url})` }}
-            />
-            <div
-              aria-hidden="true"
-              className="absolute right-7 top-0 h-48 w-64 rotate-[4deg] rounded-2xl border-[5px] border-parchment bg-cover bg-center shadow-editorial"
-              style={{ backgroundImage: `url(${COLLAGE_IMAGES[1].url})` }}
-            />
-            <div
-              aria-hidden="true"
-              className="absolute left-28 top-52 h-44 w-60 rotate-[2deg] rounded-2xl border-[5px] border-parchment bg-cover bg-center shadow-editorial"
-              style={{ backgroundImage: `url(${COLLAGE_IMAGES[2].url})` }}
-            />
-            <div
-              aria-hidden="true"
-              className="absolute bottom-1 left-2 h-44 w-60 rotate-[4deg] rounded-2xl border-[5px] border-parchment bg-cover bg-center shadow-editorial"
-              style={{ backgroundImage: `url(${COLLAGE_IMAGES[3].url})` }}
-            />
-            <div
-              aria-hidden="true"
-              className="absolute right-0 bottom-8 h-56 w-40 rotate-[-6deg] rounded-2xl border-[5px] border-parchment bg-cover bg-center shadow-editorial"
-              style={{ backgroundImage: `url(${COLLAGE_IMAGES[4].url})` }}
-            />
-          </div>
-          <p className="absolute bottom-0 left-1 text-xs uppercase tracking-[0.18em] text-warm-muted">
-            Five ways to wander
-          </p>
-        </aside>
+    <main className="homepage-page relative isolate min-h-[100dvh] overflow-x-hidden bg-[#1b211f] text-white lg:h-[100dvh] lg:overflow-hidden">
+      <video
+        className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+        disablePictureInPicture
+        aria-hidden="true"
+      >
+        <source src="/videos/welcome_page.mp4" type="video/mp4" />
+      </video>
+      <div aria-hidden="true" className="absolute inset-0 bg-black/28" />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,12,12,.56)_0%,rgba(7,12,12,.06)_38%,rgba(7,12,12,.42)_100%)]"
+      />
 
-        <section className="flex justify-center">
-          <div className="w-full max-w-[650px]">
-            <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.18em] text-brown-accent">
-              <Plane className="size-4" aria-hidden="true" />
+      <div className="relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-[1500px] flex-col px-5 sm:px-8 lg:h-[100dvh] lg:px-12 xl:px-16">
+        <header className="flex min-h-16 shrink-0 items-center justify-between border-b border-white/25 py-3 text-xs font-semibold tracking-[0.16em] text-white/85">
+          <div className="flex items-center gap-2">
+            <Plane className="size-4" aria-hidden="true" />
+            <span className="hidden sm:inline">
               COLLABORATIVE TRAVEL PLANNER
-            </div>
-            <h1 className="mt-5 max-w-xl text-balance font-editorial text-5xl leading-[0.94] font-semibold tracking-[-0.055em] sm:text-6xl lg:text-7xl">
-              Plan your trip together.
-            </h1>
-            <p className="mt-6 max-w-lg text-pretty text-base leading-7 text-warm-muted sm:text-lg">
-              One room for your crew to share a rhythm, choose the places that
-              matter, and build the day together.
-            </p>
+            </span>
+            <span className="sm:hidden">TRAVEL PLANNER</span>
+          </div>
+          <a
+            href="#join-trip"
+            className="transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/75"
+          >
+            JOIN A TRIP
+          </a>
+        </header>
 
-            <div className="mt-8 overflow-hidden rounded-2xl border border-warm-border bg-paper shadow-editorial sm:mt-10">
-              <div className="border-b border-warm-border px-6 py-5 sm:px-8 sm:py-6">
-                <p className="text-xs font-semibold tracking-[0.16em] text-brown-accent">
-                  CREATE A TRIP
-                </p>
-                <h2 className="mt-2 font-editorial text-2xl font-semibold tracking-[-0.03em]">
-                  Start with your travel crew
-                </h2>
-                <p className="mt-1 text-sm text-warm-muted">
-                  Enter the name your travel companions will see.
-                </p>
+        <section className="flex flex-1 flex-col items-center justify-start py-[clamp(1rem,2.8vh,2rem)] text-center lg:min-h-0">
+          <div className="shrink-0">
+            <p className="text-[0.68rem] font-semibold tracking-[0.24em] text-white/72 sm:text-xs">
+              PLAN LESS. BE THERE MORE.
+            </p>
+            <h1 className="mt-[clamp(.4rem,1vh,.8rem)] text-balance font-editorial text-[clamp(3rem,7vh,5.3rem)] leading-[0.9] font-medium tracking-[-0.06em] text-white [text-shadow:0_2px_26px_rgba(0,0,0,.32)]">
+              Plan your trip
+              <br />
+              together.
+            </h1>
+            <p className="mx-auto mt-[clamp(.55rem,1.4vh,1rem)] max-w-xl text-sm leading-6 text-white/78 sm:text-base">
+              Create one room, choose together, and shape a trip everyone wants
+              to take.
+            </p>
+          </div>
+
+          <div className="mt-[clamp(.8rem,2.2vh,1.5rem)] w-full max-w-[820px] shrink-0 rounded-[1.35rem] border border-white/20 bg-[rgba(11,22,27,.68)] p-[clamp(1rem,2vh,1.5rem)] text-left text-white shadow-[0_28px_80px_-30px_rgba(0,0,0,.9),inset_0_1px_0_rgba(255,255,255,.08)] backdrop-blur-[18px] backdrop-saturate-125">
+            <div className="border-b border-white/15 pb-3">
+              <p className="text-[0.66rem] font-semibold tracking-[0.18em] text-[#e2b98f]">
+                CREATE A TRIP
+              </p>
+              <h2 className="mt-1 font-editorial text-2xl font-semibold tracking-[-0.035em] text-[#fffaf0] sm:text-3xl">
+                Start with your travel crew
+              </h2>
+              <p className="mt-1 text-xs leading-5 text-white/58">
+                Enter the name your travel companions will see.
+              </p>
+            </div>
+
+            <form onSubmit={createTrip} className="mt-4">
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="display-name"
+                  className="text-xs font-medium text-white/72"
+                >
+                  Name
+                </label>
+                <Input
+                  id="display-name"
+                  name="displayName"
+                  autoComplete="name"
+                  maxLength={80}
+                  placeholder="Ethan"
+                  value={displayName}
+                  onChange={(event) => setDisplayName(event.target.value)}
+                  className="h-11 rounded-xl border-white/16 bg-white/10 px-3 text-white placeholder:text-white/38 focus-visible:border-white/45 focus-visible:ring-white/15"
+                  disabled={isPending}
+                />
               </div>
-              <div className="px-6 py-6 sm:px-8 sm:py-8">
-                <form onSubmit={createTrip} className="space-y-6">
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="display-name"
-                      className="text-sm font-medium"
-                    >
-                      Name
-                    </label>
-                    <Input
-                      id="display-name"
-                      name="displayName"
-                      autoComplete="name"
-                      maxLength={80}
-                      placeholder="Ethan"
-                      value={displayName}
-                      onChange={(event) => setDisplayName(event.target.value)}
-                      className="h-12 border-warm-border bg-parchment/50 px-4 focus-visible:border-ink focus-visible:ring-ink/15"
-                      disabled={isPending}
-                    />
-                  </div>
-                  <fieldset className="space-y-3" disabled={isPending}>
-                    <legend className="text-sm font-medium">Trip length</legend>
-                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-                      {TRIP_LENGTH_PRESETS.map((days) => {
-                        const selected = !customTripLength && tripDays === days;
-                        return (
-                          <button
-                            key={days}
-                            type="button"
-                            aria-pressed={selected}
-                            className={`min-h-11 rounded-lg border px-2 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-2 disabled:opacity-50 ${selected ? 'border-ink bg-ink text-paper' : 'border-warm-border bg-parchment/50 text-ink hover:border-brown-accent/55 hover:bg-parchment'}`}
-                            onClick={() => {
-                              setTripDays(days);
-                              setCustomTripLength(false);
-                              setError(null);
-                            }}
-                          >
-                            {formatTripDuration(days)}
-                          </button>
-                        );
-                      })}
+
+              <fieldset className="mt-4 space-y-1.5" disabled={isPending}>
+                <legend className="text-xs font-medium text-white/72">
+                  Trip length
+                </legend>
+                <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6">
+                  {TRIP_LENGTH_PRESETS.map((days) => {
+                    const selected = !customTripLength && tripDays === days;
+                    return (
                       <button
+                        key={days}
                         type="button"
-                        aria-pressed={customTripLength}
-                        className={`min-h-11 rounded-lg border px-2 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-2 disabled:opacity-50 ${customTripLength ? 'border-ink bg-ink text-paper' : 'border-warm-border bg-parchment/50 text-ink hover:border-brown-accent/55 hover:bg-parchment'}`}
+                        aria-pressed={selected}
+                        className={`h-10 rounded-xl border px-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/65 disabled:opacity-50 ${selected ? 'border-[#f2e7d5] bg-[#f2e7d5] text-[#202522] shadow-sm' : 'border-white/12 bg-white/9 text-white/72 hover:border-white/28 hover:bg-white/14 hover:text-white'}`}
                         onClick={() => {
-                          setCustomTripLength(true);
+                          setTripDays(days);
+                          setCustomTripLength(false);
                           setError(null);
                         }}
                       >
-                        Custom
+                        {formatTripDuration(days)}
                       </button>
-                    </div>
-                    {customTripLength && (
-                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                        <div className="space-y-2">
-                          <label
-                            htmlFor="custom-trip-days"
-                            className="text-sm font-medium"
-                          >
-                            Number of days
-                          </label>
-                          <Input
-                            id="custom-trip-days"
-                            name="durationDays"
-                            type="number"
-                            inputMode="numeric"
-                            min={1}
-                            max={MAX_TRIP_DAYS}
-                            step={1}
-                            placeholder="7"
-                            value={customTripDays}
-                            onChange={(event) => {
-                              setCustomTripDays(event.target.value);
-                              setError(null);
-                            }}
-                            aria-invalid={selectedCustomDays === null}
-                            aria-describedby="custom-trip-days-help"
-                            className="h-12 border-warm-border bg-parchment/50 px-4 focus-visible:border-ink focus-visible:ring-ink/15"
-                          />
-                        </div>
-                        <p
-                          id="custom-trip-days-help"
-                          className="pb-3 text-sm text-warm-muted"
-                        >
-                          {selectedCustomDays === null
-                            ? `Enter 1-${MAX_TRIP_DAYS} days.`
-                            : `${formatTripDuration(selectedCustomDays)} Trip`}
-                        </p>
-                      </div>
-                    )}
-                  </fieldset>
-                  <Button
-                    type="submit"
-                    size="lg"
-                    className="h-12 w-full bg-ink text-sm text-paper shadow-[0_16px_30px_-22px_rgb(36_32_28/80%)] hover:bg-ink/85"
-                    disabled={
-                      isPending ||
-                      !configured ||
-                      (customTripLength && selectedCustomDays === null)
-                    }
+                    );
+                  })}
+                  <button
+                    type="button"
+                    aria-pressed={customTripLength}
+                    className={`h-10 rounded-xl border px-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/65 disabled:opacity-50 ${customTripLength ? 'border-[#f2e7d5] bg-[#f2e7d5] text-[#202522] shadow-sm' : 'border-white/12 bg-white/9 text-white/72 hover:border-white/28 hover:bg-white/14 hover:text-white'}`}
+                    onClick={() => {
+                      setCustomTripLength(true);
+                      setError(null);
+                    }}
                   >
-                    {pendingAction === 'create' ? (
+                    Custom
+                  </button>
+                </div>
+              </fieldset>
+
+              {customTripLength && (
+                <div className="mt-3 grid gap-2 sm:grid-cols-[13rem_1fr] sm:items-center">
+                  <label htmlFor="custom-trip-days" className="sr-only">
+                    Number of days
+                  </label>
+                  <Input
+                    id="custom-trip-days"
+                    name="durationDays"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={MAX_TRIP_DAYS}
+                    step={1}
+                    placeholder="Number of days"
+                    value={customTripDays}
+                    onChange={(event) => {
+                      setCustomTripDays(event.target.value);
+                      setError(null);
+                    }}
+                    aria-invalid={selectedCustomDays === null}
+                    aria-describedby="custom-trip-days-help"
+                    className="h-10 rounded-xl border-white/16 bg-white/10 px-3 text-white placeholder:text-white/38 focus-visible:border-white/45 focus-visible:ring-white/15"
+                  />
+                  <p
+                    id="custom-trip-days-help"
+                    className="text-xs text-white/55"
+                  >
+                    {selectedCustomDays === null
+                      ? `Enter a whole number from 1-${MAX_TRIP_DAYS} days.`
+                      : `${formatTripDuration(selectedCustomDays)} trip`}
+                  </p>
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                size="lg"
+                className="mt-4 h-11 w-full rounded-xl bg-[#f2e7d5] text-sm text-[#252823] shadow-[0_12px_28px_-18px_rgba(0,0,0,.75)] hover:bg-[#fff8e9]"
+                disabled={
+                  isPending ||
+                  !configured ||
+                  (customTripLength && selectedCustomDays === null)
+                }
+              >
+                {pendingAction === 'create' ? (
+                  <LoaderCircle className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <Plane aria-hidden="true" />
+                )}
+                {pendingAction === 'create' ? 'Creating trip…' : 'Create Trip'}
+              </Button>
+
+              <div
+                id="join-trip"
+                className="mt-4 scroll-mt-4 border-t border-white/15 pt-4"
+              >
+                <div>
+                  <p className="text-[0.62rem] font-semibold tracking-[0.16em] text-[#e2b98f]">
+                    OR JOIN FRIENDS
+                  </p>
+                  <h3 className="mt-1 font-editorial text-xl font-semibold tracking-[-0.025em] text-[#fffaf0]">
+                    Join an existing trip
+                  </h3>
+                  <p className="text-xs text-white/55">
+                    Use the six-digit code shared by a friend.
+                  </p>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <div>
+                    <label htmlFor="room-code" className="sr-only">
+                      Room code
+                    </label>
+                    <Input
+                      id="room-code"
+                      name="roomCode"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      pattern="[0-9]{6}"
+                      placeholder="Room code"
+                      value={roomCode}
+                      onChange={(event) =>
+                        setRoomCode(normalizeRoomCode(event.target.value))
+                      }
+                      className="h-11 rounded-xl border-white/16 bg-white/10 px-3 font-mono text-sm tracking-[0.18em] text-white placeholder:text-white/38 focus-visible:border-white/45 focus-visible:ring-white/15"
+                      disabled={isPending}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className="h-11 rounded-xl border-white/22 bg-white/7 px-6 text-white hover:border-white/40 hover:bg-white/12"
+                    onClick={joinTrip}
+                    disabled={isPending || !configured}
+                  >
+                    {pendingAction === 'join' ? (
                       <LoaderCircle
                         className="animate-spin"
                         aria-hidden="true"
                       />
                     ) : (
-                      <Plane aria-hidden="true" />
+                      <ArrowRight aria-hidden="true" />
                     )}
-                    {pendingAction === 'create'
-                      ? 'Creating trip…'
-                      : 'Create Trip'}
+                    {pendingAction === 'join' ? 'Joining trip…' : 'Join Trip'}
                   </Button>
-                  <div
-                    id="join-trip"
-                    className="scroll-mt-6 border-t border-warm-border pt-6"
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-parchment text-brown-accent">
-                        <UsersRound className="size-4" aria-hidden="true" />
-                      </span>
-                      <div>
-                        <h3 className="font-editorial text-xl font-semibold tracking-[-0.025em]">
-                          Join an existing trip
-                        </h3>
-                        <p className="mt-1 text-sm text-warm-muted">
-                          Use the six-digit code shared by a friend.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-                      <div className="space-y-2">
-                        <label
-                          htmlFor="room-code"
-                          className="text-sm font-medium"
-                        >
-                          Room code
-                        </label>
-                        <div className="relative">
-                          <MapPin
-                            className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-warm-muted"
-                            aria-hidden="true"
-                          />
-                          <Input
-                            id="room-code"
-                            name="roomCode"
-                            inputMode="numeric"
-                            autoComplete="one-time-code"
-                            maxLength={6}
-                            pattern="[0-9]{6}"
-                            placeholder="381527"
-                            value={roomCode}
-                            onChange={(event) =>
-                              setRoomCode(normalizeRoomCode(event.target.value))
-                            }
-                            className="h-12 border-warm-border bg-parchment/50 pl-11 font-mono text-base tracking-[0.22em] focus-visible:border-ink focus-visible:ring-ink/15"
-                            disabled={isPending}
-                          />
-                        </div>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="lg"
-                        className="h-12 self-end border-warm-border bg-paper px-5 text-ink hover:border-ink/35 hover:bg-parchment"
-                        onClick={joinTrip}
-                        disabled={isPending || !configured}
-                      >
-                        {pendingAction === 'join' ? (
-                          <LoaderCircle
-                            className="animate-spin"
-                            aria-hidden="true"
-                          />
-                        ) : (
-                          <ArrowRight aria-hidden="true" />
-                        )}
-                        {pendingAction === 'join'
-                          ? 'Joining trip…'
-                          : 'Join Trip'}
-                      </Button>
-                    </div>
-                  </div>
-                </form>
-                {!configured && (
-                  <SystemNotice
-                    className="mt-5 bg-parchment"
-                    title="Trip rooms are unavailable right now."
-                    description="Nothing has been submitted. Your form entries are still here, so try again after the connection is restored."
-                  />
-                )}
-                {error && (
-                  <SystemNotice
-                    role="alert"
-                    className="mt-5 border-brown-accent/30 bg-paper text-ink"
-                    title="We couldn’t continue with that trip."
-                    description={`${error} Your form entries are still here, so you can correct them or try again.`}
-                  />
-                )}
+                </div>
               </div>
-            </div>
+            </form>
 
-            <div
-              className="mt-8 grid grid-cols-3 gap-2 lg:hidden"
-              aria-label="Travel inspiration"
-            >
-              {COLLAGE_IMAGES.slice(0, 3).map((image, index) => (
-                <div
-                  key={image.label}
-                  aria-hidden="true"
-                  className={`h-24 rounded-xl border-4 border-parchment bg-cover bg-center shadow-editorial ${index === 1 ? 'translate-y-2' : ''}`}
-                  style={{ backgroundImage: `url(${image.url})` }}
-                />
-              ))}
-            </div>
+            {!configured && (
+              <SystemNotice
+                className="mt-3 border-white/16 bg-black/25 py-3 text-white"
+                title="Trip rooms are unavailable right now."
+                description="Nothing has been submitted. Your form entries are still here, so try again after the connection is restored."
+              />
+            )}
+            {error && (
+              <SystemNotice
+                role="alert"
+                className="mt-3 border-[#e2b98f]/40 bg-black/30 py-3 text-white"
+                title="We couldn’t continue with that trip."
+                description={`${error} Your form entries are still here, so you can correct them or try again.`}
+              />
+            )}
           </div>
         </section>
       </div>
