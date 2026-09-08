@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import { CandidatePlaces } from '@/components/candidate-places/candidate-places';
 
 export const metadata: Metadata = {
-  title: 'Choose places',
-  description: 'Choose grounded destination places together as a group.',
+  title: 'Suggested for your group',
+  description: 'Review grounded places matched to your group’s Travel DNA.',
   robots: { index: false, follow: false },
 };
 

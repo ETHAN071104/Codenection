@@ -14,6 +14,7 @@ import {
 import { getStayAreaRecommendation } from '@/lib/malaysia-places/stay-area';
 import { clusterSelectedPlacesByDay } from '@/lib/malaysia-places/day-clustering';
 import { createDeterministicDraftSchedule } from '@/lib/malaysia-places/deterministic-scheduling';
+import { validateScheduleWithOpenRouteService } from '@/lib/malaysia-places/route-validation';
 import {
   createScheduleFingerprint,
   normalizePhase9Itinerary,
@@ -26,6 +27,11 @@ import { parseAverageInterests } from '@/lib/preferences/model';
 import { selectionCompletionSummary } from '@/lib/malaysia-places/selection-completion-core';
 import { parseTripEndpoint } from '@/lib/trips/travel-boundaries';
 import { planningLockResponse } from '@/lib/trips/finalization';
+import { createSuggestedShortlist } from '@/lib/malaysia-places/suggested-shortlist-core';
+import {
+  persistIfFinalFeasible,
+  validateFinalCollaborativeItinerary,
+} from '@/lib/malaysia-places/final-feasibility-core';
 
 function unavailable(
   message: string,
@@ -131,9 +137,9 @@ async function loadPhase9Plan(
     average_pace: Number(summary.average_pace),
     average_interests: interests,
   };
-  const candidatePool = destinationCandidatePoolKey(destination);
+  const candidatePoolKey = destinationCandidatePoolKey(destination);
   let candidates = await getCandidatePlaces(supabase, {
-    city: candidatePool,
+    city: candidatePoolKey,
     travelDna,
     limit: 30,
   });
@@ -192,7 +198,7 @@ async function loadPhase9Plan(
     );
   const totalMembers = selectionMembers.length;
   const completion = selectionCompletionSummary(selectionMembers, userId);
-  const ranked = rankCandidates(
+  const candidatePool = rankCandidates(
     candidates.map((candidate) => {
       const placeVotes = votes.filter((vote) => vote.place_id === candidate.id);
       const voteCount = placeVotes.length;
@@ -205,7 +211,17 @@ async function loadPhase9Plan(
       };
     }),
   );
-  const selected = ranked.filter((place) => place.voteCount > 0);
+  const candidatePoolById = new Map(
+    candidatePool.map((candidate) => [candidate.id, candidate]),
+  );
+  const suggestedShortlist = createSuggestedShortlist(candidates, {
+    averagePace: travelDna.average_pace,
+    durationDays: tripResult.data.duration_days,
+  }).flatMap((candidate) => {
+    const decorated = candidatePoolById.get(candidate.id);
+    return decorated ? [decorated] : [];
+  });
+  const selected = candidatePool.filter((place) => place.voteCount > 0);
   const stayArea = getStayAreaRecommendation(selected, candidates);
   const dayGroups = clusterSelectedPlacesByDay(
     selected,
@@ -213,30 +229,42 @@ async function loadPhase9Plan(
     candidates,
     stayArea.recommendedArea?.area ?? null,
   );
-  const draftSchedule = createDeterministicDraftSchedule(
+  const scheduleConstraints = {
+    arrivalTime: tripResult.data.arrival_time?.slice(0, 5) ?? null,
+    departureTime: tripResult.data.departure_time?.slice(0, 5) ?? null,
+    arrivalPoint: parseTripEndpoint(tripResult.data.arrival_point),
+    departurePoint: parseTripEndpoint(tripResult.data.departure_point),
+    averagePace: travelDna.average_pace,
+    startDate: tripResult.data.start_date,
+  };
+  const localDraftSchedule = createDeterministicDraftSchedule(
     dayGroups,
     candidates,
     stayArea.recommendedArea?.area ?? null,
-    {
-      arrivalTime: tripResult.data.arrival_time?.slice(0, 5) ?? null,
-      departureTime: tripResult.data.departure_time?.slice(0, 5) ?? null,
-      arrivalPoint: parseTripEndpoint(tripResult.data.arrival_point),
-      departurePoint: parseTripEndpoint(tripResult.data.departure_point),
-      averagePace: travelDna.average_pace,
-      startDate: tripResult.data.start_date,
-    },
+    scheduleConstraints,
   );
+  const draftSchedule = completion.allCompleted
+    ? await validateScheduleWithOpenRouteService({
+        grouping: dayGroups,
+        knownPlaces: candidates,
+        recommendedStayArea: stayArea.recommendedArea?.area ?? null,
+        constraints: scheduleConstraints,
+        schedule: localDraftSchedule,
+      })
+    : localDraftSchedule;
 
   return {
     supported: true as const,
     isHost: tripResult.data.created_by === userId,
     destination,
     durationDays: tripResult.data.duration_days ?? null,
-    candidates: ranked,
+    candidates: suggestedShortlist,
+    candidatePool,
     selected,
     stayArea,
     dayGroups,
     draftSchedule,
+    scheduleConstraints,
     candidateSource,
     googlePlacesCalls,
     selectionMembers,
@@ -309,7 +337,7 @@ export async function GET(
     try {
       const desired = normalizePhase9Itinerary({
         destination: plan.destination,
-        candidates: plan.candidates,
+        candidates: plan.candidatePool,
         grouping: plan.dayGroups,
         schedule: plan.draftSchedule,
       });
@@ -326,6 +354,8 @@ export async function GET(
 
     return Response.json({
       ...plan,
+      candidatePool: undefined,
+      scheduleConstraints: undefined,
       markCollaborativeReady: undefined,
       scheduleFingerprint,
       hasPersistedItinerary,
@@ -507,9 +537,25 @@ export async function PUT(
       );
     }
 
+    const finalValidation = validateFinalCollaborativeItinerary({
+      schedule: plan.draftSchedule,
+      selected: plan.selected,
+      candidates: plan.candidatePool,
+      recommendedStayArea: plan.stayArea.recommendedArea?.area ?? null,
+      constraints: plan.scheduleConstraints,
+    });
+    if (finalValidation.status === 'FAIL') {
+      return unavailable(
+        'This itinerary is not feasible yet. Refresh the shared schedule before opening the map plan.',
+        422,
+        'FINAL_ITINERARY_INFEASIBLE',
+        { validation: finalValidation },
+      );
+    }
+
     const desired = normalizePhase9Itinerary({
       destination: plan.destination,
-      candidates: plan.candidates,
+      candidates: plan.candidatePool,
       grouping: plan.dayGroups,
       schedule: plan.draftSchedule,
     });
@@ -520,6 +566,7 @@ export async function PUT(
         ok: true,
         outcome: 'unchanged',
         savedItems: desired.items.length,
+        validation: finalValidation,
       });
     }
     if (hasPersistedItinerary && body?.replaceExisting !== true) {
@@ -530,13 +577,25 @@ export async function PUT(
       );
     }
 
-    const { data: saveRows, error: saveError } =
-      await authenticated.supabase.rpc('replace_generated_itinerary', {
-        p_trip_id: id,
-        p_destination: plan.destination,
-        p_places: desired.places as unknown as Json,
-        p_items: desired.items as unknown as Json,
-      });
+    const persistence = await persistIfFinalFeasible(
+      finalValidation,
+      () =>
+        authenticated.supabase.rpc('replace_generated_itinerary', {
+          p_trip_id: id,
+          p_destination: plan.destination,
+          p_places: desired.places as unknown as Json,
+          p_items: desired.items as unknown as Json,
+        }),
+    );
+    if (!persistence.persisted) {
+      return unavailable(
+        'This itinerary is not feasible yet. The existing map plan was preserved.',
+        422,
+        'FINAL_ITINERARY_INFEASIBLE',
+        { validation: finalValidation },
+      );
+    }
+    const { data: saveRows, error: saveError } = persistence.value;
     if (saveError) throw saveError;
     if (Number(saveRows?.[0]?.saved_items) !== desired.items.length) {
       throw new Error('The map plan could not be saved completely.');
@@ -556,6 +615,7 @@ export async function PUT(
       ok: true,
       outcome: hasPersistedItinerary ? 'replaced' : 'created',
       savedItems: desired.items.length,
+      validation: finalValidation,
     });
   } catch (error) {
     if (error instanceof Phase9ItineraryBridgeError) {

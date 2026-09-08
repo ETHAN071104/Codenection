@@ -27,6 +27,7 @@ type Coordinate = { latitude: number; longitude: number };
 type WorkingCluster = { places: DayClusterSelection[]; seed: DayClusterSelection };
 
 const EARTH_RADIUS_KM = 6371;
+const CROSS_AREA_CLUSTER_PENALTY_KM = 8;
 
 export function haversineDistanceKm(a: Coordinate, b: Coordinate) {
   const radians = (value: number) => (value * Math.PI) / 180;
@@ -55,6 +56,25 @@ function centroid(places: DayClusterSelection[]) {
 
 function round(value: number) {
   return Math.round(value * 10) / 10;
+}
+
+function clusterAssignmentCost(
+  place: DayClusterSelection & Coordinate,
+  cluster: WorkingCluster,
+) {
+  const center = centroid(cluster.places);
+  const distance = center
+    ? haversineDistanceKm(place, center)
+    : Number.POSITIVE_INFINITY;
+  const factualAreaPenalty =
+    place.area &&
+    cluster.places.some(
+      (member) => member.area && member.area !== place.area,
+    ) &&
+    !cluster.places.some((member) => member.area === place.area)
+      ? CROSS_AREA_CLUSTER_PENALTY_KM
+      : 0;
+  return distance + factualAreaPenalty;
 }
 
 function areaCentroid(area: string | null, knownPlaces: CandidatePlace[]) {
@@ -117,7 +137,7 @@ export function clusterSelectedPlacesByDay(
     for (const place of located.filter((candidate) => !seeds.some((seed) => seed.id === candidate.id))) {
       const available = clusters.filter((cluster) => cluster.places.length < capacity);
       const choices = available.length ? available : clusters;
-      choices.sort((a, b) => haversineDistanceKm(place, centroid(a.places)!) - haversineDistanceKm(place, centroid(b.places)!) || comparePriority(a.seed, b.seed));
+      choices.sort((a, b) => clusterAssignmentCost(place, a) - clusterAssignmentCost(place, b) || comparePriority(a.seed, b.seed));
       choices[0].places.push(place);
     }
   }

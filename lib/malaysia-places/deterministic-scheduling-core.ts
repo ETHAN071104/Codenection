@@ -44,6 +44,12 @@ const CATEGORY_DURATION_MINUTES: Record<string, number> = {
 };
 
 const DEFAULT_DURATION_MINUTES = 90;
+const CROSS_AREA_TRANSITION_PENALTY_KM = 12;
+const DAYPART_INVERSION_PENALTY_KM = 4;
+const CONSENSUS_ORDER_PENALTY_KM = 6;
+
+export const ROUTE_START_ANCHOR_ID = 'planning-start-anchor';
+export const ROUTE_END_ANCHOR_ID = 'planning-end-anchor';
 
 type Coordinate = { latitude: number; longitude: number };
 
@@ -51,6 +57,11 @@ export type DeterministicScheduleConstraints = TripTimeConstraints & {
   averagePace?: number | null;
   startDate?: string | null;
 };
+
+export type RouteDurationOverrides = Record<
+  number,
+  Record<string, number>
+>;
 
 export type DraftScheduleItem = {
   placeId: string;
@@ -117,6 +128,30 @@ function daypartRank(place: DayClusterSelection) {
   return order[classifyPlaceTiming(place).preferredDayparts[0]];
 }
 
+function openingDeadline(
+  place: DayClusterSelection,
+  dayOfWeek: number | null,
+) {
+  const fit = findOpeningHoursFit({
+    periods: place.openingPeriods,
+    dayOfWeek,
+    earliestStartMinutes: 0,
+    durationMinutes: 1,
+    latestEndMinutes: 24 * 60,
+  });
+  return fit?.openingHoursKnown ? fit.closesAtMinutes : null;
+}
+
+function openingUrgencyScore(
+  place: DayClusterSelection,
+  dayOfWeek: number | null,
+) {
+  const deadline = openingDeadline(place, dayOfWeek);
+  return deadline !== null && deadline <= 18 * 60
+    ? -(18 * 60 - deadline) / 30
+    : 0;
+}
+
 function durationFor(place: DayClusterSelection) {
   if (place.estimatedDurationMinutes && place.estimatedDurationMinutes > 0) {
     return { minutes: place.estimatedDurationMinutes, source: 'saved visit duration' };
@@ -144,7 +179,7 @@ export function approximateTransitionMinutes(
   );
 }
 
-function centroidForArea(area: string | null, knownPlaces: CandidatePlace[]): Coordinate | null {
+export function centroidForArea(area: string | null, knownPlaces: CandidatePlace[]): Coordinate | null {
   if (!area) return null;
   const places = knownPlaces.filter((place): place is CandidatePlace & Coordinate => place.area === area && hasCoordinates(place));
   if (!places.length) return null;
@@ -163,27 +198,140 @@ function fallbackOrigin(places: DayClusterSelection[]): Coordinate | null {
   };
 }
 
-function orderedPlaces(places: DayClusterSelection[], origin: Coordinate | null) {
+export function routeDurationKey(fromId: string, toId: string) {
+  return `${fromId}\u0000${toId}`;
+}
+
+function areaTransitionPenalty(
+  from: DayClusterSelection | null,
+  to: DayClusterSelection,
+) {
+  return from?.area && to.area && from.area !== to.area
+    ? CROSS_AREA_TRANSITION_PENALTY_KM
+    : 0;
+}
+
+function routeCost(
+  places: DayClusterSelection[],
+  origin: Coordinate | null,
+  end: Coordinate | null,
+  dayOfWeek: number | null,
+) {
+  let cost = 0;
+  let priorCoordinate = origin;
+  let priorPlace: DayClusterSelection | null = null;
+  for (const place of places) {
+    if (priorCoordinate && hasCoordinates(place)) {
+      cost += haversineDistanceKm(priorCoordinate, place);
+    } else if (!hasCoordinates(place)) {
+      cost += CROSS_AREA_TRANSITION_PENALTY_KM;
+    }
+    cost += areaTransitionPenalty(priorPlace, place);
+    if (priorPlace && daypartRank(priorPlace) > daypartRank(place)) {
+      cost += DAYPART_INVERSION_PENALTY_KM;
+    }
+    if (
+      priorPlace &&
+      consensusPriorityTier(priorPlace.voteCount, priorPlace.totalMembers) >
+        consensusPriorityTier(place.voteCount, place.totalMembers)
+    ) {
+      cost += CONSENSUS_ORDER_PENALTY_KM;
+    }
+    const priorDeadline = priorPlace
+      ? openingDeadline(priorPlace, dayOfWeek)
+      : null;
+    const nextDeadline = openingDeadline(place, dayOfWeek);
+    if (
+      priorDeadline !== null &&
+      nextDeadline !== null &&
+      nextDeadline < priorDeadline &&
+      nextDeadline <= 18 * 60
+    ) {
+      cost += CROSS_AREA_TRANSITION_PENALTY_KM;
+    }
+    if (hasCoordinates(place)) priorCoordinate = place;
+    priorPlace = place;
+  }
+  if (priorCoordinate && end) cost += haversineDistanceKm(priorCoordinate, end);
+  return cost;
+}
+
+function improveRouteWithinConsensusTiers(
+  places: DayClusterSelection[],
+  origin: Coordinate | null,
+  end: Coordinate | null,
+  dayOfWeek: number | null,
+) {
+  let improved = [...places];
+  for (let pass = 0; pass < 2; pass += 1) {
+    let changed = false;
+    for (let start = 0; start < improved.length - 1; start += 1) {
+      for (let finish = start + 1; finish < improved.length; finish += 1) {
+        const candidate = [
+          ...improved.slice(0, start),
+          ...improved.slice(start, finish + 1).reverse(),
+          ...improved.slice(finish + 1),
+        ];
+        if (
+          routeCost(candidate, origin, end, dayOfWeek) + 0.001 <
+          routeCost(improved, origin, end, dayOfWeek)
+        ) {
+          improved = candidate;
+          changed = true;
+        }
+      }
+    }
+    if (!changed) break;
+  }
+  return improved;
+}
+
+export function orderedPlaces(
+  places: DayClusterSelection[],
+  origin: Coordinate | null,
+  end: Coordinate | null,
+  dayOfWeek: number | null = null,
+) {
   let prior = origin;
+  let priorPlace: DayClusterSelection | null = null;
   const remaining = [...places];
   const ordered: DayClusterSelection[] = [];
   while (remaining.length) {
     remaining.sort((a, b) => {
-      const consensusOrder = comparePriority(a, b);
       const aTier = consensusPriorityTier(a.voteCount, a.totalMembers);
       const bTier = consensusPriorityTier(b.voteCount, b.totalMembers);
-      if (aTier !== bTier) return consensusOrder;
-      const timeOrder = daypartRank(a) - daypartRank(b);
-      if (timeOrder) return timeOrder;
       const aDistance = prior && hasCoordinates(a) ? haversineDistanceKm(prior, a) : Number.POSITIVE_INFINITY;
       const bDistance = prior && hasCoordinates(b) ? haversineDistanceKm(prior, b) : Number.POSITIVE_INFINITY;
-      return aDistance - bDistance || comparePriority(a, b);
+      const remainingCount = Math.max(1, remaining.length);
+      const aEndDistance = end && hasCoordinates(a) ? haversineDistanceKm(a, end) / remainingCount : 0;
+      const bEndDistance = end && hasCoordinates(b) ? haversineDistanceKm(b, end) / remainingCount : 0;
+      const aScore =
+        aDistance +
+        areaTransitionPenalty(priorPlace, a) +
+        aEndDistance +
+        daypartRank(a) * 1.5 +
+        openingUrgencyScore(a, dayOfWeek) +
+        aTier * 3;
+      const bScore =
+        bDistance +
+        areaTransitionPenalty(priorPlace, b) +
+        bEndDistance +
+        daypartRank(b) * 1.5 +
+        openingUrgencyScore(b, dayOfWeek) +
+        bTier * 3;
+      return aScore - bScore || comparePriority(a, b);
     });
     const next = remaining.shift()!;
     ordered.push(next);
     if (hasCoordinates(next)) prior = next;
+    priorPlace = next;
   }
-  return ordered;
+  return improveRouteWithinConsensusTiers(
+    ordered,
+    origin,
+    end,
+    dayOfWeek,
+  );
 }
 
 type FeasibleSlot = OpeningHoursFit & {
@@ -325,6 +473,7 @@ export function createDeterministicDraftSchedule(
   knownPlaces: CandidatePlace[],
   recommendedStayArea: string | null,
   constraints?: DeterministicScheduleConstraints,
+  routeDurations?: RouteDurationOverrides,
 ): DeterministicDraftSchedule {
   const paceProfile = derivePaceProfile(constraints?.averagePace);
   const stayOrigin = centroidForArea(recommendedStayArea, knownPlaces);
@@ -359,8 +508,15 @@ export function createDeterministicDraftSchedule(
         : null;
     const origin =
       arrivalOrigin ?? stayOrigin ?? fallbackOrigin(group.places);
-    const returnTarget = isFinalDay ? departureTarget : stayOrigin;
-    const ordered = orderedPlaces(group.places, origin);
+    const returnTarget = isFinalDay
+      ? departureTarget ?? stayOrigin
+      : stayOrigin;
+    const ordered = orderedPlaces(
+      group.places,
+      origin,
+      returnTarget,
+      dayOfWeek,
+    );
     const dayEnd = Math.min(
       paceProfile.targetReturnMinutes,
       departureMinutes ?? paceProfile.targetReturnMinutes,
@@ -371,13 +527,18 @@ export function createDeterministicDraftSchedule(
     );
     let current = dayStart;
     let previous: DayClusterSelection | null = null;
-    for (const place of ordered) {
+    const dayRouteDurations = routeDurations?.[group.day];
+    for (const [placeIndex, place] of ordered.entries()) {
       const duration = durationFor(place);
       const timing = classifyPlaceTiming(place);
       const priorCoordinate = previous && hasCoordinates(previous) ? previous : origin;
       const targetCoordinate = hasCoordinates(place) ? place : null;
+      const overriddenTransition = dayRouteDurations?.[
+        routeDurationKey(previous?.id ?? ROUTE_START_ANCHOR_ID, place.id)
+      ];
       const transition =
-        !previous &&
+        overriddenTransition ??
+        (!previous &&
         arrivalMinutes !== null &&
         !arrivalOrigin &&
         !stayOrigin
@@ -386,25 +547,55 @@ export function createDeterministicDraftSchedule(
               priorCoordinate,
               targetCoordinate,
               paceProfile,
-            );
+            ));
+      const overriddenReturnTransition = dayRouteDurations?.[
+        routeDurationKey(place.id, ROUTE_END_ANCHOR_ID)
+      ];
       const returnTransition = returnTarget
-        ? approximateTransitionMinutes(
+        ? overriddenReturnTransition ??
+          approximateTransitionMinutes(
             targetCoordinate,
             returnTarget,
             paceProfile,
           )
         : 0;
       const latestActivityEnd = dayEnd - returnTransition;
-      let slot = feasibleSlotAroundBreaks(
-        place,
-        timing,
-        current + transition,
-        duration.minutes,
-        latestActivityEnd,
-        dayOfWeek,
-        paceProfile,
-        breaks,
+      const placeTier = consensusPriorityTier(
+        place.voteCount,
+        place.totalMembers,
       );
+      const higherPriorityRemaining = ordered
+        .slice(placeIndex + 1)
+        .filter(
+          (candidate) =>
+            consensusPriorityTier(
+              candidate.voteCount,
+              candidate.totalMembers,
+            ) < placeTier,
+        );
+      const reservedConsensusMinutes = higherPriorityRemaining.reduce(
+        (sum, candidate) => sum + durationFor(candidate).minutes + 10,
+        0,
+      );
+      const consensusCapacityReserved =
+        reservedConsensusMinutes > 0 &&
+        current +
+          transition +
+          duration.minutes +
+          reservedConsensusMinutes >
+          latestActivityEnd;
+      let slot = consensusCapacityReserved
+        ? null
+        : feasibleSlotAroundBreaks(
+            place,
+            timing,
+            current + transition,
+            duration.minutes,
+            latestActivityEnd,
+            dayOfWeek,
+            paceProfile,
+            breaks,
+          );
       const afterBreak = addBreakIfNeeded(
         breaks,
         current,
@@ -430,7 +621,9 @@ export function createDeterministicDraftSchedule(
           place.openingPeriods !== null &&
           place.openingPeriods !== undefined &&
           dayOfWeek !== null;
-        const reason = openingHoursKnown
+        const reason = consensusCapacityReserved
+          ? 'Moved to overflow to preserve daily capacity for remaining unanimous or majority group priorities.'
+          : openingHoursKnown
           ? 'Could not fit this place within its known opening hours and the available daily window.'
           : departureMinutes !== null
           ? 'Could not fit before the saved departure boundary after higher-priority places, estimated buffers, and meal windows.'
@@ -444,7 +637,9 @@ export function createDeterministicDraftSchedule(
       const start = slot.startMinutes;
       const reasons = [
         `Uses ${duration.source} (${duration.minutes} min).`,
-        `Includes an approximate ${transition}-minute Haversine transition buffer; route validation comes next.`,
+        overriddenTransition === undefined
+          ? `Includes an approximate ${transition}-minute Haversine transition buffer; route validation comes next.`
+          : `Uses an ORS-validated ${transition}-minute road transition buffer.`,
       ];
       if (!previous && arrivalMinutes !== null) {
         reasons.push(`Starts after the group's saved ${constraints?.arrivalTime} arrival boundary${arrivalOrigin ? ' and an approximate endpoint transition' : ''}.`);

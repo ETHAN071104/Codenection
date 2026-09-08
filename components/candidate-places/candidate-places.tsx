@@ -136,6 +136,9 @@ const REASON_LABELS: Record<string, string> = {
   'Strong visitor rating': 'Highly rated by Google visitors',
   'Fits group budget': "Fits your group's shared budget",
   'Curated Kuala Lumpur candidate': 'A curated Kuala Lumpur highlight',
+  'Highly rated with strong visitor feedback.':
+    'Highly rated with strong visitor feedback.',
+  'Good fit for a lower-cost trip.': 'Good fit for a lower-cost trip.',
 };
 
 function label(value: string | null) {
@@ -440,7 +443,7 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
       <JourneyShell tripId={tripId} currentStep="Places">
         <SystemState
           role="alert"
-          eyebrow="Choose places"
+          eyebrow="Suggested places"
           title="We could not load your place suggestions."
           description={
             <>
@@ -501,7 +504,7 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
     return (
       <JourneyShell tripId={tripId} currentStep="Places">
         <SystemState
-          eyebrow="Choose places"
+          eyebrow="Suggested places"
           title={
             destinationRequired
               ? 'Choose a destination first.'
@@ -654,11 +657,14 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
         <div className="flex items-end justify-between gap-4 border-b border-warm-border pb-5">
           <div>
             <h1 className="font-editorial text-4xl font-medium tracking-[-0.045em]">
-              Choose places
+              Suggested for your group
             </h1>
-            <p className="mt-1.5 text-sm text-warm-muted" aria-live="polite">
+            <p className="mt-1.5 text-sm text-warm-muted">
+              We picked places that match your group’s Travel DNA.
+            </p>
+            <p className="mt-1 text-sm text-warm-muted" aria-live="polite">
               {activePlace ? currentIndex + 1 : 0} of {orderedCandidates.length}{' '}
-              · {selectedByCurrentUser} selected by you
+              · {selectedByCurrentUser} kept by you
             </p>
           </div>
           <button
@@ -758,7 +764,7 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
                 ) : (
                   <Heart className="size-4" aria-hidden="true" />
                 )}
-                {activePlace.currentUserSelected ? 'Selected' : 'Want to go'}
+                {activePlace.currentUserSelected ? 'Kept' : 'Keep'}
               </button>
             </div>
           </div>
@@ -791,7 +797,7 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
                 onClick={() => setView('review')}
                 className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-ink px-5 text-sm font-semibold text-paper"
               >
-                Review selected places
+                Review kept places
               </button>
             ) : (
               <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
@@ -1192,10 +1198,10 @@ function SelectedPlacesReview({
 
       <h1 className="mt-6 font-editorial text-5xl font-medium leading-[1.02] tracking-[-0.05em] sm:text-6xl">
         {data.selected.length} {data.selected.length === 1 ? 'place' : 'places'}{' '}
-        chosen.
+        kept.
       </h1>
       <p className="mt-4 max-w-xl text-lg leading-8 text-warm-muted">
-        These are the places your group has selected so far. Everyone keeps
+        These are the places your group has kept so far. Everyone keeps
         control of their own choices.
       </p>
 
@@ -1254,7 +1260,7 @@ function SelectedPlacesReview({
             No group selections yet.
           </h2>
           <p className="mt-2 text-sm leading-6 text-warm-muted">
-            Nothing is missing. Return to the cards and choose the places that
+            Nothing is missing. Return to the shortlist and keep the places that
             feel right for your group.
           </p>
           <button
@@ -1262,7 +1268,7 @@ function SelectedPlacesReview({
             onClick={onBack}
             className="mt-5 inline-flex h-10 items-center justify-center rounded-xl border border-warm-border bg-paper px-4 text-sm font-semibold text-ink hover:bg-parchment"
           >
-            Choose places
+            Review shortlist
           </button>
         </div>
       )}
@@ -1278,7 +1284,7 @@ function SelectedPlacesReview({
         ) : (
           <Check className="size-4" aria-hidden="true" />
         )}
-        I’m done choosing
+        I’m done reviewing
       </button>
     </section>
   );
