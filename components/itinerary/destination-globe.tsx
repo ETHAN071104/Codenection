@@ -64,6 +64,24 @@ const GLOBAL_CAMERA: Camera = {
 
 let mapsLoader: Promise<void> | null = null;
 
+function waitForMapsImportLibrary() {
+  return new Promise<void>((resolve, reject) => {
+    const startedAt = Date.now();
+    const check = () => {
+      if ((window as MapsWindow).google?.maps?.importLibrary) {
+        resolve();
+        return;
+      }
+      if (Date.now() - startedAt >= 10_000) {
+        reject(new Error('MAP_LOAD_FAILED'));
+        return;
+      }
+      window.setTimeout(check, 50);
+    };
+    check();
+  });
+}
+
 function loadMaps(apiKey: string) {
   const mapsWindow = window as MapsWindow;
   if (mapsWindow.google?.maps?.importLibrary) return Promise.resolve();
@@ -74,7 +92,11 @@ function loadMaps(apiKey: string) {
       'script[data-destination-globe]',
     );
     if (existing) {
-      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener(
+        'load',
+        () => void waitForMapsImportLibrary().then(resolve, reject),
+        { once: true },
+      );
       existing.addEventListener(
         'error',
         () => reject(new Error('MAP_LOAD_FAILED')),
@@ -88,7 +110,7 @@ function loadMaps(apiKey: string) {
     script.dataset.destinationGlobe = 'true';
     script.async = true;
     script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&loading=async`;
-    script.onload = () => resolve();
+    script.onload = () => void waitForMapsImportLibrary().then(resolve, reject);
     script.onerror = () => reject(new Error('MAP_LOAD_FAILED'));
     document.head.append(script);
   });
