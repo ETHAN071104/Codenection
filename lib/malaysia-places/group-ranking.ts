@@ -1,13 +1,19 @@
 import type { CandidatePlace } from './types';
+import type { SelectionPriority } from './selection-priority-core';
 
 export type RankedCandidate = CandidatePlace & {
   voteCount: number;
   totalMembers: number;
   currentUserSelected: boolean;
   groupScore: number;
+  selectionPriority?: SelectionPriority;
 };
 
-export function groupScore(recommendationScore: number, votes: number, members: number) {
+export function groupScore(
+  recommendationScore: number,
+  votes: number,
+  members: number,
+) {
   const interest = members > 0 ? votes / members : 0;
   return Math.round(Math.min(100, recommendationScore * 0.75 + interest * 25));
 }

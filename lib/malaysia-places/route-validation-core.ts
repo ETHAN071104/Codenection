@@ -1,6 +1,9 @@
 import type { RoutingPoint } from '@/lib/routing/route-points-core';
 import type { TripRoute } from '@/lib/routing/types';
-import { consensusPriorityTier } from './consensus-core';
+import {
+  isRecommendationPriority,
+  selectionPriorityTier,
+} from './selection-priority-core';
 import type {
   DayClusterSelection,
   GeographicDayClustering,
@@ -44,9 +47,7 @@ export type RouteValidatedSchedule = DeterministicDraftSchedule & {
   routeValidation: RouteValidationStatus;
 };
 
-export type RouteProvider = (
-  points: RoutingPoint[],
-) => Promise<TripRoute>;
+export type RouteProvider = (points: RoutingPoint[]) => Promise<TripRoute>;
 
 function hasCoordinates(
   place: Pick<CandidatePlace, 'latitude' | 'longitude'>,
@@ -62,8 +63,8 @@ function planningAnchors(
 ) {
   const first = day === 1;
   const final = day === activeDays;
-  const arrival = first ? constraints?.arrivalPoint ?? null : null;
-  const departure = final ? constraints?.departurePoint ?? null : null;
+  const arrival = first ? (constraints?.arrivalPoint ?? null) : null;
+  const departure = final ? (constraints?.departurePoint ?? null) : null;
   return {
     start: arrival ?? stay,
     end: departure ?? stay,
@@ -80,12 +81,7 @@ function routingPointsForDay(
   const scheduledDay = schedule.days.find((candidate) => candidate.day === day);
   if (!scheduledDay) return [];
   if (scheduledDay.items.length === 0) return [];
-  const anchors = planningAnchors(
-    day,
-    schedule.days.length,
-    stay,
-    constraints,
-  );
+  const anchors = planningAnchors(day, schedule.days.length, stay, constraints);
   const points: RoutingPoint[] = [];
   if (anchors.start) {
     points.push({
@@ -117,7 +113,7 @@ function bufferedRouteMinutes(durationSeconds: number, profile: PaceProfile) {
   return Math.max(
     1,
     Math.ceil(
-      (durationSeconds / 60) * profile.transitionBufferMultiplier / 5,
+      ((durationSeconds / 60) * profile.transitionBufferMultiplier) / 5,
     ) * 5,
   );
 }
@@ -179,13 +175,13 @@ function sameRoute(
   day: number,
 ) {
   const beforeIds =
-    before.days.find((candidate) => candidate.day === day)?.items.map(
-      (item) => item.placeId,
-    ) ?? [];
+    before.days
+      .find((candidate) => candidate.day === day)
+      ?.items.map((item) => item.placeId) ?? [];
   const afterIds =
-    after.days.find((candidate) => candidate.day === day)?.items.map(
-      (item) => item.placeId,
-    ) ?? [];
+    after.days
+      .find((candidate) => candidate.day === day)
+      ?.items.map((item) => item.placeId) ?? [];
   return (
     beforeIds.length === afterIds.length &&
     beforeIds.every((id, index) => id === afterIds[index])
@@ -252,18 +248,20 @@ function removalCandidate(
         (poorDaypartFit ? 15 * 60 : 0),
     );
   }
-  return [...places].sort((a, b) => {
-    const aTier = consensusPriorityTier(a.voteCount, a.totalMembers);
-    const bTier = consensusPriorityTier(b.voteCount, b.totalMembers);
-    return (
-      bTier - aTier ||
-      (contribution.get(b.id) ?? 0) - (contribution.get(a.id) ?? 0) ||
-      a.groupScore - b.groupScore ||
-      a.score - b.score ||
-      a.name.localeCompare(b.name) ||
-      a.id.localeCompare(b.id)
-    );
-  })[0] ?? null;
+  return (
+    [...places].sort((a, b) => {
+      const aTier = selectionPriorityTier(a);
+      const bTier = selectionPriorityTier(b);
+      return (
+        bTier - aTier ||
+        (contribution.get(b.id) ?? 0) - (contribution.get(a.id) ?? 0) ||
+        a.groupScore - b.groupScore ||
+        a.score - b.score ||
+        a.name.localeCompare(b.name) ||
+        a.id.localeCompare(b.id)
+      );
+    })[0] ?? null
+  );
 }
 
 function addForcedOverflow(
@@ -325,11 +323,7 @@ export async function validateDeterministicScheduleRoutes({
 
   for (const group of grouping.days) {
     let finalStatus: RouteValidationDayStatus | null = null;
-    for (
-      let attempt = 1;
-      attempt <= MAX_ROUTE_ATTEMPTS_PER_DAY;
-      attempt += 1
-    ) {
+    for (let attempt = 1; attempt <= MAX_ROUTE_ATTEMPTS_PER_DAY; attempt += 1) {
       const points = routingPointsForDay(
         workingSchedule,
         group.day,
@@ -404,9 +398,9 @@ export async function validateDeterministicScheduleRoutes({
             0,
           ),
           returnTransitionMinutes: finalPlaceId
-            ? dayDurations?.[
+            ? (dayDurations?.[
                 routeDurationKey(finalPlaceId, ROUTE_END_ANCHOR_ID)
-              ] ?? null
+              ] ?? null)
             : null,
         };
         break;
@@ -422,9 +416,8 @@ export async function validateDeterministicScheduleRoutes({
           (place) => scheduledIds.has(place.id) && !excluded.has(place.id),
         ),
         route,
-        workingSchedule.days.find(
-          (candidate) => candidate.day === group.day,
-        )?.items ?? [],
+        workingSchedule.days.find((candidate) => candidate.day === group.day)
+          ?.items ?? [],
       );
       if (!removable) {
         delete durationOverrides[group.day];
@@ -448,8 +441,9 @@ export async function validateDeterministicScheduleRoutes({
           removedItem?.durationMinutes ??
           removable.estimatedDurationMinutes ??
           90,
-        reason:
-          'Moved to overflow after ORS road durations exceeded the feasible daily route; lower consensus priority and route detour were considered.',
+        reason: isRecommendationPriority(removable)
+          ? 'Moved to Optional after ORS road durations exceeded the feasible daily route; lower recommendation rank and route detour were considered.'
+          : 'Moved to overflow after ORS road durations exceeded the feasible daily route; lower consensus priority and route detour were considered.',
       });
       removed.set(group.day, overflow);
       delete durationOverrides[group.day];

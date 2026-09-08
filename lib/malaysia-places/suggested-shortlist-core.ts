@@ -1,39 +1,94 @@
 import type { CandidatePlace } from './types';
-
-export const PACE_SHORTLIST_RANGES = {
-  1: { minimum: 6, maximum: 8 },
-  2: { minimum: 7, maximum: 9 },
-  3: { minimum: 8, maximum: 12 },
-  4: { minimum: 10, maximum: 14 },
-  5: { minimum: 12, maximum: 16 },
-} as const;
+import {
+  approximateTransitionMinutes,
+  estimatedVisitDurationMinutes,
+} from './deterministic-scheduling-core';
+import { derivePaceProfile, type PaceMealWindow } from './pace-profile-core';
+import { parseTimeMinutes } from '@/lib/trips/travel-boundaries';
 
 const MINIMUM_RECOMMENDATION_SCORE = 45;
 const MAXIMUM_SCORE_DROP = 25;
+const MINIMUM_REPRESENTATIVE_STOP_MINUTES = 75;
 
-function paceLevel(averagePace: number | null | undefined) {
-  return Math.min(5, Math.max(1, Math.round(averagePace ?? 3))) as
-    | 1
-    | 2
-    | 3
-    | 4
-    | 5;
-}
+type ShortlistCapacityOptions = {
+  candidates?: CandidatePlace[];
+  arrivalTime?: string | null;
+  departureTime?: string | null;
+};
 
 export function suggestedShortlistSize(
   averagePace: number | null | undefined,
   durationDays: number | null | undefined,
+  options: ShortlistCapacityOptions = {},
 ) {
-  const range = PACE_SHORTLIST_RANGES[paceLevel(averagePace)];
-  const durationFactor = Math.min(
-    0.85,
-    Math.max(0, ((durationDays ?? 3) - 1) / 6),
+  const expectedCapacity = estimateTripSchedulableCapacity(
+    averagePace,
+    durationDays,
+    options,
   );
-  return Math.min(
-    range.maximum,
-    range.minimum +
-      Math.round((range.maximum - range.minimum) * durationFactor),
+  if (expectedCapacity === 0) return 0;
+  const reviewBuffer = Math.min(
+    5,
+    Math.max(2, Math.ceil(expectedCapacity * 0.25)),
   );
+  return expectedCapacity + reviewBuffer;
+}
+
+function reservedMealMinutes(
+  meal: PaceMealWindow,
+  dayStart: number,
+  dayEnd: number,
+) {
+  return dayStart < meal.endMinutes && dayEnd > meal.startMinutes
+    ? meal.durationMinutes
+    : 0;
+}
+
+function representativeStopMinutes(candidates: CandidatePlace[] | undefined) {
+  if (!candidates?.length) return 90;
+  const durations = candidates
+    .map(estimatedVisitDurationMinutes)
+    .sort((a, b) => a - b);
+  return Math.max(
+    MINIMUM_REPRESENTATIVE_STOP_MINUTES,
+    durations[Math.floor(durations.length / 2)] ?? 90,
+  );
+}
+
+export function estimateTripSchedulableCapacity(
+  averagePace: number | null | undefined,
+  durationDays: number | null | undefined,
+  options: ShortlistCapacityOptions = {},
+) {
+  const profile = derivePaceProfile(averagePace);
+  const days = Math.max(1, Math.floor(durationDays ?? 3));
+  const arrivalMinutes = parseTimeMinutes(options.arrivalTime);
+  const departureMinutes = parseTimeMinutes(options.departureTime);
+  const stopMinutes = representativeStopMinutes(options.candidates);
+  const transitionMinutes = approximateTransitionMinutes(null, null, profile);
+  let capacity = 0;
+
+  for (let day = 1; day <= days; day += 1) {
+    const dayStart = Math.max(
+      profile.earliestActivityMinutes,
+      day === 1
+        ? (arrivalMinutes ?? profile.earliestActivityMinutes)
+        : profile.earliestActivityMinutes,
+    );
+    const dayEnd = Math.min(
+      profile.targetReturnMinutes,
+      day === days
+        ? (departureMinutes ?? profile.targetReturnMinutes)
+        : profile.targetReturnMinutes,
+    );
+    const mealMinutes =
+      reservedMealMinutes(profile.lunch, dayStart, dayEnd) +
+      reservedMealMinutes(profile.dinner, dayStart, dayEnd);
+    const usableMinutes = Math.max(0, dayEnd - dayStart - mealMinutes);
+    capacity += Math.floor(usableMinutes / (stopMinutes + transitionMinutes));
+  }
+
+  return capacity;
 }
 
 export function createSuggestedShortlist(
@@ -41,6 +96,8 @@ export function createSuggestedShortlist(
   options: {
     averagePace: number | null | undefined;
     durationDays: number | null | undefined;
+    arrivalTime?: string | null;
+    departureTime?: string | null;
   },
 ) {
   const ranked = [...candidates].sort(
@@ -60,6 +117,10 @@ export function createSuggestedShortlist(
     .filter((candidate) => candidate.score >= qualityFloor)
     .slice(
       0,
-      suggestedShortlistSize(options.averagePace, options.durationDays),
+      suggestedShortlistSize(options.averagePace, options.durationDays, {
+        candidates: ranked,
+        arrivalTime: options.arrivalTime,
+        departureTime: options.departureTime,
+      }),
     );
 }

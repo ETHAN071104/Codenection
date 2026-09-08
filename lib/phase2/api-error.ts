@@ -15,6 +15,9 @@ const messages: Record<string, string> = {
     'Everyone must complete their Travel DNA before generating the trip.',
   DESTINATION_REQUIRED: 'Choose a destination before generating the trip.',
   INVALID_TRIP_DURATION: 'This trip needs a duration from 1 to 30 days.',
+  AI_PLANNING_MODE_REQUIRED: 'Choose Plan with AI before generating this trip.',
+  FINAL_ITINERARY_INFEASIBLE:
+    'A feasible itinerary could not be prepared. Your existing map plan was preserved.',
   ITINERARY_REQUIRED:
     'Finish and save the itinerary before finalizing this trip.',
 };
@@ -30,13 +33,16 @@ export function phase2ErrorResponse(error: unknown) {
     code === 'QUESTIONNAIRE_NOT_READY' ||
     code === 'DESTINATION_REQUIRED' ||
     code === 'INVALID_TRIP_DURATION' ||
+    code === 'AI_PLANNING_MODE_REQUIRED' ||
     code === 'ITINERARY_REQUIRED'
       ? 409
-      : code === 'NO_PLACE_CANDIDATES'
+      : code === 'FINAL_ITINERARY_INFEASIBLE'
         ? 422
-        : code
-          ? 502
-          : 500;
+        : code === 'NO_PLACE_CANDIDATES'
+          ? 422
+          : code
+            ? 502
+            : 500;
 
   return Response.json(
     {

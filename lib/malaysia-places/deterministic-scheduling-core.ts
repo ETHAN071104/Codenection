@@ -1,17 +1,19 @@
-import { haversineDistanceKm, type DayClusterSelection, type GeographicDayClustering } from './day-clustering-core';
+import {
+  haversineDistanceKm,
+  type DayClusterSelection,
+  type GeographicDayClustering,
+} from './day-clustering-core';
 import type { CandidatePlace } from './types';
 import {
-  compareConsensusPriority,
-  consensusPriorityTier,
-} from './consensus-core';
+  compareSelectionPriority,
+  isRecommendationPriority,
+  selectionPriorityTier,
+} from './selection-priority-core';
 import {
   parseTimeMinutes,
   type TripTimeConstraints,
 } from '@/lib/trips/travel-boundaries';
-import {
-  derivePaceProfile,
-  type PaceProfile,
-} from './pace-profile-core';
+import { derivePaceProfile, type PaceProfile } from './pace-profile-core';
 import {
   classifyPlaceTiming,
   daypartForTime,
@@ -58,10 +60,7 @@ export type DeterministicScheduleConstraints = TripTimeConstraints & {
   startDate?: string | null;
 };
 
-export type RouteDurationOverrides = Record<
-  number,
-  Record<string, number>
->;
+export type RouteDurationOverrides = Record<number, Record<string, number>>;
 
 export type DraftScheduleItem = {
   placeId: string;
@@ -105,7 +104,9 @@ export type DeterministicDraftSchedule = {
   unlocatedPlaceCount: number;
 };
 
-function hasCoordinates(place: Pick<CandidatePlace, 'latitude' | 'longitude'>): place is Pick<CandidatePlace, 'latitude' | 'longitude'> & Coordinate {
+function hasCoordinates(
+  place: Pick<CandidatePlace, 'latitude' | 'longitude'>,
+): place is Pick<CandidatePlace, 'latitude' | 'longitude'> & Coordinate {
   return place.latitude !== null && place.longitude !== null;
 }
 
@@ -114,7 +115,7 @@ function time(value: number) {
 }
 
 function comparePriority(a: DayClusterSelection, b: DayClusterSelection) {
-  return compareConsensusPriority(a, b);
+  return compareSelectionPriority(a, b);
 }
 
 function daypartRank(place: DayClusterSelection) {
@@ -128,10 +129,7 @@ function daypartRank(place: DayClusterSelection) {
   return order[classifyPlaceTiming(place).preferredDayparts[0]];
 }
 
-function openingDeadline(
-  place: DayClusterSelection,
-  dayOfWeek: number | null,
-) {
+function openingDeadline(place: DayClusterSelection, dayOfWeek: number | null) {
   const fit = findOpeningHoursFit({
     periods: place.openingPeriods,
     dayOfWeek,
@@ -152,12 +150,28 @@ function openingUrgencyScore(
     : 0;
 }
 
-function durationFor(place: DayClusterSelection) {
+export function estimatedVisitDurationMinutes(
+  place: Pick<CandidatePlace, 'estimatedDurationMinutes' | 'category'>,
+) {
   if (place.estimatedDurationMinutes && place.estimatedDurationMinutes > 0) {
-    return { minutes: place.estimatedDurationMinutes, source: 'saved visit duration' };
+    return place.estimatedDurationMinutes;
   }
   const category = place.category?.toLowerCase() ?? '';
-  return { minutes: CATEGORY_DURATION_MINUTES[category] ?? DEFAULT_DURATION_MINUTES, source: `deterministic ${category || 'general'} category fallback` };
+  return CATEGORY_DURATION_MINUTES[category] ?? DEFAULT_DURATION_MINUTES;
+}
+
+function durationFor(place: DayClusterSelection) {
+  if (place.estimatedDurationMinutes && place.estimatedDurationMinutes > 0) {
+    return {
+      minutes: estimatedVisitDurationMinutes(place),
+      source: 'saved visit duration',
+    };
+  }
+  const category = place.category?.toLowerCase() ?? '';
+  return {
+    minutes: estimatedVisitDurationMinutes(place),
+    source: `deterministic ${category || 'general'} category fallback`,
+  };
 }
 
 export function approximateTransitionMinutes(
@@ -179,22 +193,34 @@ export function approximateTransitionMinutes(
   );
 }
 
-export function centroidForArea(area: string | null, knownPlaces: CandidatePlace[]): Coordinate | null {
+export function centroidForArea(
+  area: string | null,
+  knownPlaces: CandidatePlace[],
+): Coordinate | null {
   if (!area) return null;
-  const places = knownPlaces.filter((place): place is CandidatePlace & Coordinate => place.area === area && hasCoordinates(place));
+  const places = knownPlaces.filter(
+    (place): place is CandidatePlace & Coordinate =>
+      place.area === area && hasCoordinates(place),
+  );
   if (!places.length) return null;
   return {
-    latitude: places.reduce((sum, place) => sum + place.latitude, 0) / places.length,
-    longitude: places.reduce((sum, place) => sum + place.longitude, 0) / places.length,
+    latitude:
+      places.reduce((sum, place) => sum + place.latitude, 0) / places.length,
+    longitude:
+      places.reduce((sum, place) => sum + place.longitude, 0) / places.length,
   };
 }
 
 function fallbackOrigin(places: DayClusterSelection[]): Coordinate | null {
-  const located = places.filter((place): place is DayClusterSelection & Coordinate => hasCoordinates(place));
+  const located = places.filter(
+    (place): place is DayClusterSelection & Coordinate => hasCoordinates(place),
+  );
   if (!located.length) return null;
   return {
-    latitude: located.reduce((sum, place) => sum + place.latitude, 0) / located.length,
-    longitude: located.reduce((sum, place) => sum + place.longitude, 0) / located.length,
+    latitude:
+      located.reduce((sum, place) => sum + place.latitude, 0) / located.length,
+    longitude:
+      located.reduce((sum, place) => sum + place.longitude, 0) / located.length,
   };
 }
 
@@ -232,8 +258,7 @@ function routeCost(
     }
     if (
       priorPlace &&
-      consensusPriorityTier(priorPlace.voteCount, priorPlace.totalMembers) >
-        consensusPriorityTier(place.voteCount, place.totalMembers)
+      selectionPriorityTier(priorPlace) > selectionPriorityTier(place)
     ) {
       cost += CONSENSUS_ORDER_PENALTY_KM;
     }
@@ -298,13 +323,25 @@ export function orderedPlaces(
   const ordered: DayClusterSelection[] = [];
   while (remaining.length) {
     remaining.sort((a, b) => {
-      const aTier = consensusPriorityTier(a.voteCount, a.totalMembers);
-      const bTier = consensusPriorityTier(b.voteCount, b.totalMembers);
-      const aDistance = prior && hasCoordinates(a) ? haversineDistanceKm(prior, a) : Number.POSITIVE_INFINITY;
-      const bDistance = prior && hasCoordinates(b) ? haversineDistanceKm(prior, b) : Number.POSITIVE_INFINITY;
+      const aTier = selectionPriorityTier(a);
+      const bTier = selectionPriorityTier(b);
+      const aDistance =
+        prior && hasCoordinates(a)
+          ? haversineDistanceKm(prior, a)
+          : Number.POSITIVE_INFINITY;
+      const bDistance =
+        prior && hasCoordinates(b)
+          ? haversineDistanceKm(prior, b)
+          : Number.POSITIVE_INFINITY;
       const remainingCount = Math.max(1, remaining.length);
-      const aEndDistance = end && hasCoordinates(a) ? haversineDistanceKm(a, end) / remainingCount : 0;
-      const bEndDistance = end && hasCoordinates(b) ? haversineDistanceKm(b, end) / remainingCount : 0;
+      const aEndDistance =
+        end && hasCoordinates(a)
+          ? haversineDistanceKm(a, end) / remainingCount
+          : 0;
+      const bEndDistance =
+        end && hasCoordinates(b)
+          ? haversineDistanceKm(b, end) / remainingCount
+          : 0;
       const aScore =
         aDistance +
         areaTransitionPenalty(priorPlace, a) +
@@ -326,12 +363,7 @@ export function orderedPlaces(
     if (hasCoordinates(next)) prior = next;
     priorPlace = next;
   }
-  return improveRouteWithinConsensusTiers(
-    ordered,
-    origin,
-    end,
-    dayOfWeek,
-  );
+  return improveRouteWithinConsensusTiers(ordered, origin, end, dayOfWeek);
 }
 
 type FeasibleSlot = OpeningHoursFit & {
@@ -408,9 +440,7 @@ function feasibleSlotAroundBreaks(
         startMinutes: parseTimeMinutes(item.startTime)!,
         endMinutes: parseTimeMinutes(item.endTime)!,
       }))
-      .find((item) =>
-        overlapsWindow(slot.startMinutes, durationMinutes, item),
-      );
+      .find((item) => overlapsWindow(slot.startMinutes, durationMinutes, item));
     if (!conflict) return slot;
     earliest = conflict.endMinutes;
   }
@@ -436,7 +466,13 @@ function addBreakIfNeeded(
   timing: PlaceTimingProfile,
   profile: PaceProfile,
 ): number {
-  const meals: Array<{ label: DraftScheduleBreak['label']; meal: 'lunch' | 'dinner'; startMinutes: number; endMinutes: number; durationMinutes: number }> = [
+  const meals: Array<{
+    label: DraftScheduleBreak['label'];
+    meal: 'lunch' | 'dinner';
+    startMinutes: number;
+    endMinutes: number;
+    durationMinutes: number;
+  }> = [
     { label: 'Lunch / break', meal: 'lunch', ...profile.lunch },
     { label: 'Dinner / break', meal: 'dinner', ...profile.dinner },
   ];
@@ -458,7 +494,14 @@ function addBreakIfNeeded(
     const breakStart = Math.max(nextCurrent, meal.startMinutes);
     const breakEnd = breakStart + meal.durationMinutes;
     if (breakEnd > meal.endMinutes) continue;
-    breaks.push({ label: meal.label, startTime: time(breakStart), endTime: time(breakEnd), durationMinutes: meal.durationMinutes, reason: 'A generic meal window is reserved because no selected food stop satisfies it.' });
+    breaks.push({
+      label: meal.label,
+      startTime: time(breakStart),
+      endTime: time(breakEnd),
+      durationMinutes: meal.durationMinutes,
+      reason:
+        'A generic meal window is reserved because no selected food stop satisfies it.',
+    });
     nextCurrent = breakEnd;
   }
   return nextCurrent;
@@ -506,10 +549,9 @@ export function createDeterministicDraftSchedule(
             longitude: constraints.departurePoint.longitude,
           }
         : null;
-    const origin =
-      arrivalOrigin ?? stayOrigin ?? fallbackOrigin(group.places);
+    const origin = arrivalOrigin ?? stayOrigin ?? fallbackOrigin(group.places);
     const returnTarget = isFinalDay
-      ? departureTarget ?? stayOrigin
+      ? (departureTarget ?? stayOrigin)
       : stayOrigin;
     const ordered = orderedPlaces(
       group.places,
@@ -531,58 +573,44 @@ export function createDeterministicDraftSchedule(
     for (const [placeIndex, place] of ordered.entries()) {
       const duration = durationFor(place);
       const timing = classifyPlaceTiming(place);
-      const priorCoordinate = previous && hasCoordinates(previous) ? previous : origin;
+      const priorCoordinate =
+        previous && hasCoordinates(previous) ? previous : origin;
       const targetCoordinate = hasCoordinates(place) ? place : null;
-      const overriddenTransition = dayRouteDurations?.[
-        routeDurationKey(previous?.id ?? ROUTE_START_ANCHOR_ID, place.id)
-      ];
+      const overriddenTransition =
+        dayRouteDurations?.[
+          routeDurationKey(previous?.id ?? ROUTE_START_ANCHOR_ID, place.id)
+        ];
       const transition =
         overriddenTransition ??
-        (!previous &&
-        arrivalMinutes !== null &&
-        !arrivalOrigin &&
-        !stayOrigin
+        (!previous && arrivalMinutes !== null && !arrivalOrigin && !stayOrigin
           ? 0
           : approximateTransitionMinutes(
               priorCoordinate,
               targetCoordinate,
               paceProfile,
             ));
-      const overriddenReturnTransition = dayRouteDurations?.[
-        routeDurationKey(place.id, ROUTE_END_ANCHOR_ID)
-      ];
+      const overriddenReturnTransition =
+        dayRouteDurations?.[routeDurationKey(place.id, ROUTE_END_ANCHOR_ID)];
       const returnTransition = returnTarget
-        ? overriddenReturnTransition ??
+        ? (overriddenReturnTransition ??
           approximateTransitionMinutes(
             targetCoordinate,
             returnTarget,
             paceProfile,
-          )
+          ))
         : 0;
       const latestActivityEnd = dayEnd - returnTransition;
-      const placeTier = consensusPriorityTier(
-        place.voteCount,
-        place.totalMembers,
-      );
+      const placeTier = selectionPriorityTier(place);
       const higherPriorityRemaining = ordered
         .slice(placeIndex + 1)
-        .filter(
-          (candidate) =>
-            consensusPriorityTier(
-              candidate.voteCount,
-              candidate.totalMembers,
-            ) < placeTier,
-        );
+        .filter((candidate) => selectionPriorityTier(candidate) < placeTier);
       const reservedConsensusMinutes = higherPriorityRemaining.reduce(
         (sum, candidate) => sum + durationFor(candidate).minutes + 10,
         0,
       );
       const consensusCapacityReserved =
         reservedConsensusMinutes > 0 &&
-        current +
-          transition +
-          duration.minutes +
-          reservedConsensusMinutes >
+        current + transition + duration.minutes + reservedConsensusMinutes >
           latestActivityEnd;
       let slot = consensusCapacityReserved
         ? null
@@ -622,15 +650,22 @@ export function createDeterministicDraftSchedule(
           place.openingPeriods !== undefined &&
           dayOfWeek !== null;
         const reason = consensusCapacityReserved
-          ? 'Moved to overflow to preserve daily capacity for remaining unanimous or majority group priorities.'
+          ? isRecommendationPriority(place)
+            ? 'Moved to Optional to preserve daily capacity for stronger deterministic recommendations.'
+            : 'Moved to overflow to preserve daily capacity for remaining unanimous or majority group priorities.'
           : openingHoursKnown
-          ? 'Could not fit this place within its known opening hours and the available daily window.'
-          : departureMinutes !== null
-          ? 'Could not fit before the saved departure boundary after higher-priority places, estimated buffers, and meal windows.'
-          : returnTarget && !isFinalDay
-            ? 'Kept the evening lighter so the group can return toward the stay area by the pace-based daily boundary.'
-            : `Could not fit before the ${time(dayEnd)} pace-based daily boundary after higher-priority places, estimated buffers, and meal windows.`;
-        overflow.push({ placeId: place.id, name: place.name, durationMinutes: duration.minutes, reason });
+            ? 'Could not fit this place within its known opening hours and the available daily window.'
+            : departureMinutes !== null
+              ? 'Could not fit before the saved departure boundary after higher-priority places, estimated buffers, and meal windows.'
+              : returnTarget && !isFinalDay
+                ? 'Kept the evening lighter so the group can return toward the stay area by the pace-based daily boundary.'
+                : `Could not fit before the ${time(dayEnd)} pace-based daily boundary after higher-priority places, estimated buffers, and meal windows.`;
+        overflow.push({
+          placeId: place.id,
+          name: place.name,
+          durationMinutes: duration.minutes,
+          reason,
+        });
         overflowPlaceCount += 1;
         continue;
       }
@@ -642,24 +677,38 @@ export function createDeterministicDraftSchedule(
           : `Uses an ORS-validated ${transition}-minute road transition buffer.`,
       ];
       if (!previous && arrivalMinutes !== null) {
-        reasons.push(`Starts after the group's saved ${constraints?.arrivalTime} arrival boundary${arrivalOrigin ? ' and an approximate endpoint transition' : ''}.`);
+        reasons.push(
+          `Starts after the group's saved ${constraints?.arrivalTime} arrival boundary${arrivalOrigin ? ' and an approximate endpoint transition' : ''}.`,
+        );
       }
       if (departureMinutes !== null) {
-        reasons.push(`Leaves enough deterministic capacity before the group's saved ${constraints?.departureTime} departure boundary${departureTarget ? ' and an approximate endpoint transition' : ''}.`);
+        reasons.push(
+          `Leaves enough deterministic capacity before the group's saved ${constraints?.departureTime} departure boundary${departureTarget ? ' and an approximate endpoint transition' : ''}.`,
+        );
       }
       if (returnTarget && !isFinalDay) {
-        reasons.push(`Reserves approximate travel time to return toward the recommended stay area by ${time(dayEnd)}.`);
+        reasons.push(
+          `Reserves approximate travel time to return toward the recommended stay area by ${time(dayEnd)}.`,
+        );
       }
       if (items.length === 0 && paceProfile.level <= 2) {
         reasons.push('Later start for your relaxed travel pace.');
       } else if (items.length === 0 && paceProfile.level >= 4) {
-        reasons.push('Denser safe travel buffers support your group’s active travel pace.');
+        reasons.push(
+          'Denser safe travel buffers support your group’s active travel pace.',
+        );
       }
       if (slot.daypart === 'evening') {
         reasons.push('Best visited in the evening.');
-      } else if (slot.daypart === 'lunch' && timing.mealTypes.includes('lunch')) {
+      } else if (
+        slot.daypart === 'lunch' &&
+        timing.mealTypes.includes('lunch')
+      ) {
         reasons.push('Scheduled for lunch time.');
-      } else if (slot.daypart === 'dinner' && timing.mealTypes.includes('dinner')) {
+      } else if (
+        slot.daypart === 'dinner' &&
+        timing.mealTypes.includes('dinner')
+      ) {
         reasons.push('Scheduled for dinner time.');
       } else if (slot.preferredDaypart) {
         reasons.push(`Scheduled in its preferred ${slot.daypart} period.`);
@@ -673,29 +722,99 @@ export function createDeterministicDraftSchedule(
       } else if (slot.shiftedToOpening) {
         reasons.push('Scheduled after its known opening time.');
       }
-      if (place.totalMembers > 0 && place.voteCount >= place.totalMembers) {
-        reasons.push('Included first because it is a shared priority for everyone in the group.');
-      } else if (place.totalMembers > 0 && place.voteCount * 2 > place.totalMembers) {
-        reasons.push('Included early because a majority of the group chose it.');
+      if (isRecommendationPriority(place)) {
+        reasons.push(
+          'Automatically selected from the group’s deterministic Travel DNA ranking.',
+        );
+      } else if (
+        place.totalMembers > 0 &&
+        place.voteCount >= place.totalMembers
+      ) {
+        reasons.push(
+          'Included first because it is a shared priority for everyone in the group.',
+        );
+      } else if (
+        place.totalMembers > 0 &&
+        place.voteCount * 2 > place.totalMembers
+      ) {
+        reasons.push(
+          'Included early because a majority of the group chose it.',
+        );
       } else {
-        reasons.push('Included as an individual group member preference after broader shared priorities.');
+        reasons.push(
+          'Included as an individual group member preference after broader shared priorities.',
+        );
       }
-      if (previous) reasons.push(`Placed after ${previous.name} using geographic proximity and group priority.`);
-      else if (recommendedStayArea && stayOrigin) reasons.push(`Day starts from the representative coordinate for the recommended ${recommendedStayArea} stay area.`);
-      else reasons.push('Day starts from a deterministic geographic fallback because no stay-area coordinate is available.');
-      items.push({ placeId: place.id, name: place.name, startTime: time(start), endTime: time(start + duration.minutes), durationMinutes: duration.minutes, estimatedTransitionMinutesBefore: transition, schedulingReasons: reasons });
+      if (previous)
+        reasons.push(
+          `Placed after ${previous.name} using geographic proximity and group priority.`,
+        );
+      else if (recommendedStayArea && stayOrigin)
+        reasons.push(
+          `Day starts from the representative coordinate for the recommended ${recommendedStayArea} stay area.`,
+        );
+      else
+        reasons.push(
+          'Day starts from a deterministic geographic fallback because no stay-area coordinate is available.',
+        );
+      items.push({
+        placeId: place.id,
+        name: place.name,
+        startTime: time(start),
+        endTime: time(start + duration.minutes),
+        durationMinutes: duration.minutes,
+        estimatedTransitionMinutesBefore: transition,
+        schedulingReasons: reasons,
+      });
       const itemEnd = start + duration.minutes;
-      if (timing.mealTypes.includes('lunch') && overlapsWindow(start, duration.minutes, paceProfile.lunch) && !breaks.some((item) => item.label === 'Lunch / break')) {
-        breaks.push({ label: 'Lunch / break', startTime: time(start), endTime: time(itemEnd), durationMinutes: duration.minutes, reason: `${place.name} is suitable for lunch and satisfies the planning window.` });
+      if (
+        timing.mealTypes.includes('lunch') &&
+        overlapsWindow(start, duration.minutes, paceProfile.lunch) &&
+        !breaks.some((item) => item.label === 'Lunch / break')
+      ) {
+        breaks.push({
+          label: 'Lunch / break',
+          startTime: time(start),
+          endTime: time(itemEnd),
+          durationMinutes: duration.minutes,
+          reason: `${place.name} is suitable for lunch and satisfies the planning window.`,
+        });
       }
-      if (timing.mealTypes.includes('dinner') && overlapsWindow(start, duration.minutes, paceProfile.dinner) && !breaks.some((item) => item.label === 'Dinner / break')) {
-        breaks.push({ label: 'Dinner / break', startTime: time(start), endTime: time(itemEnd), durationMinutes: duration.minutes, reason: `${place.name} is suitable for dinner and satisfies the planning window.` });
+      if (
+        timing.mealTypes.includes('dinner') &&
+        overlapsWindow(start, duration.minutes, paceProfile.dinner) &&
+        !breaks.some((item) => item.label === 'Dinner / break')
+      ) {
+        breaks.push({
+          label: 'Dinner / break',
+          startTime: time(start),
+          endTime: time(itemEnd),
+          durationMinutes: duration.minutes,
+          reason: `${place.name} is suitable for dinner and satisfies the planning window.`,
+        });
       }
       current = start + duration.minutes;
       previous = place;
       scheduledPlaceCount += 1;
     }
-    return { day: group.day, startTime: time(dayStart), endTime: time(dayEnd), items, breaks: breaks.sort((a, b) => a.startTime.localeCompare(b.startTime) || a.label.localeCompare(b.label)), overflow };
+    return {
+      day: group.day,
+      startTime: time(dayStart),
+      endTime: time(dayEnd),
+      items,
+      breaks: breaks.sort(
+        (a, b) =>
+          a.startTime.localeCompare(b.startTime) ||
+          a.label.localeCompare(b.label),
+      ),
+      overflow,
+    };
   });
-  return { status: grouping.status, days, scheduledPlaceCount, overflowPlaceCount, unlocatedPlaceCount: grouping.unlocatedPlaceCount };
+  return {
+    status: grouping.status,
+    days,
+    scheduledPlaceCount,
+    overflowPlaceCount,
+    unlocatedPlaceCount: grouping.unlocatedPlaceCount,
+  };
 }

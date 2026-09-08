@@ -2,22 +2,16 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { Database, Json } from '@/lib/supabase/database.types';
 import { getAuthenticatedSupabase } from '@/lib/supabase/server-auth';
-import { getCandidatePlaces } from '@/lib/malaysia-places/candidates';
 import {
-  destinationCandidatePoolKey,
-  importDestinationCandidates,
-} from '@/lib/malaysia-places/destination-candidates';
+  loadGroundedCandidatePool,
+  MINIMUM_GROUNDED_CANDIDATES,
+} from '@/lib/malaysia-places/grounded-candidate-pool';
 import {
   groupScore,
   rankCandidates,
 } from '@/lib/malaysia-places/group-ranking';
-import { getStayAreaRecommendation } from '@/lib/malaysia-places/stay-area';
-import { clusterSelectedPlacesByDay } from '@/lib/malaysia-places/day-clustering';
-import { createDeterministicDraftSchedule } from '@/lib/malaysia-places/deterministic-scheduling';
-import { validateScheduleWithOpenRouteService } from '@/lib/malaysia-places/route-validation';
 import {
   createScheduleFingerprint,
-  normalizePhase9Itinerary,
   phase9ItineraryMatchesPersisted,
   Phase9ItineraryBridgeError,
 } from '@/lib/malaysia-places/itinerary-bridge-core';
@@ -29,9 +23,10 @@ import { parseTripEndpoint } from '@/lib/trips/travel-boundaries';
 import { planningLockResponse } from '@/lib/trips/finalization';
 import { createSuggestedShortlist } from '@/lib/malaysia-places/suggested-shortlist-core';
 import {
-  persistIfFinalFeasible,
-  validateFinalCollaborativeItinerary,
-} from '@/lib/malaysia-places/final-feasibility-core';
+  createServerPlanningIntelligencePlan,
+  persistPlanningIntelligencePlan,
+} from '@/lib/malaysia-places/planning-orchestration';
+import { consensusSelectionPriority } from '@/lib/malaysia-places/selection-priority-core';
 
 function unavailable(
   message: string,
@@ -137,25 +132,9 @@ async function loadPhase9Plan(
     average_pace: Number(summary.average_pace),
     average_interests: interests,
   };
-  const candidatePoolKey = destinationCandidatePoolKey(destination);
-  let candidates = await getCandidatePlaces(supabase, {
-    city: candidatePoolKey,
-    travelDna,
-    limit: 30,
-  });
-  let candidateSource = 'existing_catalog';
-  let googlePlacesCalls = 0;
-  if (candidates.length < 12) {
-    const prepared = await importDestinationCandidates(destination);
-    candidateSource = 'google_places';
-    googlePlacesCalls = prepared.googlePlacesCalls;
-    candidates = await getCandidatePlaces(supabase, {
-      city: prepared.poolKey,
-      travelDna,
-      limit: 30,
-    });
-  }
-  if (candidates.length < 8) {
+  const { candidates, candidateSource, googlePlacesCalls } =
+    await loadGroundedCandidatePool(supabase, { destination, travelDna });
+  if (candidates.length < MINIMUM_GROUNDED_CANDIDATES) {
     return {
       supported: false as const,
       availability: 'insufficient_candidates' as const,
@@ -208,6 +187,7 @@ async function loadPhase9Plan(
         totalMembers,
         currentUserSelected: placeVotes.some((vote) => vote.user_id === userId),
         groupScore: groupScore(candidate.score, voteCount, totalMembers),
+        selectionPriority: consensusSelectionPriority(),
       };
     }),
   );
@@ -217,18 +197,13 @@ async function loadPhase9Plan(
   const suggestedShortlist = createSuggestedShortlist(candidates, {
     averagePace: travelDna.average_pace,
     durationDays: tripResult.data.duration_days,
+    arrivalTime: tripResult.data.arrival_time?.slice(0, 5) ?? null,
+    departureTime: tripResult.data.departure_time?.slice(0, 5) ?? null,
   }).flatMap((candidate) => {
     const decorated = candidatePoolById.get(candidate.id);
     return decorated ? [decorated] : [];
   });
   const selected = candidatePool.filter((place) => place.voteCount > 0);
-  const stayArea = getStayAreaRecommendation(selected, candidates);
-  const dayGroups = clusterSelectedPlacesByDay(
-    selected,
-    tripResult.data.duration_days ?? 3,
-    candidates,
-    stayArea.recommendedArea?.area ?? null,
-  );
   const scheduleConstraints = {
     arrivalTime: tripResult.data.arrival_time?.slice(0, 5) ?? null,
     departureTime: tripResult.data.departure_time?.slice(0, 5) ?? null,
@@ -237,21 +212,14 @@ async function loadPhase9Plan(
     averagePace: travelDna.average_pace,
     startDate: tripResult.data.start_date,
   };
-  const localDraftSchedule = createDeterministicDraftSchedule(
-    dayGroups,
-    candidates,
-    stayArea.recommendedArea?.area ?? null,
-    scheduleConstraints,
-  );
-  const draftSchedule = completion.allCompleted
-    ? await validateScheduleWithOpenRouteService({
-        grouping: dayGroups,
-        knownPlaces: candidates,
-        recommendedStayArea: stayArea.recommendedArea?.area ?? null,
-        constraints: scheduleConstraints,
-        schedule: localDraftSchedule,
-      })
-    : localDraftSchedule;
+  const intelligence = await createServerPlanningIntelligencePlan({
+    destination,
+    durationDays: tripResult.data.duration_days ?? 3,
+    candidates: candidatePool,
+    selected,
+    constraints: scheduleConstraints,
+    validateRoutes: completion.allCompleted,
+  });
 
   return {
     supported: true as const,
@@ -261,9 +229,7 @@ async function loadPhase9Plan(
     candidates: suggestedShortlist,
     candidatePool,
     selected,
-    stayArea,
-    dayGroups,
-    draftSchedule,
+    ...intelligence,
     scheduleConstraints,
     candidateSource,
     googlePlacesCalls,
@@ -299,10 +265,7 @@ export async function GET(
       return unavailable('This trip is unavailable.', 404, 'TRIP_UNAVAILABLE');
     }
     if (!plan.supported) {
-      if (
-        'resetCollaborativeSetup' in plan &&
-        plan.resetCollaborativeSetup
-      ) {
+      if ('resetCollaborativeSetup' in plan && plan.resetCollaborativeSetup) {
         const { error: resetError } = await authenticated.supabase
           .from('trips')
           .update({ planning_mode: null, setup_stage: 'mode' })
@@ -335,12 +298,12 @@ export async function GET(
     let scheduleMatchesPersistedItinerary = false;
     let confirmationIssue: string | null = null;
     try {
-      const desired = normalizePhase9Itinerary({
-        destination: plan.destination,
-        candidates: plan.candidatePool,
-        grouping: plan.dayGroups,
-        schedule: plan.draftSchedule,
-      });
+      const desired = plan.desiredItinerary;
+      if (!desired) {
+        throw new Phase9ItineraryBridgeError(
+          'Choose at least one place before opening the map plan.',
+        );
+      }
       scheduleMatchesPersistedItinerary = phase9ItineraryMatchesPersisted(
         desired,
         persisted?.itinerary ?? null,
@@ -356,6 +319,8 @@ export async function GET(
       ...plan,
       candidatePool: undefined,
       scheduleConstraints: undefined,
+      finalValidation: undefined,
+      desiredItinerary: undefined,
       markCollaborativeReady: undefined,
       scheduleFingerprint,
       hasPersistedItinerary,
@@ -537,13 +502,7 @@ export async function PUT(
       );
     }
 
-    const finalValidation = validateFinalCollaborativeItinerary({
-      schedule: plan.draftSchedule,
-      selected: plan.selected,
-      candidates: plan.candidatePool,
-      recommendedStayArea: plan.stayArea.recommendedArea?.area ?? null,
-      constraints: plan.scheduleConstraints,
-    });
+    const finalValidation = plan.finalValidation;
     if (finalValidation.status === 'FAIL') {
       return unavailable(
         'This itinerary is not feasible yet. Refresh the shared schedule before opening the map plan.',
@@ -553,12 +512,15 @@ export async function PUT(
       );
     }
 
-    const desired = normalizePhase9Itinerary({
-      destination: plan.destination,
-      candidates: plan.candidatePool,
-      grouping: plan.dayGroups,
-      schedule: plan.draftSchedule,
-    });
+    const desired = plan.desiredItinerary;
+    if (!desired) {
+      return unavailable(
+        'This itinerary is not feasible yet. Refresh the shared schedule before opening the map plan.',
+        422,
+        'FINAL_ITINERARY_INFEASIBLE',
+        { validation: finalValidation },
+      );
+    }
     const current = await loadItineraryPageData(authenticated.supabase, id);
     const hasPersistedItinerary = Boolean(current?.itinerary);
     if (phase9ItineraryMatchesPersisted(desired, current?.itinerary ?? null)) {
@@ -577,15 +539,13 @@ export async function PUT(
       );
     }
 
-    const persistence = await persistIfFinalFeasible(
-      finalValidation,
-      () =>
-        authenticated.supabase.rpc('replace_generated_itinerary', {
-          p_trip_id: id,
-          p_destination: plan.destination,
-          p_places: desired.places as unknown as Json,
-          p_items: desired.items as unknown as Json,
-        }),
+    const persistence = await persistPlanningIntelligencePlan(plan, () =>
+      authenticated.supabase.rpc('replace_generated_itinerary', {
+        p_trip_id: id,
+        p_destination: plan.destination,
+        p_places: desired.places as unknown as Json,
+        p_items: desired.items as unknown as Json,
+      }),
     );
     if (!persistence.persisted) {
       return unavailable(

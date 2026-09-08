@@ -5,6 +5,7 @@ import { groupScore } from '../lib/malaysia-places/group-ranking';
 import { scoreMalaysiaPlace } from '../lib/malaysia-places/recommendation';
 import {
   createSuggestedShortlist,
+  estimateTripSchedulableCapacity,
   suggestedShortlistSize,
 } from '../lib/malaysia-places/suggested-shortlist-core';
 import type {
@@ -109,7 +110,7 @@ void test('nature-heavy Travel DNA changes the ranking', () => {
 });
 
 void test('Pace 1 creates a smaller shortlist than Pace 5', () => {
-  const pool = Array.from({ length: 20 }, (_, index) =>
+  const pool = Array.from({ length: 30 }, (_, index) =>
     candidate(`candidate-${String(index).padStart(2, '0')}`),
   );
   const relaxed = createSuggestedShortlist(pool, {
@@ -121,8 +122,103 @@ void test('Pace 1 creates a smaller shortlist than Pace 5', () => {
     durationDays: 4,
   });
   assert.ok(relaxed.length < packed.length);
-  assert.equal(relaxed.length, suggestedShortlistSize(1, 4));
-  assert.equal(packed.length, suggestedShortlistSize(5, 4));
+  assert.equal(
+    relaxed.length,
+    suggestedShortlistSize(1, 4, { candidates: pool }),
+  );
+  assert.equal(
+    packed.length,
+    suggestedShortlistSize(5, 4, { candidates: pool }),
+  );
+});
+
+void test('the same Pace produces a smaller one-day shortlist than a three-day shortlist', () => {
+  const pool = Array.from({ length: 30 }, (_, index) =>
+    candidate(`duration-${String(index).padStart(2, '0')}`),
+  );
+  const oneDay = createSuggestedShortlist(pool, {
+    averagePace: 3,
+    durationDays: 1,
+  });
+  const threeDays = createSuggestedShortlist(pool, {
+    averagePace: 3,
+    durationDays: 3,
+  });
+  assert.ok(oneDay.length < threeDays.length);
+});
+
+void test('three mostly-full Packed days suggest materially more than eight places', () => {
+  const pool = Array.from({ length: 30 }, (_, index) =>
+    candidate(`packed-${String(index).padStart(2, '0')}`),
+  );
+  const shortlist = createSuggestedShortlist(pool, {
+    averagePace: 5,
+    durationDays: 3,
+  });
+  assert.ok(shortlist.length >= 12);
+});
+
+void test('late arrival reduces estimated capacity and shortlist size', () => {
+  const pool = Array.from({ length: 30 }, (_, index) =>
+    candidate(`arrival-${String(index).padStart(2, '0')}`),
+  );
+  const full = createSuggestedShortlist(pool, {
+    averagePace: 4,
+    durationDays: 3,
+  });
+  const late = createSuggestedShortlist(pool, {
+    averagePace: 4,
+    durationDays: 3,
+    arrivalTime: '18:00',
+  });
+  assert.ok(late.length < full.length);
+});
+
+void test('early departure reduces estimated capacity and shortlist size', () => {
+  const pool = Array.from({ length: 30 }, (_, index) =>
+    candidate(`departure-${String(index).padStart(2, '0')}`),
+  );
+  const full = createSuggestedShortlist(pool, {
+    averagePace: 4,
+    durationDays: 3,
+  });
+  const early = createSuggestedShortlist(pool, {
+    averagePace: 4,
+    durationDays: 3,
+    departureTime: '12:00',
+  });
+  assert.ok(early.length < full.length);
+});
+
+void test('low-quality candidates are not added to meet capacity target', () => {
+  const quality = Array.from({ length: 8 }, (_, index) =>
+    candidate(`quality-${index}`, 80),
+  );
+  const lowQuality = Array.from({ length: 20 }, (_, index) =>
+    candidate(`low-${index}`, 40),
+  );
+  const shortlist = createSuggestedShortlist([...quality, ...lowQuality], {
+    averagePace: 5,
+    durationDays: 3,
+  });
+  assert.deepEqual(
+    shortlist.map((item) => item.id),
+    quality.map((item) => item.id),
+  );
+});
+
+void test('capacity estimate uses conservative candidate duration metadata', () => {
+  const shortStops = Array.from({ length: 10 }, (_, index) =>
+    candidate(`short-${index}`),
+  );
+  const longStops = shortStops.map((item) => ({
+    ...item,
+    estimatedDurationMinutes: 180,
+  }));
+  assert.ok(
+    estimateTripSchedulableCapacity(5, 3, { candidates: longStops }) <
+      estimateTripSchedulableCapacity(5, 3, { candidates: shortStops }),
+  );
 });
 
 void test('low-budget profiles prefer supported lower-cost evidence', () => {
@@ -163,7 +259,10 @@ void test('unknown price remains neutral and does not reject a candidate', () =>
     averagePace: 1,
     durationDays: 2,
   });
-  assert.deepEqual(shortlist.map((item) => item.id), ['unknown-price']);
+  assert.deepEqual(
+    shortlist.map((item) => item.id),
+    ['unknown-price'],
+  );
 });
 
 void test('the same group inputs produce the same shared shortlist', () => {
@@ -172,10 +271,9 @@ void test('the same group inputs produce the same shared shortlist', () => {
   );
   const options = { averagePace: 3.4, durationDays: 5 };
   const first = createSuggestedShortlist(pool, options).map((item) => item.id);
-  const second = createSuggestedShortlist(
-    [...pool].reverse(),
-    options,
-  ).map((item) => item.id);
+  const second = createSuggestedShortlist([...pool].reverse(), options).map(
+    (item) => item.id,
+  );
   assert.deepEqual(second, first);
 });
 

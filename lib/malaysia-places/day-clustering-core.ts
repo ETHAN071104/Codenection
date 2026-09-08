@@ -1,10 +1,14 @@
 import type { CandidatePlace } from './types';
-import { compareConsensusPriority } from './consensus-core';
+import {
+  compareSelectionPriority,
+  type SelectionPriority,
+} from './selection-priority-core';
 
 export type DayClusterSelection = CandidatePlace & {
   voteCount: number;
   totalMembers: number;
   groupScore: number;
+  selectionPriority?: SelectionPriority;
 };
 
 export type GeographicDayGroup = {
@@ -24,7 +28,10 @@ export type GeographicDayClustering = {
 };
 
 type Coordinate = { latitude: number; longitude: number };
-type WorkingCluster = { places: DayClusterSelection[]; seed: DayClusterSelection };
+type WorkingCluster = {
+  places: DayClusterSelection[];
+  seed: DayClusterSelection;
+};
 
 const EARTH_RADIUS_KM = 6371;
 const CROSS_AREA_CLUSTER_PENALTY_KM = 8;
@@ -33,24 +40,38 @@ export function haversineDistanceKm(a: Coordinate, b: Coordinate) {
   const radians = (value: number) => (value * Math.PI) / 180;
   const latitudeDelta = radians(b.latitude - a.latitude);
   const longitudeDelta = radians(b.longitude - a.longitude);
-  const haversine = Math.sin(latitudeDelta / 2) ** 2 + Math.cos(radians(a.latitude)) * Math.cos(radians(b.latitude)) * Math.sin(longitudeDelta / 2) ** 2;
-  return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(radians(a.latitude)) *
+      Math.cos(radians(b.latitude)) *
+      Math.sin(longitudeDelta / 2) ** 2;
+  return (
+    EARTH_RADIUS_KM *
+    2 *
+    Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+  );
 }
 
-function hasCoordinates(place: Pick<CandidatePlace, 'latitude' | 'longitude'>): place is Pick<CandidatePlace, 'latitude' | 'longitude'> & Coordinate {
+function hasCoordinates(
+  place: Pick<CandidatePlace, 'latitude' | 'longitude'>,
+): place is Pick<CandidatePlace, 'latitude' | 'longitude'> & Coordinate {
   return place.latitude !== null && place.longitude !== null;
 }
 
 function comparePriority(a: DayClusterSelection, b: DayClusterSelection) {
-  return compareConsensusPriority(a, b);
+  return compareSelectionPriority(a, b);
 }
 
 function centroid(places: DayClusterSelection[]) {
-  const located = places.filter((place): place is DayClusterSelection & Coordinate => hasCoordinates(place));
+  const located = places.filter(
+    (place): place is DayClusterSelection & Coordinate => hasCoordinates(place),
+  );
   if (!located.length) return null;
   return {
-    latitude: located.reduce((sum, place) => sum + place.latitude, 0) / located.length,
-    longitude: located.reduce((sum, place) => sum + place.longitude, 0) / located.length,
+    latitude:
+      located.reduce((sum, place) => sum + place.latitude, 0) / located.length,
+    longitude:
+      located.reduce((sum, place) => sum + place.longitude, 0) / located.length,
   };
 }
 
@@ -79,19 +100,36 @@ function clusterAssignmentCost(
 
 function areaCentroid(area: string | null, knownPlaces: CandidatePlace[]) {
   if (!area) return null;
-  return centroid(knownPlaces.filter((place) => place.area === area) as DayClusterSelection[]);
+  return centroid(
+    knownPlaces.filter((place) => place.area === area) as DayClusterSelection[],
+  );
 }
 
-function createDayGroup(day: number, places: DayClusterSelection[]): GeographicDayGroup {
+function createDayGroup(
+  day: number,
+  places: DayClusterSelection[],
+): GeographicDayGroup {
   const clusterCentroid = centroid(places);
-  const located = places.filter((place): place is DayClusterSelection & Coordinate => hasCoordinates(place));
-  const spread = clusterCentroid && located.length
-    ? Math.max(...located.map((place) => haversineDistanceKm(clusterCentroid, place)))
-    : null;
+  const located = places.filter(
+    (place): place is DayClusterSelection & Coordinate => hasCoordinates(place),
+  );
+  const spread =
+    clusterCentroid && located.length
+      ? Math.max(
+          ...located.map((place) =>
+            haversineDistanceKm(clusterCentroid, place),
+          ),
+        )
+      : null;
   return {
     day,
     places: [...places].sort(comparePriority),
-    centroid: clusterCentroid ? { latitude: round(clusterCentroid.latitude), longitude: round(clusterCentroid.longitude) } : null,
+    centroid: clusterCentroid
+      ? {
+          latitude: round(clusterCentroid.latitude),
+          longitude: round(clusterCentroid.longitude),
+        }
+      : null,
     placeCount: places.length,
     geographicSpreadKm: spread === null ? null : round(spread),
     missingCoordinatePlaceCount: places.length - located.length,
@@ -115,11 +153,24 @@ export function clusterSelectedPlacesByDay(
 ): GeographicDayClustering {
   const normalizedDays = Math.max(1, Math.floor(activeDays));
   if (!selectedPlaces.length) {
-    return { status: 'no_selection', activeDays: normalizedDays, unlocatedPlaceCount: 0, days: Array.from({ length: normalizedDays }, (_, index) => createDayGroup(index + 1, [])) };
+    return {
+      status: 'no_selection',
+      activeDays: normalizedDays,
+      unlocatedPlaceCount: 0,
+      days: Array.from({ length: normalizedDays }, (_, index) =>
+        createDayGroup(index + 1, []),
+      ),
+    };
   }
 
-  const located = selectedPlaces.filter((place): place is DayClusterSelection & Coordinate => hasCoordinates(place)).sort(comparePriority);
-  const unlocated = selectedPlaces.filter((place) => !hasCoordinates(place)).sort(comparePriority);
+  const located = selectedPlaces
+    .filter((place): place is DayClusterSelection & Coordinate =>
+      hasCoordinates(place),
+    )
+    .sort(comparePriority);
+  const unlocated = selectedPlaces
+    .filter((place) => !hasCoordinates(place))
+    .sort(comparePriority);
   const clusterCount = Math.min(normalizedDays, located.length);
   const clusters: WorkingCluster[] = [];
   if (located.length) {
@@ -127,33 +178,63 @@ export function clusterSelectedPlacesByDay(
     while (seeds.length < clusterCount) {
       const next = located
         .filter((place) => !seeds.some((seed) => seed.id === place.id))
-        .map((place) => ({ place, distance: Math.min(...seeds.map((seed) => haversineDistanceKm(place, seed))) }))
-        .sort((a, b) => b.distance - a.distance || comparePriority(a.place, b.place))[0]?.place;
+        .map((place) => ({
+          place,
+          distance: Math.min(
+            ...seeds.map((seed) => haversineDistanceKm(place, seed)),
+          ),
+        }))
+        .sort(
+          (a, b) =>
+            b.distance - a.distance || comparePriority(a.place, b.place),
+        )[0]?.place;
       if (!next) break;
       seeds.push(next);
     }
     clusters.push(...seeds.map((seed) => ({ seed, places: [seed] })));
     const capacity = Math.ceil(located.length / clusterCount);
-    for (const place of located.filter((candidate) => !seeds.some((seed) => seed.id === candidate.id))) {
-      const available = clusters.filter((cluster) => cluster.places.length < capacity);
+    for (const place of located.filter(
+      (candidate) => !seeds.some((seed) => seed.id === candidate.id),
+    )) {
+      const available = clusters.filter(
+        (cluster) => cluster.places.length < capacity,
+      );
       const choices = available.length ? available : clusters;
-      choices.sort((a, b) => clusterAssignmentCost(place, a) - clusterAssignmentCost(place, b) || comparePriority(a.seed, b.seed));
+      choices.sort(
+        (a, b) =>
+          clusterAssignmentCost(place, a) - clusterAssignmentCost(place, b) ||
+          comparePriority(a.seed, b.seed),
+      );
       choices[0].places.push(place);
     }
   }
 
   if (!clusters.length && unlocated.length) {
     const missingClusterCount = Math.min(normalizedDays, unlocated.length);
-    clusters.push(...unlocated.slice(0, missingClusterCount).map((place) => ({ seed: place, places: [place] })));
+    clusters.push(
+      ...unlocated
+        .slice(0, missingClusterCount)
+        .map((place) => ({ seed: place, places: [place] })),
+    );
     for (const place of unlocated.slice(missingClusterCount)) {
-      const choice = [...clusters].sort((a, b) => a.places.length - b.places.length || comparePriority(a.seed, b.seed))[0];
+      const choice = [...clusters].sort(
+        (a, b) =>
+          a.places.length - b.places.length || comparePriority(a.seed, b.seed),
+      )[0];
       choice.places.push(place);
     }
   } else {
     for (const place of unlocated) {
-      const areaMatches = clusters.filter((cluster) => cluster.places.some((member) => member.area && member.area === place.area));
+      const areaMatches = clusters.filter((cluster) =>
+        cluster.places.some(
+          (member) => member.area && member.area === place.area,
+        ),
+      );
       const choices = areaMatches.length ? areaMatches : clusters;
-      const choice = [...choices].sort((a, b) => a.places.length - b.places.length || comparePriority(a.seed, b.seed))[0];
+      const choice = [...choices].sort(
+        (a, b) =>
+          a.places.length - b.places.length || comparePriority(a.seed, b.seed),
+      )[0];
       choice.places.push(place);
     }
   }
@@ -162,15 +243,44 @@ export function clusterSelectedPlacesByDay(
   const orderedClusters = [...clusters].sort((a, b) => {
     const aCenter = centroid(a.places);
     const bCenter = centroid(b.places);
-    const aDistance = stayAreaCenter && aCenter ? haversineDistanceKm(stayAreaCenter, aCenter) : Number.POSITIVE_INFINITY;
-    const bDistance = stayAreaCenter && bCenter ? haversineDistanceKm(stayAreaCenter, bCenter) : Number.POSITIVE_INFINITY;
+    const aDistance =
+      stayAreaCenter && aCenter
+        ? haversineDistanceKm(stayAreaCenter, aCenter)
+        : Number.POSITIVE_INFINITY;
+    const bDistance =
+      stayAreaCenter && bCenter
+        ? haversineDistanceKm(stayAreaCenter, bCenter)
+        : Number.POSITIVE_INFINITY;
     const aBest = [...a.places].sort(comparePriority)[0];
     const bBest = [...b.places].sort(comparePriority)[0];
-    const aPriority = a.places.reduce((sum, place) => sum + place.groupScore, 0);
-    const bPriority = b.places.reduce((sum, place) => sum + place.groupScore, 0);
-    return aDistance - bDistance || comparePriority(aBest, bBest) || bPriority - aPriority || (aCenter?.latitude ?? Number.POSITIVE_INFINITY) - (bCenter?.latitude ?? Number.POSITIVE_INFINITY) || (aCenter?.longitude ?? Number.POSITIVE_INFINITY) - (bCenter?.longitude ?? Number.POSITIVE_INFINITY) || comparePriority(a.seed, b.seed);
+    const aPriority = a.places.reduce(
+      (sum, place) => sum + place.groupScore,
+      0,
+    );
+    const bPriority = b.places.reduce(
+      (sum, place) => sum + place.groupScore,
+      0,
+    );
+    return (
+      aDistance - bDistance ||
+      comparePriority(aBest, bBest) ||
+      bPriority - aPriority ||
+      (aCenter?.latitude ?? Number.POSITIVE_INFINITY) -
+        (bCenter?.latitude ?? Number.POSITIVE_INFINITY) ||
+      (aCenter?.longitude ?? Number.POSITIVE_INFINITY) -
+        (bCenter?.longitude ?? Number.POSITIVE_INFINITY) ||
+      comparePriority(a.seed, b.seed)
+    );
   });
-  const days = orderedClusters.map((cluster, index) => createDayGroup(index + 1, cluster.places));
-  while (days.length < normalizedDays) days.push(createDayGroup(days.length + 1, []));
-  return { status: 'ready', days, activeDays: normalizedDays, unlocatedPlaceCount: unlocated.length };
+  const days = orderedClusters.map((cluster, index) =>
+    createDayGroup(index + 1, cluster.places),
+  );
+  while (days.length < normalizedDays)
+    days.push(createDayGroup(days.length + 1, []));
+  return {
+    status: 'ready',
+    days,
+    activeDays: normalizedDays,
+    unlocatedPlaceCount: unlocated.length,
+  };
 }

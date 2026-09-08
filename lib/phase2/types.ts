@@ -53,7 +53,9 @@ export type PlaceCandidate = {
   ratingCount: number | null;
   priceLevel: string | null;
   types: string[];
-  openingPeriods?: import('@/lib/malaysia-places/opening-hours-core').WeeklyOpeningPeriod[] | null;
+  openingPeriods?:
+    | import('@/lib/malaysia-places/opening-hours-core').WeeklyOpeningPeriod[]
+    | null;
   sourceArea?: string;
   addressComponents?: GoogleAddressComponent[];
   photo?: GooglePlacePhoto | null;
@@ -78,24 +80,11 @@ export type GoogleAddressComponent = {
   types?: string[];
 };
 
-export type SelectedItineraryItem = {
+export type PersistedItineraryItem = {
   externalPlaceId: string;
   estimatedDurationMinutes: number;
   estimatedCost: number | null;
   reason: string;
-};
-
-export type SelectedItineraryDay = {
-  day: number;
-  theme: string;
-  items: SelectedItineraryItem[];
-};
-
-export type SelectedItinerary = {
-  days: SelectedItineraryDay[];
-};
-
-export type PersistedItineraryItem = SelectedItineraryItem & {
   day: number;
   sortOrder: number;
   plannedTime: string;

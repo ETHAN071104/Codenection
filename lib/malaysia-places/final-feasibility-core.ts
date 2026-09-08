@@ -77,10 +77,10 @@ function budgetEvidence(selected: CandidatePlace[]) {
 }
 
 /**
- * Final deterministic gate for the collaborative itinerary only. It validates
+ * Final deterministic gate for a Planning Intelligence itinerary. It validates
  * hard feasibility and reports soft budget evidence without changing ranking.
  */
-export function validateFinalCollaborativeItinerary({
+export function validateFinalPlanningItinerary({
   schedule,
   selected,
   candidates,
@@ -298,10 +298,10 @@ export function validateFinalCollaborativeItinerary({
 
     const lastItem = day.items.at(-1);
     const lastCandidate = lastItem
-      ? candidateById.get(lastItem.placeId) ?? null
+      ? (candidateById.get(lastItem.placeId) ?? null)
       : null;
     const returnTarget = finalDay
-      ? constraints?.departurePoint ?? stay
+      ? (constraints?.departurePoint ?? stay)
       : stay;
     if (lastItem && lastCandidate && returnTarget && dayEnd !== null) {
       const routeDay = routeDays.get(day.day);
@@ -349,7 +349,8 @@ export function validateFinalCollaborativeItinerary({
           code: 'ROUTE_DURATION',
           day: day.day,
           placeId: null,
-          message: 'The validated road route exceeds the available daily window.',
+          message:
+            'The validated road route exceeds the available daily window.',
         });
       }
     }
@@ -406,10 +407,12 @@ export function validateFinalCollaborativeItinerary({
     selectedCount: selected.length,
     scheduledCount,
     overflowCount,
-    routeStatus:
-      schedule.routeValidation?.status ?? 'local_haversine',
+    routeStatus: schedule.routeValidation?.status ?? 'local_haversine',
   };
 }
+
+export const validateFinalCollaborativeItinerary =
+  validateFinalPlanningItinerary;
 
 export async function persistIfFinalFeasible<Value>(
   validation: FinalFeasibilityResult,

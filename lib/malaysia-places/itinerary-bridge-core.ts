@@ -85,7 +85,7 @@ function conciseReason(
   const reason = Array.from(new Set(parts)).join(' ');
   return (
     reason ||
-    'Selected by the group and placed in the deterministic trip schedule.'
+    'Selected for the group and placed in the deterministic trip schedule.'
   ).slice(0, 320);
 }
 
@@ -127,6 +127,7 @@ export function createScheduleFingerprint(
         totalMembers: place.totalMembers,
         recommendationScore: place.score,
         groupScore: place.groupScore,
+        selectionPriority: place.selectionPriority ?? null,
       }))
       .sort((a, b) => a.id.localeCompare(b.id)),
     schedule: schedule.days.map((day) => ({
