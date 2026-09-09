@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
+  ArrowLeft,
   ArrowRight,
   Check,
   Clock3,
@@ -390,6 +391,18 @@ export function TripRoom({ tripId }: { tripId: string }) {
                 })}
               >
                 Open Live Trip
+              </Link>
+              <Link
+                href="/"
+                className={buttonVariants({
+                  variant: 'ghost',
+                  size: 'lg',
+                  className:
+                    'h-12 px-5 text-warm-muted hover:bg-parchment hover:text-ink',
+                })}
+              >
+                <ArrowLeft aria-hidden="true" />
+                Back to welcome
               </Link>
             </div>
           </section>
