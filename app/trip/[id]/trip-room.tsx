@@ -98,15 +98,17 @@ export function TripRoom({ tripId }: { tripId: string }) {
         if (statusResult.error) throw statusResult.error;
         if (profileResult.error) throw profileResult.error;
 
-        if (tripResult.data.finalized_at) {
-          router.replace(`/trip/${tripId}/plan`);
-          return;
-        }
-        if (tripResult.data.setup_stage === 'places') {
+        if (
+          !tripResult.data.finalized_at &&
+          tripResult.data.setup_stage === 'places'
+        ) {
           router.replace(`/trip/${tripId}/places`);
           return;
         }
-        if (tripResult.data.setup_stage === 'ai_ready') {
+        if (
+          !tripResult.data.finalized_at &&
+          tripResult.data.setup_stage === 'ai_ready'
+        ) {
           router.replace(`/trip/${tripId}/itinerary?step=result`);
           return;
         }
@@ -157,7 +159,7 @@ export function TripRoom({ tripId }: { tripId: string }) {
             setup_stage?: string;
           };
           if (next.finalized_at) {
-            router.replace(`/trip/${tripId}/plan`);
+            scheduleReload();
           } else if (next.setup_stage === 'places') {
             router.replace(`/trip/${tripId}/places`);
           } else if (next.setup_stage === 'ai_ready') {
