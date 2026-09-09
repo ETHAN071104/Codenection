@@ -253,24 +253,27 @@ function EditorialBasemapStyle() {
       const { id, type } = layer;
 
       if (id === 'background') {
-        setPaint(id, 'background-color', '#f3f0e8');
+        setPaint(id, 'background-color', '#f5f3ed');
         continue;
       }
 
       if (type === 'fill') {
-        if (id === 'water') setPaint(id, 'fill-color', '#d9e7ea');
+        if (id === 'water') {
+          setPaint(id, 'fill-color', '#c8e5ec');
+          setPaint(id, 'fill-opacity', 0.98);
+        }
         else if (id === 'water_shadow') {
-          setPaint(id, 'fill-color', '#cfdee3');
-          setPaint(id, 'fill-opacity', 0.58);
+          setPaint(id, 'fill-color', '#b8d9e2');
+          setPaint(id, 'fill-opacity', 0.72);
         } else if (id.includes('park') || id === 'landcover') {
-          setPaint(id, 'fill-color', '#d8e5d4');
-          setPaint(id, 'fill-opacity', 0.9);
+          setPaint(id, 'fill-color', '#cfe4c4');
+          setPaint(id, 'fill-opacity', 0.96);
         } else if (id === 'landuse') {
-          setPaint(id, 'fill-color', '#e4eadc');
-          setPaint(id, 'fill-opacity', 0.74);
+          setPaint(id, 'fill-color', '#deead6');
+          setPaint(id, 'fill-opacity', 0.82);
         } else if (id === 'landuse_residential') {
           setPaint(id, 'fill-color', '#eee9e1');
-          setPaint(id, 'fill-opacity', 0.86);
+          setPaint(id, 'fill-opacity', 0.82);
         } else if (id.startsWith('building')) {
           setPaint(id, 'fill-color', id === 'building-top' ? '#eeeae3' : '#e4dfd7');
           setPaint(id, 'fill-outline-color', '#dcd5cb');
@@ -279,7 +282,7 @@ function EditorialBasemapStyle() {
 
       if (type === 'line') {
         if (id === 'waterway') {
-          setPaint(id, 'line-color', '#bfd7de');
+          setPaint(id, 'line-color', '#a9d3df');
           setPaint(id, 'line-opacity', 0.95);
         } else if (id.includes('boundary')) {
           setPaint(id, 'line-color', '#c8c0b5');
@@ -296,7 +299,7 @@ function EditorialBasemapStyle() {
           setPaint(
             id,
             'line-color',
-            isHighway ? '#d8c9ae' : isPrimary ? '#ddd3c2' : '#eeeae3',
+            isHighway ? '#e1cfa8' : isPrimary ? '#e4dac4' : '#f0ece5',
           );
           setPaint(id, 'line-opacity', 0.96);
         } else if (id.includes('path')) {
@@ -472,7 +475,7 @@ function MapCanvas({
                     ? 'scale-125'
                     : 'hover:scale-110',
                 )}
-                style={{ backgroundColor: routeColorForDay(item.day) }}
+                style={{ backgroundColor: '#724a2d' }}
               >
                 {index + 1}
               </button>
@@ -502,7 +505,38 @@ function MapCanvas({
   );
 }
 
+function PlaceThumbnail({
+  tripId,
+  item,
+}: {
+  tripId: string;
+  item: ItineraryItemView;
+}) {
+  const [failed, setFailed] = useState(false);
+  const photoName = item.place.photo?.name ?? null;
+  const googlePlaceId = item.place.externalPlaceId;
+
+  if (failed || (!photoName && !googlePlaceId)) return null;
+
+  const search = new URLSearchParams();
+  if (photoName) search.set('name', photoName);
+  if (googlePlaceId) search.set('googlePlaceId', googlePlaceId);
+
+  return (
+    <span className="relative hidden h-[76px] w-[86px] shrink-0 overflow-hidden rounded-[0.65rem] border border-white/70 bg-white/35 shadow-[0_6px_18px_rgb(61_48_35/12%)] sm:block">
+      <img
+        src={`/api/trips/${encodeURIComponent(tripId)}/place-photo?${search.toString()}`}
+        alt=""
+        loading="lazy"
+        onError={() => setFailed(true)}
+        className="h-full w-full object-cover"
+      />
+    </span>
+  );
+}
+
 function ItineraryCard({
+  tripId,
   item,
   index,
   selected,
@@ -512,6 +546,7 @@ function ItineraryCard({
   removeAction,
   weather,
 }: {
+  tripId: string;
   item: ItineraryItemView;
   index: number;
   selected: boolean;
@@ -524,10 +559,10 @@ function ItineraryCard({
   return (
     <div
       className={cn(
-        'group flex border-b border-warm-border/80 bg-white transition-colors',
+        'group relative flex border-b border-warm-border/50 bg-transparent transition-colors before:pointer-events-none before:absolute before:bottom-0 before:left-[50px] before:top-0 before:border-l before:border-dashed before:border-[#8b684b]/24',
         selected
-          ? 'shadow-[inset_3px_0_0_#8c6b51] bg-[#fbf7f0]'
-          : 'hover:bg-[#fcfaf6]',
+          ? 'bg-white/42 shadow-[inset_3px_0_0_#755138]'
+          : 'hover:bg-white/30',
       )}
     >
       {dragHandle}
@@ -540,7 +575,7 @@ function ItineraryCard({
         aria-label={`${index + 1}. ${item.place.name}, ${item.plannedTime}`}
       >
         <span className="flex items-start gap-3">
-          <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-ink text-[0.65rem] font-semibold text-paper">
+          <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border border-[#fff8eb] bg-[#724a2d] text-[0.67rem] font-semibold text-[#fffaf1] shadow-[0_4px_12px_rgb(73_48_30/20%)]">
             {index + 1}
           </span>
           <span className="min-w-0 flex-1">
@@ -570,6 +605,7 @@ function ItineraryCard({
               )}
             </span>
           </span>
+          <PlaceThumbnail tripId={tripId} item={item} />
         </span>
       </button>
       {removeAction}
@@ -578,6 +614,7 @@ function ItineraryCard({
 }
 
 function SortableItineraryCard({
+  tripId,
   item,
   index,
   selected,
@@ -589,6 +626,7 @@ function SortableItineraryCard({
   onRemove,
   weather,
 }: {
+  tripId: string;
   item: ItineraryItemView;
   index: number;
   selected: boolean;
@@ -622,6 +660,7 @@ function SortableItineraryCard({
       )}
     >
       <ItineraryCard
+        tripId={tripId}
         item={item}
         index={index}
         selected={selected}
@@ -669,7 +708,7 @@ function TravelSegment({ segment }: { segment: RouteSegment | null }) {
   if (!segment) return null;
 
   return (
-    <div className="flex items-center gap-3 border-b border-warm-border/80 bg-parchment/55 px-10 py-2 text-[0.68rem] text-warm-muted">
+    <div className="flex items-center gap-3 border-b border-warm-border/60 bg-white/16 px-10 py-2 text-[0.68rem] text-warm-muted">
       <span className="h-5 w-px bg-warm-border" aria-hidden="true" />
       <span>
         {formatRouteDuration(segment.durationSeconds)} ·{' '}
@@ -680,11 +719,13 @@ function TravelSegment({ segment }: { segment: RouteSegment | null }) {
 }
 
 function AllDaysItinerary({
+  tripId,
   days,
   selectedItemId,
   onSelect,
   cardRefs,
 }: {
+  tripId: string;
   days: NonNullable<ItineraryPageData['itinerary']>['days'];
   selectedItemId: string | null;
   onSelect: (itemId: string) => void;
@@ -694,7 +735,7 @@ function AllDaysItinerary({
     <div role="tabpanel" aria-label="Full itinerary across all days">
       {days.map((day) => (
         <section key={day.day} aria-labelledby={`all-day-${day.day}`}>
-          <div className="flex items-center gap-3 border-b border-warm-border bg-[#fcfaf6] px-5 py-3 sm:px-6">
+          <div className="flex items-center gap-3 border-b border-warm-border/65 bg-white/24 px-5 py-3 sm:px-6">
             <span
               className="size-2.5 rounded-full"
               style={{ backgroundColor: routeColorForDay(day.day) }}
@@ -715,9 +756,9 @@ function AllDaysItinerary({
               <li
                 key={item.id}
                 className={cn(
-                  'border-b border-warm-border/80 bg-white',
+                  'border-b border-warm-border/65 bg-transparent',
                   selectedItemId === item.id &&
-                    'bg-[#fbf7f0] shadow-[inset_3px_0_0_#8c6b51]',
+                    'bg-white/42 shadow-[inset_3px_0_0_#755138]',
                 )}
               >
                 <button
@@ -731,8 +772,8 @@ function AllDaysItinerary({
                   aria-pressed={selectedItemId === item.id}
                 >
                   <span
-                    className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-[0.65rem] font-semibold text-paper"
-                    style={{ backgroundColor: routeColorForDay(day.day) }}
+                    className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border border-[#fff8eb] text-[0.67rem] font-semibold text-paper shadow-[0_4px_12px_rgb(73_48_30/18%)]"
+                    style={{ backgroundColor: '#724a2d' }}
                   >
                     {index + 1}
                   </span>
@@ -747,6 +788,7 @@ function AllDaysItinerary({
                       {formatDuration(item.estimatedDurationMinutes)}
                     </span>
                   </span>
+                  <PlaceThumbnail tripId={tripId} item={item} />
                 </button>
               </li>
             ))}
@@ -1275,8 +1317,8 @@ export function MapPlanner({ tripId }: { tripId: string }) {
   }
 
   return (
-    <main className="min-h-[100dvh] bg-parchment text-ink lg:h-[100dvh] lg:overflow-hidden">
-      <header className="grid min-h-16 grid-cols-[1fr_auto_1fr] items-center border-b border-warm-border bg-white px-4 sm:px-6">
+    <main className="relative isolate min-h-[100dvh] overflow-hidden bg-parchment text-ink lg:h-[100dvh]">
+      <header className="absolute inset-x-0 top-0 z-30 grid min-h-16 grid-cols-[1fr_auto_1fr] items-center rounded-b-[2rem] border-b border-white/55 bg-[#f8f4ed]/68 px-5 shadow-[0_10px_30px_rgb(62_50_38/8%)] backdrop-blur-[20px] sm:px-8">
         <Link
           href={`/trip/${tripId}`}
           className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-ink transition-colors hover:text-brown-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/35 focus-visible:ring-offset-4 focus-visible:ring-offset-white"
@@ -1289,16 +1331,17 @@ export function MapPlanner({ tripId }: { tripId: string }) {
         </div>
         <Link
           href={`/trip/${tripId}/itinerary?step=result`}
-          className="justify-self-end text-xs font-semibold text-warm-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
+          className="inline-flex items-center gap-2 justify-self-end text-xs font-semibold text-ink underline-offset-4 transition-colors hover:text-brown-accent hover:underline"
         >
           Full itinerary
+          <ArrowRight className="size-4" aria-hidden="true" />
         </Link>
       </header>
 
-      <div className="lg:grid lg:h-[calc(100dvh-4rem)] lg:grid-cols-[minmax(0,7fr)_minmax(340px,3fr)]">
+      <div className="h-[100dvh]">
         <section
           aria-label={`${data.itinerary.destination} map`}
-          className="relative h-[48dvh] min-h-[360px] overflow-hidden bg-warm-border lg:h-full lg:min-h-0"
+          className="absolute inset-0 z-0 min-h-[360px] overflow-hidden bg-warm-border"
         >
           <MapCanvas
             items={visibleItems}
@@ -1310,8 +1353,8 @@ export function MapPlanner({ tripId }: { tripId: string }) {
           />
         </section>
 
-        <aside className="relative z-10 -mt-5 flex min-h-[52dvh] flex-col overflow-hidden rounded-t-[1.75rem] border border-warm-border bg-white shadow-editorial lg:mt-0 lg:h-full lg:min-h-0 lg:rounded-none lg:border-y-0 lg:border-r-0 lg:shadow-none">
-          <div className="border-b border-warm-border px-5 pb-5 pt-6 sm:px-6 lg:pt-7">
+        <aside className="absolute inset-x-3 bottom-3 top-[4.75rem] z-20 flex min-h-0 flex-col overflow-hidden rounded-[1.5rem] border border-white/55 bg-[#f8f4ed]/78 shadow-[0_24px_70px_rgb(54_42_31/20%)] backdrop-blur-[24px] sm:inset-x-auto sm:right-4 sm:top-[5.25rem] sm:w-[min(500px,calc(100vw-2rem))] lg:bottom-5 lg:right-5 lg:top-[5.5rem] lg:w-[clamp(390px,32vw,500px)]">
+          <div className="border-b border-warm-border/65 px-5 pb-4 pt-5 sm:px-6">
             <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-brown-accent">
               Your itinerary
             </p>
@@ -1337,7 +1380,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 border-b border-warm-border px-5 py-3 sm:px-6">
+          <div className="flex items-center gap-3 border-b border-warm-border/65 px-5 py-3 sm:px-6">
             <div
               className="flex min-w-0 flex-1 gap-2 overflow-x-auto"
               role="tablist"
@@ -1380,7 +1423,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                     'h-8 shrink-0 rounded-full border px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/45 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
                     active
                       ? 'border-ink bg-ink text-paper'
-                      : 'border-warm-border bg-parchment text-warm-muted hover:border-brown-accent/45 hover:text-ink',
+                      : 'border-warm-border/80 bg-white/28 text-warm-muted hover:border-brown-accent/45 hover:text-ink',
                   )}
                 >
                   <span
@@ -1407,7 +1450,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                 'inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brown-accent/40 disabled:cursor-not-allowed disabled:opacity-45',
                 aiEditOpen
                   ? 'border-ink bg-ink text-paper'
-                  : 'border-warm-border bg-white text-ink hover:bg-parchment',
+                  : 'border-warm-border/80 bg-white/40 text-ink hover:bg-white/65',
               )}
             >
               <Bot className="size-3.5" aria-hidden="true" />
@@ -1426,7 +1469,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
             />
           )}
 
-          <div className="border-b border-warm-border bg-[#fcfaf6] px-5 py-3 sm:px-6">
+          <div className="border-b border-warm-border/65 bg-white/22 px-5 py-3 sm:px-6">
             <div className="flex items-center gap-2 text-xs text-warm-muted">
               <Route
                 className="size-3.5 shrink-0 text-brown-accent"
@@ -1544,6 +1587,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {isAllDays ? (
               <AllDaysItinerary
+                tripId={tripId}
                 days={days}
                 selectedItemId={selectedItemId}
                 onSelect={selectItem}
@@ -1563,7 +1607,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                   {(activeEndpoints.arrival ||
                     (activeDay.day === days[0]?.day &&
                       data.trip.arrivalTime)) && (
-                    <div className="border-b border-warm-border bg-[#fcfaf6] px-5 py-4 sm:px-6">
+                    <div className="border-b border-warm-border/65 bg-white/20 px-5 py-4 sm:px-6">
                       <div className="flex items-start gap-3">
                         <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brown-accent text-paper">
                           <PlaneLanding className="size-4" aria-hidden="true" />
@@ -1598,6 +1642,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                     return (
                       <SortableItineraryCard
                         key={item.id}
+                        tripId={tripId}
                         item={item}
                         index={index}
                         selected={item.id === selectedItemId}
@@ -1617,7 +1662,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                   {(activeEndpoints.departure ||
                     (activeDay.day === days.at(-1)?.day &&
                       data.trip.departureTime)) && (
-                    <div className="bg-[#fcfaf6]">
+                    <div className="bg-white/20">
                       <TravelSegment
                         segment={
                           activeDay.items.at(-1)
@@ -1650,7 +1695,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
             )}
 
             {!planningLocked && !isAllDays && (
-              <div className="border-b border-warm-border bg-[#fcfaf6] p-4 sm:px-5">
+              <div className="border-b border-warm-border/65 bg-white/20 p-4 sm:px-5">
                 <button
                   type="button"
                   disabled={isSaving}
@@ -1663,7 +1708,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                     'inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brown-accent/40 disabled:opacity-45',
                     addPlaceOpen
                       ? 'border-ink bg-ink text-paper'
-                      : 'border-warm-border bg-white text-warm-muted hover:text-ink',
+                      : 'border-warm-border/80 bg-white/40 text-warm-muted hover:bg-white/65 hover:text-ink',
                   )}
                 >
                   <Plus className="size-3.5" aria-hidden="true" />
@@ -1683,10 +1728,10 @@ export function MapPlanner({ tripId }: { tripId: string }) {
             )}
           </div>
 
-          <div className="border-t border-warm-border bg-white p-4 sm:px-5">
+          <div className="border-t border-warm-border/65 bg-[#f8f4ed]/72 p-4 backdrop-blur-xl sm:px-5">
             <Link
               href={`/trip/${tripId}/live`}
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink px-5 text-sm font-semibold text-paper shadow-sm transition-colors hover:bg-ink/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/45 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+              className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-xl bg-[#28231d] px-5 font-editorial text-base font-semibold text-paper shadow-[0_9px_24px_rgb(38_30_23/22%)] transition-colors hover:bg-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/45 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f8f4ed]"
             >
               Start Live Trip
               <ArrowRight className="size-4" aria-hidden="true" />
