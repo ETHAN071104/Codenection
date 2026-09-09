@@ -17,6 +17,7 @@ import {
   LoaderCircle,
   Route,
   RotateCcw,
+  Sparkles,
   Star,
   Utensils,
   X,
@@ -168,6 +169,7 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
   const [mapPlanError, setMapPlanError] = useState<string | null>(null);
   const [replacementWarning, setReplacementWarning] = useState(false);
   const [completionSaving, setCompletionSaving] = useState(false);
+  const [planningWithAi, setPlanningWithAi] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(
@@ -238,7 +240,23 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
               table: 'trip_place_votes',
               filter: `trip_id=eq.${tripId}`,
             },
-            () => {
+            (payload) => {
+              const next = payload.new as {
+                finalized_at?: string | null;
+                planning_mode?: string | null;
+                setup_stage?: string;
+              };
+              if (next.finalized_at) {
+                router.replace(`/trip/${tripId}/plan`);
+                return;
+              }
+              if (
+                next.planning_mode === 'ai' &&
+                next.setup_stage === 'ai_ready'
+              ) {
+                router.replace(`/trip/${tripId}/itinerary?step=result`);
+                return;
+              }
               if (refreshTimer.current) clearTimeout(refreshTimer.current);
               refreshTimer.current = setTimeout(() => void load(false), 120);
             },
@@ -357,6 +375,32 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
       );
     } finally {
       setCompletionSaving(false);
+    }
+  }
+
+  async function planAllWithAi() {
+    if (!data?.isHost || planningWithAi) return;
+    setPlanningWithAi(true);
+    setError(null);
+    try {
+      await phase2Fetch(`/api/trips/${tripId}/setup`, {
+        method: 'PATCH',
+        body: JSON.stringify({ planningMode: 'ai' }),
+      });
+      await phase2Fetch(`/api/trips/${tripId}/itinerary`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      await phase2Fetch(`/api/trips/${tripId}/finalize`, { method: 'POST' });
+      router.push(`/trip/${tripId}/plan`);
+    } catch (planningError) {
+      setErrorKind('mutation');
+      setError(
+        planningError instanceof Error
+          ? planningError.message
+          : 'We could not arrange the matched places.',
+      );
+      setPlanningWithAi(false);
     }
   }
 
@@ -480,7 +524,7 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
                     'h-11 rounded-xl px-5 text-warm-muted hover:bg-parchment hover:text-ink',
                 })}
               >
-                Plan it for me with AI
+                Back to trip setup
               </Link>
             </>
           }
@@ -539,7 +583,7 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
                   href={`/trip/${tripId}/itinerary?step=mode`}
                   className="inline-flex h-12 items-center justify-center rounded-xl px-6 text-sm font-semibold text-warm-muted hover:bg-parchment hover:text-ink"
                 >
-                  Plan it for me with AI
+                  Back to trip setup
                 </Link>
               )}
             </>
@@ -701,6 +745,9 @@ export function CandidatePlaces({ tripId }: { tripId: string }) {
       onKeep={async () => {
         if (await toggle(activePlace)) advance();
       }}
+      onPlanWithAi={() => void planAllWithAi()}
+      planningWithAi={planningWithAi}
+      canPlanWithAi={data.isHost}
     />
   );
 }
@@ -768,6 +815,9 @@ function PlaceEditorialScreen({
   onDone,
   onSkip,
   onKeep,
+  onPlanWithAi,
+  planningWithAi,
+  canPlanWithAi,
 }: {
   tripId: string;
   place: RankedCandidate;
@@ -782,6 +832,9 @@ function PlaceEditorialScreen({
   onDone: () => void;
   onSkip: () => void;
   onKeep: () => void;
+  onPlanWithAi: () => void;
+  planningWithAi: boolean;
+  canPlanWithAi: boolean;
 }) {
   const photoName = place.photoName;
   const hasPhoto = hasUsablePlacePhoto({ photoName });
@@ -1034,10 +1087,11 @@ function PlaceEditorialScreen({
           </aside>
         </section>
 
-        <footer className="sticky bottom-0 z-20 -mx-5 mt-6 grid grid-cols-2 gap-2 border-t border-white/15 bg-black/45 p-3 backdrop-blur-md sm:-mx-8 sm:px-8 md:absolute md:bottom-6 md:left-1/2 md:mx-0 md:mt-0 md:w-[min(42rem,48vw)] md:-translate-x-1/2 md:rounded-[1.6rem] md:border md:border-white/30 md:bg-white/30 md:p-2 md:shadow-2xl">
+        <footer className="sticky bottom-0 z-20 -mx-5 mt-6 grid grid-cols-2 gap-2 border-t border-white/15 bg-black/45 p-3 backdrop-blur-md sm:-mx-8 sm:px-8 md:absolute md:bottom-6 md:left-1/2 md:mx-0 md:mt-0 md:w-[min(54rem,62vw)] md:-translate-x-1/2 md:grid-cols-3 md:rounded-[1.6rem] md:border md:border-white/30 md:bg-white/30 md:p-2 md:shadow-2xl">
           <button
             type="button"
             onClick={onSkip}
+            disabled={planningWithAi}
             className="inline-flex h-12 items-center justify-center gap-2 rounded-[1.1rem] bg-white/78 px-5 text-sm font-medium text-[#242424] transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
           >
             <X className="size-4" aria-hidden="true" />
@@ -1046,7 +1100,7 @@ function PlaceEditorialScreen({
           <button
             type="button"
             aria-pressed={place.currentUserSelected}
-            disabled={pending}
+            disabled={pending || planningWithAi}
             onClick={onKeep}
             className="inline-flex h-12 items-center justify-center gap-2 rounded-[1.1rem] bg-white px-5 text-sm font-semibold text-[#20211f] transition-colors hover:bg-[#f4f1ea] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-wait disabled:opacity-65"
           >
@@ -1061,6 +1115,20 @@ function PlaceEditorialScreen({
               <Heart className="size-4" aria-hidden="true" />
             )}
             {place.currentUserSelected ? 'Kept' : 'Keep'}
+          </button>
+          <button
+            type="button"
+            onClick={onPlanWithAi}
+            disabled={!canPlanWithAi || planningWithAi || pending}
+            title={canPlanWithAi ? undefined : 'The trip host can start AI planning'}
+            className="col-span-2 inline-flex h-12 items-center justify-center gap-2 rounded-[1.1rem] bg-[#24201c] px-5 text-sm font-semibold text-[#fffdf9] transition-colors hover:bg-[#332d27] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-55 md:col-span-1"
+          >
+            {planningWithAi ? (
+              <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Sparkles className="size-4" aria-hidden="true" />
+            )}
+            {planningWithAi ? 'Arranging places' : 'Plan with AI'}
           </button>
         </footer>
       </div>

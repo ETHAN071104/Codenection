@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -60,12 +61,54 @@ const PACE_SHORT_LABELS = {
 } as const;
 
 const INTEREST_RATING_LABELS = {
-  1: 'Low priority',
-  2: 'A little interest',
+  1: 'Boring',
+  2: 'Slightly interested',
   3: 'Interested',
-  4: 'Important',
-  5: 'Top priority',
+  4: 'Very interested',
+  5: 'Must-do',
 } as const;
+
+type InterestPhoto = {
+  photoName: string;
+  placeName: string;
+  attribution: string | null;
+};
+
+type InterestPhotoRow = {
+  name: string;
+  category: string | null;
+  subcategories: string[];
+  photo_name: string | null;
+  photo_attributions: unknown;
+  culture_score: number | null;
+  food_score: number | null;
+  nature_score: number | null;
+  photography_score: number | null;
+};
+
+const INTEREST_PHOTO_TERMS: Record<InterestKey, RegExp> = {
+  food_dining: /food|dining|restaurant|market|hawker/i,
+  history_heritage: /heritage|history|historic|museum|culture|temple/i,
+  nature_viewpoints: /nature|park|garden|view|beach|island|hill/i,
+  instagrammable_cafes: /cafe|coffee|bakery|dessert/i,
+};
+
+function photoAttribution(value: unknown) {
+  if (!Array.isArray(value)) return null;
+  const first = value.find(
+    (item) =>
+      item &&
+      typeof item === 'object' &&
+      'displayName' in item &&
+      typeof item.displayName === 'string',
+  );
+  return first &&
+    typeof first === 'object' &&
+    'displayName' in first &&
+    typeof first.displayName === 'string'
+    ? first.displayName
+    : null;
+}
 
 export function QuestionnaireWizard({ tripId }: { tripId: string }) {
   const router = useRouter();
@@ -84,7 +127,11 @@ export function QuestionnaireWizard({ tripId }: { tripId: string }) {
   const [hasSavedPreferences, setHasSavedPreferences] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [realtimeStatus, setRealtimeStatus] = useState('CONNECTING');
+  const [interestPhotos, setInterestPhotos] = useState<
+    Partial<Record<InterestKey, InterestPhoto>>
+  >({});
   const readinessChannelRef = useRef<RealtimeChannel | null>(null);
+  const interestPhotosLoadedRef = useRef(false);
 
   const customBudgetValue = useMemo(
     () => parseCustomBudget(customBudget),
@@ -98,6 +145,69 @@ export function QuestionnaireWizard({ tripId }: { tripId: string }) {
     ({ key }) => interests[key] < 1 || interests[key] > 5,
   );
   const firstIncompleteInterest = unratedInterests[0]?.key;
+
+  useEffect(() => {
+    if (step !== 3 || interestPhotosLoadedRef.current) return;
+    interestPhotosLoadedRef.current = true;
+    let cancelled = false;
+
+    async function loadInterestPhotos() {
+      await ensureAnonymousUser();
+      const supabase = getSupabaseBrowserClient();
+      const { data } = await supabase
+        .from('malaysia_places')
+        .select(
+          'name,category,subcategories,photo_name,photo_attributions,culture_score,food_score,nature_score,photography_score',
+        )
+        .not('photo_name', 'is', null)
+        .limit(120);
+      if (cancelled || !data?.length) return;
+
+      const rows = data as InterestPhotoRow[];
+      const usedPhotos = new Set<string>();
+      const next: Partial<Record<InterestKey, InterestPhoto>> = {};
+      const scoreKey: Record<
+        InterestKey,
+        keyof Pick<
+          InterestPhotoRow,
+          'food_score' | 'culture_score' | 'nature_score' | 'photography_score'
+        >
+      > = {
+        food_dining: 'food_score',
+        history_heritage: 'culture_score',
+        nature_viewpoints: 'nature_score',
+        instagrammable_cafes: 'photography_score',
+      };
+
+      for (const { key } of INTERESTS) {
+        const available = rows.filter(
+          (row) => Boolean(row.photo_name) && !usedPhotos.has(row.photo_name!),
+        );
+        const matching = available.filter((row) =>
+          INTEREST_PHOTO_TERMS[key].test(
+            `${row.name} ${row.category ?? ''} ${(row.subcategories ?? []).join(' ')}`,
+          ),
+        );
+        const chosen = [...(matching.length ? matching : available)].sort(
+          (a, b) =>
+            Number(b[scoreKey[key]] ?? 0) - Number(a[scoreKey[key]] ?? 0),
+        )[0];
+        if (!chosen?.photo_name) continue;
+        usedPhotos.add(chosen.photo_name);
+        next[key] = {
+          photoName: chosen.photo_name,
+          placeName: chosen.name,
+          attribution: photoAttribution(chosen.photo_attributions),
+        };
+      }
+      if (!cancelled) setInterestPhotos(next);
+    }
+
+    void loadInterestPhotos();
+    return () => {
+      cancelled = true;
+    };
+  }, [step]);
 
   const loadStatus = useCallback(async () => {
     const supabase = getSupabaseBrowserClient();
@@ -717,77 +827,143 @@ export function QuestionnaireWizard({ tripId }: { tripId: string }) {
               <h1 className="mt-3 max-w-3xl text-balance font-editorial text-4xl font-semibold tracking-[-0.05em] sm:text-5xl lg:text-6xl">
                 What draws you into a city?
               </h1>
-              <p className="mt-4 max-w-xl leading-7 text-warm-muted">
-                Rate every category from one to five stars.
+              <p className="mt-3 max-w-xl leading-7 text-warm-muted">
+                Rate how much each experience belongs in your trip.
               </p>
 
-              <div className="mt-8 grid gap-3 sm:grid-cols-2">
-                {INTERESTS.map(({ key, label }) => (
-                  <fieldset
-                    key={key}
-                    aria-invalid={interests[key] === 0}
-                    className={`min-w-0 rounded-xl border p-5 transition-colors sm:p-6 ${
-                      interests[key] === 0
-                        ? key === firstIncompleteInterest
-                          ? 'border-brown-accent bg-parchment'
-                          : 'border-warm-border bg-parchment/55'
-                        : 'border-warm-border bg-paper'
-                    }`}
-                  >
-                    <legend className="px-1 font-editorial text-lg font-semibold tracking-[-0.02em]">
-                      {label}
-                    </legend>
-                    <div
-                      className="mt-4 flex items-center gap-1"
-                      role="radiogroup"
-                    >
-                      {[1, 2, 3, 4, 5].map((rating) => (
-                        <label
-                          key={rating}
-                          className={`flex size-11 cursor-pointer items-center justify-center rounded-full outline-none transition-all hover:-translate-y-0.5 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brown-accent/45 has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-paper ${
-                            rating === interests[key]
-                              ? 'bg-ink text-paper shadow-sm'
-                              : rating < interests[key]
-                                ? 'bg-brown-accent/10 text-brown-accent'
-                                : 'text-warm-muted/45 hover:bg-parchment hover:text-brown-accent'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name={`interest-${key}`}
-                            value={rating}
-                            checked={interests[key] === rating}
-                            onChange={() => updateInterest(key, rating)}
-                            className="sr-only"
-                          />
-                          <Star
-                            className="size-6 sm:size-7"
-                            fill={
-                              rating <= interests[key] ? 'currentColor' : 'none'
-                            }
-                            aria-hidden="true"
-                          />
-                          <span className="sr-only">
-                            {rating} {rating === 1 ? 'star' : 'stars'}
-                          </span>
-                        </label>
-                      ))}
+              <div className="mt-6 rounded-xl border border-warm-border bg-parchment/70 px-4 py-4 sm:px-5">
+                <p className="text-[0.68rem] font-semibold tracking-[0.16em] text-brown-accent">
+                  INTEREST LEVEL · 1–5 STARS
+                </p>
+ 
+                <div className="mt-3 grid grid-cols-5 gap-2">
+                  {([1, 2, 3, 4, 5] as const).map((rating) => (
+                    <div key={rating} className="min-w-0 text-center">
+                      <span className="inline-flex items-center gap-1 text-sm font-semibold text-ink">
+                        {rating}
+                        <Star className="size-3.5 fill-brown-accent text-brown-accent" aria-hidden="true" />
+                      </span>
+                      <span className="mt-1 block text-[0.62rem] leading-4 text-warm-muted sm:text-xs">
+                        {INTEREST_RATING_LABELS[rating]}
+                      </span>
                     </div>
-                    <p
-                      className={`mt-3 text-sm ${
-                        interests[key] > 0
-                          ? 'font-medium text-brown-accent'
-                          : 'text-warm-muted'
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                {INTERESTS.map(({ key, label }) => {
+                  const photo = interestPhotos[key];
+                  return (
+                    <fieldset
+                      key={key}
+                      aria-invalid={interests[key] === 0}
+                      className={`min-w-0 overflow-hidden rounded-2xl border bg-paper shadow-[0_16px_36px_rgb(65_48_31/8%)] transition-colors ${
+                        interests[key] === 0 && key === firstIncompleteInterest
+                          ? 'border-brown-accent'
+                          : 'border-warm-border'
                       }`}
                     >
-                      {interests[key] > 0
-                        ? `${interests[key]} of 5 · ${INTEREST_RATING_LABELS[interests[key] as keyof typeof INTEREST_RATING_LABELS]}`
-                        : key === firstIncompleteInterest
-                          ? 'Choose 1–5 stars to continue'
-                          : 'Not rated yet'}
-                    </p>
-                  </fieldset>
-                ))}
+                      <legend className="sr-only">{label}</legend>
+                      <div className="relative h-36 overflow-hidden bg-parchment sm:h-40">
+                        {photo ? (
+                          <Image
+                            src={`/api/trips/${tripId}/place-photo?name=${encodeURIComponent(photo.photoName)}`}
+                            alt={photo.placeName}
+                            fill
+                            sizes="(max-width: 640px) 100vw, 50vw"
+                            unoptimized
+                            className="object-cover transition-transform duration-500 hover:scale-[1.02] motion-reduce:transition-none"
+                          />
+                        ) : (
+                          <div
+                            className="h-full w-full animate-pulse bg-warm-border/55 motion-reduce:animate-none"
+                            aria-hidden="true"
+                          />
+                        )}
+                        <div
+                          aria-hidden="true"
+                          className="absolute inset-0 bg-gradient-to-t from-black/78 via-black/10 to-transparent"
+                        />
+                        <div className="absolute inset-x-0 bottom-0 p-4 text-white">
+                          <h2 className="font-editorial text-2xl font-semibold tracking-[-0.035em]">
+                            {label}
+                          </h2>
+                          {photo && (
+                            <p className="mt-1 truncate text-[0.66rem] text-white/72">
+                              {photo.placeName}
+                              {photo.attribution
+                                ? ` · Photo by ${photo.attribution}`
+                                : ''}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="p-4">
+                        <div
+                          className="flex items-center justify-between gap-1"
+                          role="radiogroup"
+                          aria-label={`${label} interest level`}
+                        >
+                          {[1, 2, 3, 4, 5].map((rating) => (
+                            <label
+                              key={rating}
+                              className={`flex size-10 cursor-pointer items-center justify-center rounded-lg outline-none transition-all active:scale-[0.98] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brown-accent/45 has-[:focus-visible]:ring-offset-2 ${
+                                rating <= interests[key]
+                                  ? 'bg-brown-accent/12 text-brown-accent'
+                                  : 'text-warm-muted/35 hover:bg-parchment hover:text-brown-accent'
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name={`interest-${key}`}
+                                value={rating}
+                                checked={interests[key] === rating}
+                                onChange={() => updateInterest(key, rating)}
+                                className="sr-only"
+                              />
+                              <Star
+                                className="size-6"
+                                fill={
+                                  rating <= interests[key]
+                                    ? 'currentColor'
+                                    : 'none'
+                                }
+                                aria-hidden="true"
+                              />
+                              <span className="sr-only">
+                                {rating} {rating === 1 ? 'star' : 'stars'} ·{' '}
+                                {
+                                  INTEREST_RATING_LABELS[
+                                    rating as keyof typeof INTEREST_RATING_LABELS
+                                  ]
+                                }
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                        <p
+                          className={`mt-3 text-sm ${
+                            interests[key] > 0
+                              ? 'font-semibold text-brown-accent'
+                              : 'text-warm-muted'
+                          }`}
+                        >
+                          {interests[key] > 0
+                            ? INTEREST_RATING_LABELS[
+                                interests[
+                                  key
+                                ] as keyof typeof INTEREST_RATING_LABELS
+                              ]
+                            : key === firstIncompleteInterest
+                              ? 'Choose an interest level'
+                              : 'Not rated'}
+                        </p>
+                      </div>
+                    </fieldset>
+                  );
+                })}
               </div>
 
               {!allInterestsRated && (

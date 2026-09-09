@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -10,8 +11,10 @@ import {
   Clock3,
   LoaderCircle,
   MapPin,
+  Plane,
   Sparkles,
   Star,
+  UsersRound,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +34,7 @@ import type {
   DestinationSuggestion,
   ExplorationPreference,
   ItineraryPageData,
+  ItineraryItemView,
   ItineraryView,
 } from '@/lib/phase2/types';
 import {
@@ -51,7 +55,6 @@ type PendingAction =
   | 'accept'
   | 'scope'
   | 'mode'
-  | 'generate'
   | 'finalize'
   | null;
 
@@ -173,14 +176,16 @@ function HostSetupWaiting({
           </div>
           <div className="flex items-center justify-between gap-4 py-4">
             <dt className="text-sm font-semibold text-warm-muted">
-              Planning style
+              Place selection
             </dt>
             <dd className="inline-flex items-center gap-2 text-right font-semibold text-ink">
-              {trip.planningMode === 'collaborative'
-                ? 'Choose places together'
-                : trip.planningMode === 'ai'
-                  ? 'Plan it for me with AI'
-                  : 'Waiting…'}
+              {collaborativeReady
+                ? 'Matched places ready'
+                : trip.planningMode === 'collaborative'
+                  ? 'Preparing matched places'
+                  : trip.planningMode === 'ai'
+                    ? 'Arranging matched places'
+                    : 'Waiting…'}
               {trip.planningMode && (
                 <Check
                   className="size-4 text-brown-accent"
@@ -203,21 +208,23 @@ function HostSetupWaiting({
           />
         )}
 
-        {(collaborativeReady || aiReady) && (
+        {collaborativeReady && (
+          <SystemNotice
+            className="mt-6"
+            title="Matched places are ready"
+            description="Waiting for the trip organiser to start place selection for everyone."
+          />
+        )}
+
+        {aiReady && (
           <Link
-            href={
-              collaborativeReady
-                ? `/trip/${tripId}/places`
-                : `/trip/${tripId}/itinerary?step=result`
-            }
+            href={`/trip/${tripId}/itinerary?step=result`}
             className={buttonVariants({
               className:
                 'mt-7 h-11 rounded-xl bg-ink px-5 text-paper hover:bg-ink/90',
             })}
           >
-            {collaborativeReady
-              ? 'Continue to choose places'
-              : 'View generated plan'}
+            View generated plan
             <ArrowRight aria-hidden="true" />
           </Link>
         )}
@@ -226,7 +233,72 @@ function HostSetupWaiting({
   );
 }
 
-function ItineraryResult({ itinerary }: { itinerary: ItineraryView }) {
+function ItineraryPlacePhoto({
+  tripId,
+  item,
+  priority = false,
+}: {
+  tripId: string;
+  item: ItineraryItemView;
+  priority?: boolean;
+}) {
+  const photoName = item.place.photo?.name ?? null;
+  const photoUrl = photoName
+    ? `/api/trips/${tripId}/place-photo?name=${encodeURIComponent(photoName)}`
+    : item.place.externalPlaceId
+      ? `/api/trips/${tripId}/place-photo?placeId=${encodeURIComponent(item.place.externalPlaceId)}`
+      : null;
+  const [failed, setFailed] = useState(!photoUrl);
+  const attribution = item.place.photo?.attributions[0] ?? null;
+
+  return (
+    <div className="relative min-h-44 overflow-hidden rounded-[1rem] border border-white/70 bg-[#e5e0d7] md:min-h-full">
+      {photoUrl && !failed ? (
+        <Image
+          src={photoUrl}
+          alt={item.place.name}
+          fill
+          sizes="(min-width: 1024px) 360px, (min-width: 768px) 32vw, 100vw"
+          unoptimized
+          priority={priority}
+          className="object-cover"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <div className="flex size-full min-h-44 items-center justify-center text-[#777066]">
+          <div className="text-center">
+            <MapPin className="mx-auto size-6" aria-hidden="true" />
+            <p className="mt-2 text-xs font-medium">Place photo unavailable</p>
+          </div>
+        </div>
+      )}
+      {!failed && attribution && (
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-3 pb-2 pt-7 text-right text-[0.62rem] text-white/85">
+          {attribution.uri ? (
+            <a
+              href={attribution.uri}
+              target="_blank"
+              rel="noreferrer"
+              className="underline-offset-2 hover:underline"
+            >
+              Photo by {attribution.displayName}
+            </a>
+          ) : (
+            <span>Photo by {attribution.displayName}</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ItineraryResult({
+  tripId,
+  itinerary,
+}: {
+  tripId: string;
+  itinerary: ItineraryView;
+}) {
   const placeCount = itinerary.days.reduce(
     (total, day) => total + day.items.length,
     0,
@@ -269,17 +341,17 @@ function ItineraryResult({ itinerary }: { itinerary: ItineraryView }) {
             </div>
 
             <ol className="mt-6 space-y-3">
-              {day.items.map((item) => (
+              {day.items.map((item, itemIndex) => (
                 <li
                   key={item.id}
-                  className="grid gap-4 rounded-2xl border border-warm-border bg-paper p-5 shadow-[var(--journey-shadow)] sm:grid-cols-[90px_1fr] sm:p-6"
+                  className="grid gap-5 overflow-hidden rounded-[1.4rem] border border-warm-border/85 bg-paper/95 p-4 shadow-[0_16px_40px_rgb(67_53_38/7%)] sm:p-5 md:grid-cols-[72px_minmax(0,1fr)_minmax(260px,36%)] md:gap-6"
                 >
-                  <time className="font-semibold text-ink">
+                  <time className="font-editorial text-lg font-semibold text-ink">
                     {item.plannedTime}
                   </time>
-                  <div className="min-w-0">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <h3 className="text-xl font-semibold tracking-[-0.025em]">
+                  <div className="min-w-0 py-0.5">
+                    <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                      <h3 className="font-editorial text-xl font-semibold tracking-[-0.03em]">
                         {item.place.name}
                       </h3>
                       {item.place.rating !== null && (
@@ -294,17 +366,10 @@ function ItineraryResult({ itinerary }: { itinerary: ItineraryView }) {
                         </p>
                       )}
                     </div>
-                    {item.place.address && (
-                      <p className="mt-2 inline-flex items-start gap-2 text-sm leading-6 text-warm-muted">
-                        <MapPin
-                          className="mt-1 size-4 shrink-0"
-                          aria-hidden="true"
-                        />
-                        {item.place.address}
-                      </p>
-                    )}
-                    <p className="mt-4 leading-7 text-ink/85">{item.reason}</p>
-                    <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-warm-muted">
+                    <p className="mt-4 text-[0.95rem] leading-7 text-ink/78">
+                      {item.reason}
+                    </p>
+                    <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm text-warm-muted">
                       <span className="inline-flex items-center gap-2">
                         <Clock3 className="size-4" aria-hidden="true" />
                         {item.estimatedDurationMinutes} min estimated
@@ -316,6 +381,11 @@ function ItineraryResult({ itinerary }: { itinerary: ItineraryView }) {
                       )}
                     </div>
                   </div>
+                  <ItineraryPlacePhoto
+                    tripId={tripId}
+                    item={item}
+                    priority={day.day === 1 && itemIndex === 0}
+                  />
                 </li>
               ))}
             </ol>
@@ -352,6 +422,13 @@ export function ItineraryPlanner({
     initialStep ?? 'destination',
   );
   const [editingDestination, setEditingDestination] = useState(false);
+  const [matchedPlaceCount, setMatchedPlaceCount] = useState<number | null>(
+    null,
+  );
+  const [syncedTravellerCount, setSyncedTravellerCount] = useState<
+    number | null
+  >(null);
+  const matchedPreparationRef = useRef(false);
 
   function goToStep(step: PlanningStep, replace = false) {
     setError(null);
@@ -373,6 +450,11 @@ export function ItineraryPlanner({
         setDestinationInput(payload.trip.destinationInput ?? '');
         setExplorationPreference(payload.trip.explorationPreference);
         const requestedStep = initialStepRef.current;
+        if (!payload.trip.finalizedAt && payload.trip.setupStage === 'places') {
+          router.replace(`/trip/${tripId}/places`);
+          setScreen('ready');
+          return;
+        }
         if (payload.trip.finalizedAt) {
           if (requestedStep === 'result') {
             setPlanningStep('result');
@@ -443,6 +525,23 @@ export function ItineraryPlanner({
       if (channel) void supabase.removeChannel(channel);
     };
   }, [load, tripId]);
+
+  useEffect(() => {
+    const stage = data?.trip.setupStage;
+    if (
+      screen !== 'ready' ||
+      planningStep !== 'mode' ||
+      !data?.trip.isHost ||
+      (stage !== 'mode' &&
+        stage !== 'preparing' &&
+        stage !== 'collaborative_ready') ||
+      matchedPreparationRef.current
+    ) {
+      return;
+    }
+    matchedPreparationRef.current = true;
+    void startCollaborativePlanning();
+  }, [data?.trip.isHost, data?.trip.setupStage, planningStep, screen]);
 
   async function saveDestination(destination: string, input: string | null) {
     if (!data) return;
@@ -570,6 +669,8 @@ export function ItineraryPlanner({
   }
 
   function saveTravelBoundaries(value: {
+    startDate: string | null;
+    endDate: string | null;
     arrivalTime: string | null;
     departureTime: string | null;
     arrivalPoint: ItineraryPageData['trip']['arrivalPoint'];
@@ -588,48 +689,79 @@ export function ItineraryPlanner({
     goToStep('scope');
   }
 
-  async function generateItinerary() {
-    setPendingAction('generate');
-    setError(null);
-    try {
-      await phase2Fetch(`/api/trips/${tripId}/setup`, {
-        method: 'PATCH',
-        body: JSON.stringify({ planningMode: 'ai' }),
-      });
-      const payload = await phase2Fetch<ItineraryPageData>(
-        `/api/trips/${tripId}/itinerary`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ explorationPreference }),
-        },
-      );
-      setData(payload);
-      goToStep('result', true);
-    } catch (actionError) {
-      setError(
-        actionError instanceof Error
-          ? actionError.message
-          : 'We could not generate this itinerary.',
-      );
-    } finally {
-      setPendingAction(null);
-    }
-  }
-
   async function startCollaborativePlanning() {
+    if (!data) return;
     setPendingAction('mode');
     setError(null);
     try {
-      await phase2Fetch(`/api/trips/${tripId}/setup`, {
-        method: 'PATCH',
-        body: JSON.stringify({ planningMode: 'collaborative' }),
-      });
-      router.push(`/trip/${tripId}/places`);
+      if (data.trip.setupStage === 'mode') {
+        await phase2Fetch(`/api/trips/${tripId}/setup`, {
+          method: 'PATCH',
+          body: JSON.stringify({ planningMode: 'collaborative' }),
+        });
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                trip: {
+                  ...current.trip,
+                  planningMode: 'collaborative',
+                  setupStage: 'preparing',
+                },
+              }
+            : current,
+        );
+      }
+
+      const ready = await phase2Fetch<{
+        supported: boolean;
+        availability?: string;
+        candidates: unknown[];
+        selectionMembers: unknown[];
+      }>(`/api/trips/${tripId}/candidate-places`);
+      if (!ready.supported) {
+        throw new Error(
+          ready.availability === 'insufficient_candidates'
+            ? 'We could not prepare enough matched places for this trip.'
+            : 'Matched places are still being prepared.',
+        );
+      }
+      setMatchedPlaceCount(ready.candidates.length);
+      setSyncedTravellerCount(ready.selectionMembers.length);
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              trip: {
+                ...current.trip,
+                planningMode: 'collaborative',
+                setupStage: 'collaborative_ready',
+              },
+            }
+          : current,
+      );
+      goToStep('mode', true);
     } catch (actionError) {
       setError(
         actionError instanceof Error
           ? actionError.message
           : 'We could not start collaborative planning.',
+      );
+      setPendingAction(null);
+    }
+  }
+
+  async function openPlaceSelection() {
+    setPendingAction('mode');
+    setError(null);
+    try {
+      await phase2Fetch(`/api/trips/${tripId}/setup`, { method: 'PUT' });
+      router.push(`/trip/${tripId}/places`);
+    } catch (actionError) {
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : 'We could not open place selection.',
       );
       setPendingAction(null);
     }
@@ -704,7 +836,8 @@ export function ItineraryPlanner({
 
   if (
     !data.trip.finalizedAt &&
-    (!data.trip.isHost || data.trip.setupStage === 'preparing')
+    (data.trip.setupStage === 'preparing' ||
+      (!data.trip.isHost && data.trip.setupStage !== 'ai_ready'))
   ) {
     return <HostSetupWaiting tripId={tripId} data={data} />;
   }
@@ -713,7 +846,7 @@ export function ItineraryPlanner({
     return (
       <AtlasShell tripId={tripId} sectionLabel="TRIP ITINERARY">
         <div className="w-full py-2">
-          <ItineraryResult itinerary={data.itinerary} />
+          <ItineraryResult tripId={tripId} itinerary={data.itinerary} />
           {error && (
             <SystemNotice
               role="alert"
@@ -1032,6 +1165,69 @@ export function ItineraryPlanner({
     );
   }
 
+  if (planningStep === 'timing' && data.trip.destination) {
+    return (
+      <main className="relative isolate min-h-[100dvh] overflow-x-hidden bg-[#bba993] text-ink">
+        <Image
+          src="/images/flight-page.png"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-center"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-[linear-gradient(90deg,rgba(35,24,17,0.13),rgba(255,244,224,0.04)_45%,rgba(50,40,33,0.10))]"
+        />
+
+        <div className="relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-[1280px] flex-col px-4 sm:px-6 lg:px-8">
+          <header className="grid min-h-16 grid-cols-[1fr_auto_1fr] items-center rounded-b-[1.75rem] border border-t-0 border-white/55 bg-[#faf7f1]/90 px-5 text-sm shadow-[0_14px_40px_rgb(55_43_32/12%)] backdrop-blur-xl sm:px-7">
+            <Link
+              href={`/trip/${tripId}`}
+              className="inline-flex w-fit items-center gap-2 font-semibold text-ink transition-opacity hover:opacity-65"
+            >
+              <ArrowLeft className="size-4" aria-hidden="true" />
+              Trip room
+            </Link>
+            <p className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.2em] text-ink sm:text-xs">
+              <Plane className="size-4 text-brown-accent" aria-hidden="true" />
+              TRIP PLANNING
+            </p>
+            <div className="flex items-center justify-self-end gap-4 text-xs text-warm-muted sm:text-sm">
+              <span className="hidden sm:inline">Step 2 of 4</span>
+              <span className="flex gap-1.5" aria-label="Step 2 of 4">
+                {[1, 2, 3, 4].map((step) => (
+                  <span
+                    key={step}
+                    className={`h-1.5 rounded-full ${
+                      step <= 2 ? 'w-8 bg-brown-accent' : 'w-5 bg-ink/10'
+                    }`}
+                  />
+                ))}
+              </span>
+            </div>
+          </header>
+
+          <div className="flex flex-1 items-center py-5 sm:py-7">
+            <TravelBoundariesStep
+              tripId={tripId}
+              destination={data.trip.destination}
+              startDate={data.trip.startDate}
+              endDate={data.trip.endDate}
+              initialArrivalTime={data.trip.arrivalTime}
+              initialDepartureTime={data.trip.departureTime}
+              initialArrivalPoint={data.trip.arrivalPoint}
+              initialDeparturePoint={data.trip.departurePoint}
+              onSaved={saveTravelBoundaries}
+              onBack={() => goToStep('destination')}
+            />
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <AtlasShell tripId={tripId} sectionLabel="TRIP PLANNING">
       <section className="mx-auto w-full max-w-3xl rounded-2xl border border-warm-border bg-paper p-6 shadow-[var(--journey-shadow)] sm:p-10">
@@ -1040,21 +1236,8 @@ export function ItineraryPlanner({
             ? 'TRAVEL TIMES'
             : planningStep === 'scope'
               ? 'GEOGRAPHIC SCOPE'
-              : 'PLANNING MODE'}
+              : 'MATCHED PLACES'}
         </p>
-
-        {planningStep === 'timing' && data.trip.destination && (
-          <TravelBoundariesStep
-            tripId={tripId}
-            destination={data.trip.destination}
-            initialArrivalTime={data.trip.arrivalTime}
-            initialDepartureTime={data.trip.departureTime}
-            initialArrivalPoint={data.trip.arrivalPoint}
-            initialDeparturePoint={data.trip.departurePoint}
-            onSaved={saveTravelBoundaries}
-            onBack={() => goToStep('destination')}
-          />
-        )}
 
         {planningStep === 'scope' && data.trip.destination && (
           <>
@@ -1128,77 +1311,89 @@ export function ItineraryPlanner({
 
         {planningStep === 'mode' && data.trip.destination && (
           <>
-            <h1 className="mt-4 font-editorial text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">
-              How should we plan {data.trip.destination}?
-            </h1>
-            <p className="mt-5 max-w-2xl leading-7 text-warm-muted">
-              Choose places together for the full collaborative journey, or ask
-              the existing AI planner to prepare a grounded itinerary now.
-            </p>
-            <div className="mt-8 grid gap-4 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => void startCollaborativePlanning()}
-                disabled={pendingAction !== null}
-                className="group rounded-2xl border border-ink bg-ink p-6 text-paper transition-colors hover:bg-ink/90"
-              >
-                <span className="block text-xs font-semibold tracking-[0.12em] text-paper/65">
-                  PRIMARY
-                </span>
-                <span className="mt-3 block font-editorial text-2xl font-semibold">
-                  Choose places together
-                </span>
-                <span className="mt-3 block text-sm leading-6 text-paper/75">
-                  Review grounded places, vote as a group, then organise the
-                  selected places into a deterministic schedule.
-                </span>
-                <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold">
-                  {pendingAction === 'mode'
-                    ? 'Preparing places'
-                    : 'Start choosing'}
-                  <ArrowRight
-                    className="transition-transform group-hover:translate-x-1"
-                    aria-hidden="true"
-                  />
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => void generateItinerary()}
-                disabled={pendingAction !== null}
-                className="rounded-2xl border border-warm-border bg-paper p-6 text-left text-ink shadow-[var(--journey-shadow)] transition-colors hover:bg-parchment disabled:cursor-wait disabled:opacity-60"
-              >
-                <span className="block text-xs font-semibold tracking-[0.12em] text-warm-muted">
-                  QUICK PLAN
-                </span>
-                <span className="mt-3 block font-editorial text-2xl font-semibold">
-                  Plan it for me with AI
-                </span>
-                <span className="mt-3 block text-sm leading-6 text-warm-muted">
-                  Skip collaborative voting and use the existing grounded
-                  itinerary generator.
-                </span>
-                <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold">
-                  {pendingAction === 'generate' ? (
-                    <LoaderCircle className="animate-spin" aria-hidden="true" />
-                  ) : (
-                    <Sparkles aria-hidden="true" />
+            {data.trip.setupStage === 'collaborative_ready' &&
+            matchedPlaceCount !== null &&
+            syncedTravellerCount !== null ? (
+              <div className="py-3 text-center sm:py-6">
+                <p className="text-xs font-semibold tracking-[0.19em] text-brown-accent">
+                  MATCHED PLACES READY
+                </p>
+                <h1 className="mx-auto mt-5 max-w-2xl text-balance font-editorial text-4xl font-semibold leading-[0.98] tracking-[-0.05em] sm:text-6xl">
+                  We found places your group can choose from.
+                </h1>
+                <p className="mx-auto mt-5 max-w-xl text-base leading-7 text-warm-muted sm:text-lg">
+                  Next, everyone moves to the place selection screen together.
+                </p>
+
+                <dl className="mt-9 grid rounded-2xl border border-warm-border bg-parchment/70 text-left sm:grid-cols-3">
+                  <div className="flex items-center gap-4 px-5 py-5 sm:border-r sm:border-warm-border">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-paper text-brown-accent">
+                      <MapPin className="size-5" aria-hidden="true" />
+                    </span>
+                    <div>
+                      <dd className="font-editorial text-2xl font-semibold">
+                        {matchedPlaceCount}
+                      </dd>
+                      <dt className="text-sm text-warm-muted">matched places</dt>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 border-t border-warm-border px-5 py-5 sm:border-r sm:border-t-0">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-paper text-brown-accent">
+                      <UsersRound className="size-5" aria-hidden="true" />
+                    </span>
+                    <div>
+                      <dd className="font-editorial text-2xl font-semibold">
+                        {syncedTravellerCount}
+                      </dd>
+                      <dt className="text-sm text-warm-muted">travellers synced</dt>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 border-t border-warm-border px-5 py-5 sm:border-t-0">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-paper text-brown-accent">
+                      <Check className="size-5" aria-hidden="true" />
+                    </span>
+                    <div>
+                      <dd className="font-semibold">Ready to start</dd>
+                      <dt className="mt-1 text-sm text-warm-muted">choosing</dt>
+                    </div>
+                  </div>
+                </dl>
+
+                <button
+                  type="button"
+                  onClick={() => void openPlaceSelection()}
+                  disabled={pendingAction !== null}
+                  className="group mt-6 inline-flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-ink px-6 text-base font-semibold text-paper transition-colors hover:bg-ink/90 disabled:cursor-wait disabled:opacity-60"
+                >
+                  {pendingAction === 'mode' ? (
+                    <LoaderCircle className="size-5 animate-spin" aria-hidden="true" />
+                  ) : null}
+                  {pendingAction === 'mode' ? 'Opening places' : 'Next: choose places'}
+                  {pendingAction !== 'mode' && (
+                    <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
                   )}
-                  {pendingAction === 'generate'
-                    ? 'Generating itinerary'
-                    : 'Use quick AI planning'}
-                </span>
-              </button>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="mt-8 h-11 rounded-xl border-warm-border bg-transparent px-5 text-ink hover:bg-paper"
-              onClick={() => goToStep('scope')}
-              disabled={pendingAction !== null}
-            >
-              Back to geographic scope
-            </Button>
+                </button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-6 h-11 rounded-xl border-warm-border bg-transparent px-5 text-ink hover:bg-parchment"
+                  onClick={() => goToStep('scope')}
+                  disabled={pendingAction !== null}
+                >
+                  Back to scope
+                </Button>
+              </div>
+            ) : (
+              <div className="py-10 text-center">
+                <LoaderCircle className="mx-auto size-7 animate-spin text-brown-accent" aria-hidden="true" />
+                <h1 className="mt-5 font-editorial text-4xl font-semibold tracking-[-0.045em]">
+                  Preparing matched places
+                </h1>
+                <p className="mt-3 text-warm-muted">
+                  We are getting the shared choices ready.
+                </p>
+              </div>
+            )}
           </>
         )}
 
@@ -1219,7 +1414,10 @@ export function ItineraryPlanner({
               <>
                 <button
                   type="button"
-                  onClick={() => void generateItinerary()}
+                  onClick={() => {
+                    matchedPreparationRef.current = true;
+                    void startCollaborativePlanning();
+                  }}
                   disabled={pendingAction !== null}
                   className="font-semibold text-brown-accent underline-offset-4 hover:underline disabled:opacity-50"
                 >

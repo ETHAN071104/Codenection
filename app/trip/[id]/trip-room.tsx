@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
   Check,
@@ -10,7 +11,6 @@ import {
   Compass,
   MapPinned,
   Plane,
-  RefreshCw,
   UserRound,
   UsersRound,
 } from 'lucide-react';
@@ -31,6 +31,7 @@ type Trip = {
   room_code: string;
   duration_days: number | null;
   finalized_at: string | null;
+  setup_stage: string;
 };
 type Member = {
   id: string;
@@ -40,6 +41,7 @@ type Member = {
 };
 
 export function TripRoom({ tripId }: { tripId: string }) {
+  const router = useRouter();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [questionnaireStatus, setQuestionnaireStatus] = useState<
@@ -47,19 +49,17 @@ export function TripRoom({ tripId }: { tripId: string }) {
   >([]);
   const [hasCompletedProfile, setHasCompletedProfile] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorKind, setErrorKind] = useState<'access' | 'load' | null>(null);
+  const realtimeRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const loadTrip = useCallback(
     async (background = false) => {
-      if (background) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+      if (!background) setLoading(true);
       setError(null);
       setErrorKind(null);
 
@@ -70,7 +70,7 @@ export function TripRoom({ tripId }: { tripId: string }) {
           await Promise.all([
             supabase
               .from('trips')
-              .select('id, room_code, duration_days, finalized_at')
+              .select('id, room_code, duration_days, finalized_at, setup_stage')
               .eq('id', tripId)
               .maybeSingle(),
             supabase
@@ -98,6 +98,19 @@ export function TripRoom({ tripId }: { tripId: string }) {
         if (statusResult.error) throw statusResult.error;
         if (profileResult.error) throw profileResult.error;
 
+        if (tripResult.data.finalized_at) {
+          router.replace(`/trip/${tripId}/plan`);
+          return;
+        }
+        if (tripResult.data.setup_stage === 'places') {
+          router.replace(`/trip/${tripId}/places`);
+          return;
+        }
+        if (tripResult.data.setup_stage === 'ai_ready') {
+          router.replace(`/trip/${tripId}/itinerary?step=result`);
+          return;
+        }
+
         setTrip(tripResult.data);
         setMembers(membersResult.data ?? []);
         setQuestionnaireStatus(statusResult.data ?? []);
@@ -109,10 +122,9 @@ export function TripRoom({ tripId }: { tripId: string }) {
         setErrorKind('load');
       } finally {
         setLoading(false);
-        setRefreshing(false);
       }
     },
-    [tripId],
+    [router, tripId],
   );
 
   useEffect(() => {
@@ -121,6 +133,14 @@ export function TripRoom({ tripId }: { tripId: string }) {
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
+    const scheduleReload = () => {
+      if (realtimeRefreshTimer.current) {
+        clearTimeout(realtimeRefreshTimer.current);
+      }
+      realtimeRefreshTimer.current = setTimeout(() => {
+        void loadTrip(true);
+      }, 180);
+    };
     const channel = supabase
       .channel(`trip-room-lifecycle:${tripId}`)
       .on(
@@ -131,13 +151,77 @@ export function TripRoom({ tripId }: { tripId: string }) {
           table: 'trips',
           filter: `id=eq.${tripId}`,
         },
-        () => void loadTrip(true),
+        (payload) => {
+          const next = payload.new as {
+            finalized_at?: string | null;
+            setup_stage?: string;
+          };
+          if (next.finalized_at) {
+            router.replace(`/trip/${tripId}/plan`);
+          } else if (next.setup_stage === 'places') {
+            router.replace(`/trip/${tripId}/places`);
+          } else if (next.setup_stage === 'ai_ready') {
+            router.replace(`/trip/${tripId}/itinerary?step=result`);
+          } else {
+            scheduleReload();
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'trip_members',
+          filter: `trip_id=eq.${tripId}`,
+        },
+        scheduleReload,
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'preference_profiles',
+          filter: `trip_id=eq.${tripId}`,
+        },
+        scheduleReload,
       )
       .subscribe();
     return () => {
+      if (realtimeRefreshTimer.current) {
+        clearTimeout(realtimeRefreshTimer.current);
+        realtimeRefreshTimer.current = null;
+      }
       void supabase.removeChannel(channel);
     };
-  }, [loadTrip, tripId]);
+  }, [loadTrip, router, tripId]);
+
+  useEffect(() => {
+    const refreshVisibleRoom = () => {
+      if (document.visibilityState === 'visible') void loadTrip(true);
+    };
+    const fallbackRefresh = window.setInterval(refreshVisibleRoom, 5000);
+    window.addEventListener('focus', refreshVisibleRoom);
+    document.addEventListener('visibilitychange', refreshVisibleRoom);
+    return () => {
+      window.clearInterval(fallbackRefresh);
+      window.removeEventListener('focus', refreshVisibleRoom);
+      document.removeEventListener('visibilitychange', refreshVisibleRoom);
+    };
+  }, [loadTrip]);
+
+  useEffect(() => {
+    const refreshVisibleRoom = () => {
+      if (document.visibilityState === 'visible') void loadTrip(true);
+    };
+    const pollTimer = window.setInterval(refreshVisibleRoom, 5000);
+    window.addEventListener('focus', refreshVisibleRoom);
+    return () => {
+      window.clearInterval(pollTimer);
+      window.removeEventListener('focus', refreshVisibleRoom);
+    };
+  }, [loadTrip]);
 
   async function copyRoomCode() {
     if (!trip) return;
@@ -185,35 +269,7 @@ export function TripRoom({ tripId }: { tripId: string }) {
         className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,12,12,.64)_0%,rgba(7,12,12,.18)_34%,rgba(7,12,12,.5)_100%)]"
       />
 
-      <header className="relative z-10 border-b border-white/20 bg-black/18 backdrop-blur-[8px]">
-        <div className="mx-auto flex h-16 w-full max-w-[1180px] items-center justify-between gap-4 px-5 sm:px-8">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight text-white outline-none transition-opacity hover:opacity-70 focus-visible:ring-2 focus-visible:ring-white/65"
-          >
-            <Plane className="size-4 text-[#e2b98f]" aria-hidden="true" />
-            Travel Planner
-          </Link>
-          {trip && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-10 rounded-lg px-3 text-white/70 hover:bg-white/10 hover:text-white"
-              onClick={() => void loadTrip(true)}
-              disabled={refreshing}
-            >
-              <RefreshCw
-                className={refreshing ? 'animate-spin' : undefined}
-                aria-hidden="true"
-              />
-              Refresh
-            </Button>
-          )}
-        </div>
-      </header>
-
-      <div className="relative z-10 mx-auto w-full max-w-[1180px] px-5 py-8 sm:px-8 sm:py-10 lg:py-12">
+      <div className="relative z-10 mx-auto w-full max-w-[1280px] px-5 py-8 sm:px-8 sm:py-10 lg:py-12">
         {loading ? (
           <SystemLoading
             className="my-10"
@@ -337,88 +393,73 @@ export function TripRoom({ tripId }: { tripId: string }) {
           </section>
         ) : trip ? (
           <>
-            <div className="mb-7 sm:mb-8">
-              <p className="text-xs font-semibold tracking-[0.18em] text-[#e2b98f]">
-                SHARED TRIP ROOM
-              </p>
-              <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div className="mb-7">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
                 <div>
-                  <h1 className="max-w-3xl text-balance font-editorial text-4xl leading-[0.98] font-semibold tracking-[-0.045em] text-white sm:text-5xl">
+                  <h1 className="max-w-4xl text-balance font-editorial text-5xl leading-[0.94] font-semibold tracking-[-0.05em] text-white sm:text-6xl">
                     Ready when your group is.
                   </h1>
-                  <p className="mt-3 max-w-2xl text-base leading-7 text-white/72">
+                  <p className="mt-4 max-w-3xl text-base leading-7 text-white/76 sm:text-lg">
                     Invite your travel companions, then complete your individual
-                    Travel DNA when you&apos;re ready.
+                    travel profile when you&apos;re ready.
                   </p>
                 </div>
-                <span className="w-fit rounded-full border border-white/45 bg-[#fffaf0]/92 px-4 py-2 text-sm font-semibold text-ink shadow-sm backdrop-blur-md">
+                <span className="mb-1 w-fit rounded-full border border-white/55 bg-[#fffaf0]/94 px-6 py-3 text-base font-semibold text-ink shadow-sm backdrop-blur-md">
                   {durationLabel ? `${durationLabel} trip` : 'Shared trip'}
                 </span>
               </div>
             </div>
 
-            <div className="grid gap-5 lg:grid-cols-2">
-              <div className="contents">
-                <section className="order-1 h-full overflow-hidden rounded-2xl border border-white/45 bg-[#fffaf0]/92 text-ink shadow-[0_22px_60px_-36px_rgba(0,0,0,.85)] backdrop-blur-xl">
-                  <div className="border-b border-warm-border px-6 py-5 sm:px-8">
-                    <p className="text-xs font-semibold tracking-[0.16em] text-brown-accent">
-                      INVITE YOUR FRIENDS
-                    </p>
-                    <h2 className="mt-2 font-editorial text-2xl font-semibold tracking-[-0.03em]">
-                      Share this room code
-                    </h2>
-                  </div>
-                  <div className="p-6 sm:p-8">
-                    <div className="rounded-xl border border-warm-border bg-parchment px-5 py-6 sm:flex sm:items-center sm:justify-between sm:gap-6 sm:px-7">
-                      <div>
-                        <p className="text-xs font-semibold tracking-[0.15em] text-warm-muted">
-                          SIX-DIGIT CODE
-                        </p>
-                        <p className="mt-2 font-mono text-4xl font-semibold tracking-[0.2em] sm:text-6xl">
-                          {trip.room_code}
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="lg"
-                        className="mt-5 h-11 border-warm-border bg-paper px-5 text-ink hover:border-ink/30 hover:bg-paper sm:mt-0"
-                        onClick={copyRoomCode}
-                        aria-label="Copy room code"
-                      >
-                        {copied ? (
-                          <Check aria-hidden="true" />
-                        ) : (
-                          <Clipboard aria-hidden="true" />
-                        )}
-                        {copied ? 'Copied' : 'Copy'}
-                      </Button>
-                    </div>
-                    <p className="mt-4 text-sm leading-6 text-warm-muted">
-                      Friends can enter this code from the homepage. No account
-                      is required.
-                    </p>
-                    {copied && (
-                      <output
-                        className="mt-2 block text-sm font-medium text-brown-accent"
-                        aria-live="polite"
-                      >
-                        Room code copied.
-                      </output>
-                    )}
-                    {copyError && (
-                      <SystemNotice
-                        role="alert"
-                        className="mt-3 bg-parchment px-3 py-2.5"
-                        title="The room code wasn’t copied."
-                        description="Your trip is unchanged. Select the code above and copy it manually."
-                      />
-                    )}
-                  </div>
-                </section>
+            <div className="grid items-stretch gap-5 lg:grid-cols-[1.06fr_.94fr]">
+              <section className="overflow-hidden rounded-[1.6rem] border border-white/55 bg-[#fffaf0]/94 p-6 text-ink shadow-[0_28px_70px_-38px_rgba(0,0,0,.9)] backdrop-blur-xl sm:p-8">
+                <p className="text-xs font-semibold tracking-[0.18em] text-brown-accent">
+                  INVITE YOUR FRIENDS
+                </p>
+                <h2 className="mt-2 font-editorial text-3xl font-semibold tracking-[-0.035em]">
+                  Share this room code
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-warm-muted">
+                  Friends can enter this code from the homepage. No account is
+                  required.
+                </p>
 
-                <section className="order-3 rounded-2xl border border-white/45 bg-[#fffaf0]/92 text-ink shadow-[0_22px_60px_-36px_rgba(0,0,0,.85)] backdrop-blur-xl lg:col-span-2">
-                  <div className="flex items-end justify-between gap-4 border-b border-warm-border px-6 py-5 sm:px-8">
+                <div className="mt-5 rounded-2xl border border-warm-border bg-white/42 px-5 py-5 sm:flex sm:items-center sm:justify-between sm:gap-6 sm:px-7">
+                  <div>
+                    <p className="text-xs font-semibold tracking-[0.15em] text-warm-muted">
+                      SIX-DIGIT CODE
+                    </p>
+                    <p className="mt-2 font-mono text-4xl font-semibold tracking-[0.2em] sm:text-5xl">
+                      {trip.room_code}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className="mt-5 h-12 rounded-xl border-warm-border bg-white/55 px-5 text-ink hover:border-ink/30 hover:bg-white sm:mt-0"
+                    onClick={copyRoomCode}
+                    aria-label="Copy room code"
+                  >
+                    {copied ? <Check aria-hidden="true" /> : <Clipboard aria-hidden="true" />}
+                    {copied ? 'Copied' : 'Copy'}
+                  </Button>
+                </div>
+                {copied && (
+                  <output className="mt-2 block text-sm font-medium text-brown-accent" aria-live="polite">
+                    Room code copied.
+                  </output>
+                )}
+                {copyError && (
+                  <SystemNotice
+                    role="alert"
+                    className="mt-3 bg-parchment px-3 py-2.5"
+                    title="The room code wasn’t copied."
+                    description="Your trip is unchanged. Select the code above and copy it manually."
+                  />
+                )}
+
+                <div className="mt-6 border-t border-warm-border pt-5">
+                  <div className="flex items-end justify-between gap-4">
                     <div>
                       <p className="text-xs font-semibold tracking-[0.16em] text-brown-accent">
                         YOUR TRAVEL CREW
@@ -429,65 +470,47 @@ export function TripRoom({ tripId }: { tripId: string }) {
                     </div>
                     <span className="inline-flex items-center gap-2 text-sm text-warm-muted">
                       <UsersRound className="size-4" aria-hidden="true" />
-                      {members.length}{' '}
-                      {members.length === 1 ? 'traveller' : 'travellers'}
+                      {members.length} {members.length === 1 ? 'traveller' : 'travellers'}
                     </span>
                   </div>
-                  <ul className="divide-y divide-warm-border px-6 sm:px-8">
+                  <ul className="mt-3 max-h-40 divide-y divide-warm-border overflow-y-auto">
                     {members.map((member) => {
-                      const ready = questionnaireStatus.find(
-                        (row) => row.member_id === member.id,
-                      )?.completed;
+                      const ready = questionnaireStatus.find((row) => row.member_id === member.id)?.completed;
                       const display = memberDisplays.get(member.id);
-                      const MarkerIcon =
-                        memberMarkerIcons[display?.marker ?? 0];
-
+                      const MarkerIcon = memberMarkerIcons[display?.marker ?? 0];
                       return (
-                        <li
-                          key={member.id}
-                          className="flex min-h-18 items-center gap-3 py-4"
-                        >
-                          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-parchment text-brown-accent">
+                        <li key={member.id} className="flex min-h-14 items-center gap-3 py-2.5">
+                          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-parchment text-brown-accent">
                             <MarkerIcon className="size-4" aria-hidden="true" />
                           </span>
                           <span className="min-w-0 flex-1 truncate font-medium">
                             {display?.name ?? member.display_name}
-                            {display?.tag && (
-                              <span className="ml-1 text-sm font-normal text-warm-muted">
-                                · {display.tag}
-                              </span>
-                            )}
+                            {display?.tag && <span className="ml-1 text-sm font-normal text-warm-muted">· {display.tag}</span>}
                           </span>
-                          <span
-                            className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${ready ? 'bg-ink text-paper' : 'border border-warm-border bg-parchment text-warm-muted'}`}
-                          >
-                            {ready ? (
-                              <Check className="size-3.5" aria-hidden="true" />
-                            ) : (
-                              <Clock3 className="size-3.5" aria-hidden="true" />
-                            )}
+                          <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${ready ? 'bg-ink text-paper' : 'border border-warm-border bg-parchment text-warm-muted'}`}>
+                            {ready ? <Check className="size-3.5" aria-hidden="true" /> : <Clock3 className="size-3.5" aria-hidden="true" />}
                             {ready ? 'Ready' : 'Waiting'}
                           </span>
                         </li>
                       );
                     })}
                   </ul>
-                </section>
-              </div>
+                </div>
+              </section>
 
-              <aside className="order-2 h-full rounded-2xl border border-white/45 bg-[#fffaf0]/92 p-6 text-ink shadow-[0_22px_60px_-36px_rgba(0,0,0,.85)] backdrop-blur-xl sm:p-7">
+              <aside className="h-full rounded-[1.6rem] border border-white/55 bg-[#fffaf0]/94 p-6 text-ink shadow-[0_28px_70px_-38px_rgba(0,0,0,.9)] backdrop-blur-xl sm:p-8">
                 <p className="text-xs font-semibold tracking-[0.16em] text-brown-accent">
-                  TRAVEL DNA
+                  GET TO KNOW YOUR GROUP
                 </p>
-                <h2 className="mt-2 font-editorial text-3xl font-semibold tracking-[-0.04em]">
+                <h2 className="mt-2 font-editorial text-4xl font-semibold tracking-[-0.045em]">
                   Group readiness
                 </h2>
 
-                <div className="mt-6 flex items-end justify-between gap-4">
-                  <p className="text-sm text-warm-muted">
+                <div className="mt-12 flex items-end justify-between gap-4">
+                  <p className="text-base text-warm-muted">
                     Preferences completed
                   </p>
-                  <p className="text-2xl font-semibold tracking-[-0.03em]">
+                  <p className="text-3xl font-semibold tracking-[-0.04em]">
                     {completedMembers} / {totalMembers}
                   </p>
                 </div>
@@ -502,13 +525,8 @@ export function TripRoom({ tripId }: { tripId: string }) {
                     }}
                   />
                 </div>
-                <p className="mt-4 text-sm leading-6 text-warm-muted">
-                  Individual answers stay private. The group result appears when
-                  everyone is ready.
-                </p>
-
                 {hasCompletedProfile ? (
-                  <div className="mt-6 rounded-xl border border-warm-border bg-parchment p-4">
+                  <div className="mt-10 rounded-2xl border border-warm-border bg-white/36 p-5">
                     <p className="flex items-center gap-2 font-semibold">
                       <span className="flex size-6 items-center justify-center rounded-full bg-ink text-paper">
                         <Check className="size-3.5" aria-hidden="true" />
@@ -520,7 +538,7 @@ export function TripRoom({ tripId }: { tripId: string }) {
                     </p>
                   </div>
                 ) : (
-                  <div className="mt-6 rounded-xl border border-brown-accent/30 bg-parchment p-4">
+                  <div className="mt-10 rounded-2xl border border-warm-border bg-white/36 p-5">
                     <p className="font-semibold">
                       Your preferences are waiting
                     </p>
@@ -530,14 +548,14 @@ export function TripRoom({ tripId }: { tripId: string }) {
                   </div>
                 )}
 
-                <div className="mt-6 grid gap-3">
+                <div className="mt-8 grid gap-3">
                   {allCompleted && (
                     <Link
                       href={`/trip/${tripId}/summary`}
                       className={buttonVariants({
                         size: 'lg',
                         className:
-                          'h-12 bg-ink px-5 text-paper hover:bg-ink/85',
+                          'h-12 rounded-xl bg-ink px-5 text-paper hover:bg-ink/85',
                       })}
                     >
                       View group summary
@@ -550,7 +568,7 @@ export function TripRoom({ tripId }: { tripId: string }) {
                       className={buttonVariants({
                         size: 'lg',
                         className:
-                          'h-12 bg-ink px-5 text-paper hover:bg-ink/85',
+                          'h-12 rounded-xl bg-ink px-5 text-paper hover:bg-ink/85',
                       })}
                     >
                       Complete my Travel DNA

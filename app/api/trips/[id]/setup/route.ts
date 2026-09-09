@@ -44,6 +44,7 @@ export async function PATCH(
     !trip.destination ||
     (trip.setup_stage !== 'mode' &&
       trip.setup_stage !== 'collaborative_ready' &&
+      trip.setup_stage !== 'places' &&
       trip.setup_stage !== 'ai_ready')
   ) {
     return Response.json(
@@ -93,4 +94,47 @@ export async function PATCH(
     planningMode: parseTripPlanningMode(data.planning_mode),
     setupStage: data.setup_stage,
   });
+}
+
+export async function PUT(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const authenticated = await getAuthenticatedSupabase(request);
+  if (!authenticated) return unauthorizedResponse();
+
+  const { id } = await context.params;
+  const planningLock = await planningLockResponse(authenticated.supabase, id);
+  if (planningLock) return planningLock;
+  const { data: trip, error: tripError } = await authenticated.supabase
+    .from('trips')
+    .select('created_by, planning_mode, setup_stage')
+    .eq('id', id)
+    .maybeSingle();
+  if (tripError || !trip) return unavailableTripResponse();
+  if (trip.created_by !== authenticated.user.id) return hostOnlyResponse();
+  if (
+    trip.planning_mode !== 'collaborative' ||
+    trip.setup_stage !== 'collaborative_ready'
+  ) {
+    return Response.json(
+      {
+        error: {
+          code: 'MATCHED_PLACES_NOT_READY',
+          message: 'Wait until the matched places are ready to continue.',
+        },
+      },
+      { status: 409 },
+    );
+  }
+
+  const { data, error } = await authenticated.supabase
+    .from('trips')
+    .update({ setup_stage: 'places' })
+    .eq('id', id)
+    .eq('created_by', authenticated.user.id)
+    .select('setup_stage')
+    .maybeSingle();
+  if (error || !data) return unavailableTripResponse();
+  return Response.json({ setupStage: data.setup_stage });
 }

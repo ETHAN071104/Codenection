@@ -300,7 +300,7 @@ export function GroupSummary({ tripId }: { tripId: string }) {
 
   return (
     <JourneyShell tripId={tripId}>
-      <section className="mx-auto w-full max-w-4xl">
+      <section className="mx-auto w-full max-w-5xl">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex -space-x-2" aria-hidden="true">
             {status.slice(0, 4).map((member, index) => (
@@ -327,96 +327,157 @@ export function GroupSummary({ tripId }: { tripId: string }) {
           Your group is aligned.
         </h1>
         <p className="mt-5 max-w-2xl text-lg leading-8 text-warm-muted">
-          Here is what your group has in common. Individual answers stay
-          private.
+          Everyone has responded. You are ready to choose a destination.
         </p>
 
-        <div className="mt-10 overflow-hidden rounded-2xl border border-warm-border bg-paper shadow-editorial">
-          {trip?.destination && (
-            <article className="border-b border-warm-border px-6 py-6 sm:px-8 sm:py-7">
-              <div className="flex items-start gap-4">
-                <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-parchment text-brown-accent">
-                  <MapPin className="size-4.5" aria-hidden="true" />
-                </span>
+        <div className="relative mt-10 rounded-2xl border border-warm-border bg-paper shadow-[0_28px_70px_-45px_rgb(55_43_34/55%)] before:absolute before:-left-3 before:top-[68%] before:hidden before:size-6 before:rounded-full before:border-r before:border-warm-border before:bg-parchment lg:before:block after:absolute after:-right-3 after:top-[68%] after:hidden after:size-6 after:rounded-full after:border-l after:border-warm-border after:bg-parchment lg:after:block">
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_16rem]">
+            <div className="min-w-0 px-6 py-7 sm:px-9 sm:py-8 lg:px-10 lg:py-9">
+              <div className="flex flex-wrap items-start justify-between gap-5 border-b border-warm-border pb-6">
                 <div>
-                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-warm-muted">
-                    Destination
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brown-accent">
+                    Group travel pass
                   </p>
-                  <h2 className="mt-1.5 font-editorial text-2xl font-medium tracking-[-0.025em] sm:text-3xl">
-                    {trip.destination}
-                  </h2>
-                  {tripTiming && (
-                    <p className="mt-1.5 inline-flex items-center gap-2 text-sm text-warm-muted">
-                      <CalendarDays className="size-4" aria-hidden="true" />
-                      {tripTiming}
-                    </p>
-                  )}
+                  <p className="mt-2 text-sm text-warm-muted">
+                    Ready for destination
+                  </p>
+                </div>
+                <div className="text-left sm:text-right">
+                  <p className="text-[0.65rem] font-semibold uppercase tracking-[0.17em] text-warm-muted">
+                    Travel DNA confirmed
+                  </p>
+                  <p className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-ink">
+                    <Check className="size-4 text-brown-accent" aria-hidden="true" />
+                    Everyone responded
+                  </p>
                 </div>
               </div>
-            </article>
-          )}
 
-          <div className="grid sm:grid-cols-2">
-            <article className="border-b border-warm-border px-6 py-6 sm:border-r sm:px-8 sm:py-7">
-              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-warm-muted">
-                Group budget
-              </p>
-              <p className="mt-2 font-editorial text-2xl font-medium tracking-[-0.025em]">
-                {budgetText}
-              </p>
-              {summary.unlimited_members > 0 &&
-                summary.finite_budget_average !== null && (
-                  <p className="mt-1.5 text-sm text-warm-muted">
-                    {summary.unlimited_members}{' '}
-                    {summary.unlimited_members === 1
-                      ? 'traveller is'
-                      : 'travellers are'}{' '}
-                    flexible
+              {trip?.destination && (
+                <article className="flex items-start gap-4 border-b border-warm-border py-6">
+                  <MapPin className="mt-1 size-5 shrink-0 text-brown-accent" aria-hidden="true" />
+                  <div>
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.17em] text-warm-muted">
+                      Destination
+                    </p>
+                    <h2 className="mt-1 font-editorial text-2xl font-medium tracking-[-0.025em]">
+                      {trip.destination}
+                    </h2>
+                    {tripTiming && (
+                      <p className="mt-1.5 inline-flex items-center gap-2 text-sm text-warm-muted">
+                        <CalendarDays className="size-4" aria-hidden="true" />
+                        {tripTiming}
+                      </p>
+                    )}
+                  </div>
+                </article>
+              )}
+
+              <div className="grid border-b border-warm-border sm:grid-cols-2">
+                <article className="py-7 sm:border-r sm:border-warm-border sm:pr-8">
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.17em] text-warm-muted">
+                    Group budget
                   </p>
-                )}
-            </article>
+                  <p className="mt-3 font-editorial text-3xl font-medium tracking-[-0.035em] sm:text-4xl">
+                    {budgetText}
+                  </p>
+                  {summary.unlimited_members > 0 &&
+                    summary.finite_budget_average !== null && (
+                      <p className="mt-2 text-sm text-warm-muted">
+                        {summary.unlimited_members}{' '}
+                        {summary.unlimited_members === 1
+                          ? 'traveller is'
+                          : 'travellers are'}{' '}
+                        flexible
+                      </p>
+                    )}
+                </article>
 
-            <article className="border-b border-warm-border px-6 py-6 sm:px-8 sm:py-7">
-              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-warm-muted">
-                Group pace
-              </p>
-              <p className="mt-2 font-editorial text-2xl font-medium tracking-[-0.025em]">
-                {paceSummaryLabel(summary.average_pace)}
-              </p>
-              <p className="mt-1.5 text-sm text-warm-muted">
-                {summary.average_pace.toFixed(1)} average on your five-point
-                pace scale
-              </p>
-            </article>
-          </div>
+                <article className="border-t border-warm-border py-7 sm:border-t-0 sm:pl-8">
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.17em] text-warm-muted">
+                    Group pace
+                  </p>
+                  <p className="mt-3 font-editorial text-3xl font-medium tracking-[-0.035em] sm:text-4xl">
+                    {paceSummaryLabel(summary.average_pace)}
+                  </p>
+                  <p className="mt-2 text-sm text-warm-muted">
+                    {summary.average_pace.toFixed(1)} average
+                  </p>
+                </article>
+              </div>
 
-          <article className="px-6 py-6 sm:px-8 sm:py-7">
-            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-warm-muted">
-              Top interests
-            </p>
-            <ol className="mt-4 flex flex-wrap gap-2.5">
-              {sortedInterests.map((interest) => (
-                <li
-                  key={interest.key}
-                  className="inline-flex items-center gap-2 rounded-full border border-warm-border bg-parchment px-4 py-2 text-sm font-semibold text-ink"
-                >
-                  {interest.label}
-                  <span className="inline-flex items-center gap-1 text-xs font-medium text-brown-accent">
-                    {interest.rating.toFixed(1)}
-                    <Star className="size-3 fill-current" aria-hidden="true" />
+              <article className="pt-7">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.17em] text-warm-muted">
+                  Top interests
+                </p>
+                <ol className="mt-3 grid gap-1 sm:grid-cols-3 sm:gap-5">
+                  {sortedInterests.map((interest, index) => (
+                    <li
+                      key={interest.key}
+                      className="flex items-center justify-between gap-3 border-t border-warm-border py-3 text-sm font-semibold text-ink"
+                    >
+                      <span className="min-w-0 truncate">
+                        <span className="mr-2 font-mono text-xs text-warm-muted">
+                          0{index + 1}
+                        </span>
+                        {interest.label}
+                      </span>
+                      <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-brown-accent">
+                        {interest.rating.toFixed(1)}
+                        <Star className="size-3 fill-current" aria-hidden="true" />
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </article>
+            </div>
+
+            <aside className="relative border-t border-dashed border-warm-border px-6 py-7 lg:border-l lg:border-t-0 lg:px-7 lg:py-9">
+              <span className="absolute -left-3 -top-3 hidden size-6 rounded-full border-b border-warm-border bg-parchment lg:block" aria-hidden="true" />
+              <span className="absolute -bottom-3 -left-3 hidden size-6 rounded-full border-t border-warm-border bg-parchment lg:block" aria-hidden="true" />
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-brown-accent">
+                Group confirmed
+              </p>
+              <p className="mt-8 font-editorial text-6xl font-medium leading-none tracking-[-0.055em]">
+                {totalMembers}
+              </p>
+              <p className="mt-2 font-editorial text-2xl font-medium">
+                {totalMembers === 1 ? 'Traveller' : 'Travellers'}
+              </p>
+              <div className="mt-8 border-t border-warm-border pt-5">
+                <p className="inline-flex items-center gap-2 text-sm font-semibold text-ink">
+                  <Check className="size-4 text-brown-accent" aria-hidden="true" />
+                  All responded
+                </p>
+                <p className="mt-3 text-sm leading-6 text-warm-muted">
+                  Ready for destination
+                </p>
+              </div>
+              <div className="mt-8 flex -space-x-2" aria-label={`${totalMembers} travellers confirmed`}>
+                {status.slice(0, 5).map((member, index) => (
+                  <span
+                    key={member.member_id}
+                    title={member.display_name}
+                    className={`flex size-9 items-center justify-center rounded-full border-2 border-paper text-xs font-bold ${
+                      index % 2 === 0
+                        ? 'bg-ink text-paper'
+                        : 'bg-[#d9c8b8] text-ink'
+                    }`}
+                  >
+                    {getInitial(member.display_name)}
                   </span>
-                </li>
-              ))}
-            </ol>
-          </article>
+                ))}
+              </div>
+            </aside>
+          </div>
         </div>
 
-        <div className="mt-8">
+        <div className="mx-auto mt-8 max-w-3xl">
           <Link
             href={`/trip/${tripId}/itinerary?step=destination`}
             className={buttonVariants({
               className:
-                'h-12 w-full rounded-xl bg-ink px-6 text-paper shadow-sm hover:bg-ink/90',
+                'h-14 w-full rounded-xl bg-ink px-6 text-base text-paper shadow-sm transition-transform hover:bg-ink/90 active:scale-[0.99]',
             })}
           >
             {isHost ? 'Choose destination' : 'View trip setup'}

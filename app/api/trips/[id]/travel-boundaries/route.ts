@@ -31,6 +31,17 @@ function time(value: unknown) {
     : undefined;
 }
 
+function date(value: unknown) {
+  if (value === null || value === '') return null;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return undefined;
+  }
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value
+    ? undefined
+    : value;
+}
+
 function endpointMode(value: unknown): EndpointMode | null {
   return value === 'keep' || value === 'skip' || value === 'place'
     ? value
@@ -67,6 +78,8 @@ export async function PATCH(
 
   try {
     const body = (await request.json().catch(() => null)) as {
+      startDate?: unknown;
+      endDate?: unknown;
       arrivalTime?: unknown;
       departureTime?: unknown;
       arrivalPointMode?: unknown;
@@ -74,6 +87,8 @@ export async function PATCH(
       departurePointMode?: unknown;
       departurePlaceId?: unknown;
     } | null;
+    const startDate = date(body?.startDate);
+    const endDate = date(body?.endDate);
     const arrivalTime = time(body?.arrivalTime);
     const departureTime = time(body?.departureTime);
     const arrivalMode = endpointMode(body?.arrivalPointMode);
@@ -81,6 +96,9 @@ export async function PATCH(
     if (
       arrivalTime === undefined ||
       departureTime === undefined ||
+      startDate === undefined ||
+      endDate === undefined ||
+      (startDate !== null && endDate !== null && endDate < startDate) ||
       !arrivalMode ||
       !departureMode
     ) {
@@ -100,7 +118,7 @@ export async function PATCH(
     if (planningLock) return planningLock;
     const { data: trip, error: tripError } = await authenticated.supabase
       .from('trips')
-      .select('created_by, arrival_point, departure_point')
+      .select('created_by, arrival_point, departure_point, duration_days')
       .eq('id', id)
       .maybeSingle();
     if (tripError || !trip) return unavailableTripResponse();
@@ -137,6 +155,16 @@ export async function PATCH(
     const { data, error } = await authenticated.supabase
       .from('trips')
       .update({
+        start_date: startDate,
+        end_date: endDate,
+        duration_days:
+          startDate && endDate
+            ? Math.floor(
+                (Date.parse(`${endDate}T00:00:00Z`) -
+                  Date.parse(`${startDate}T00:00:00Z`)) /
+                  86_400_000,
+              ) + 1
+            : trip.duration_days,
         arrival_time: arrivalTime,
         departure_time: departureTime,
         arrival_point: arrivalPoint ? endpointToJson(arrivalPoint) : null,
@@ -146,12 +174,14 @@ export async function PATCH(
       })
       .eq('id', id)
       .select(
-        'arrival_time, departure_time, arrival_point, departure_point, setup_stage',
+        'start_date, end_date, arrival_time, departure_time, arrival_point, departure_point, setup_stage',
       )
       .maybeSingle();
     if (error || !data) return unavailableTripResponse();
 
     return Response.json({
+      startDate: data.start_date,
+      endDate: data.end_date,
       arrivalTime: data.arrival_time?.slice(0, 5) ?? null,
       departureTime: data.departure_time?.slice(0, 5) ?? null,
       arrivalPoint: parseTripEndpoint(data.arrival_point),

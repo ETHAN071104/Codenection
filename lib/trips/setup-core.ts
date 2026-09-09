@@ -7,6 +7,7 @@ export type TripSetupStage =
   | 'mode'
   | 'preparing'
   | 'collaborative_ready'
+  | 'places'
   | 'ai_ready';
 
 export function parseTripPlanningMode(
@@ -22,6 +23,7 @@ export function parseTripSetupStage(value: unknown): TripSetupStage {
     value === 'mode' ||
     value === 'preparing' ||
     value === 'collaborative_ready' ||
+    value === 'places' ||
     value === 'ai_ready'
     ? value
     : 'destination';
@@ -36,6 +38,7 @@ export function hasConfirmedScope(stage: TripSetupStage) {
     stage === 'mode' ||
     stage === 'preparing' ||
     stage === 'collaborative_ready' ||
+    stage === 'places' ||
     stage === 'ai_ready'
   );
 }
