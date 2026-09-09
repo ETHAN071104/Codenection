@@ -747,6 +747,7 @@ export function ItineraryPlanner({
           ? actionError.message
           : 'We could not start collaborative planning.',
       );
+    } finally {
       setPendingAction(null);
     }
   }
