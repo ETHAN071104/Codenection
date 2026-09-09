@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   ArrowLeft,
+  ArrowUpRight,
   Clock3,
   CloudRain,
   CloudSun,
@@ -180,7 +182,7 @@ function LiveMap({
     <Mapcn
       center={[first.place.longitude!, first.place.latitude!]}
       zoom={12}
-      theme="light"
+      theme="dark"
       className="h-full min-h-[320px]"
     >
       <LiveMapViewport items={valid} />
@@ -188,9 +190,9 @@ function LiveMap({
         <MapRoute
           id="live-driving-route"
           coordinates={route.geometry.coordinates}
-          color="#2f3237"
-          width={4}
-          opacity={0.75}
+          color="#e0b58f"
+          width={4.5}
+          opacity={0.95}
           interactive={false}
         />
       )}
@@ -234,6 +236,100 @@ function WeatherLine({ weather }: { weather: WeatherAtStop | null }) {
   );
 }
 
+type LiveBackgroundMode = 'day' | 'night' | 'rain';
+
+function LiveBackground({ mode }: { mode: LiveBackgroundMode }) {
+  const [failed, setFailed] = useState<Record<LiveBackgroundMode, boolean>>({
+    day: false,
+    night: false,
+    rain: false,
+  });
+
+  return (
+    <div className="absolute inset-0 -z-20 overflow-hidden bg-[#111719]" aria-hidden="true">
+      {(['day', 'night', 'rain'] as const).map((candidate) => (
+        <video
+          key={candidate}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload={candidate === mode ? 'auto' : 'metadata'}
+          onError={() =>
+            setFailed((current) => ({ ...current, [candidate]: true }))
+          }
+          className={cn(
+            'absolute inset-0 size-full object-cover transition-opacity duration-700 motion-reduce:transition-none',
+            candidate === mode && !failed[candidate] ? 'opacity-100' : 'opacity-0',
+          )}
+        >
+          <source src={`/videos/live/${candidate}.mp4`} type="video/mp4" />
+        </video>
+      ))}
+      <div className="absolute inset-0 bg-black/45" />
+    </div>
+  );
+}
+
+function CurrentPlacePhoto({
+  tripId,
+  item,
+}: {
+  tripId: string;
+  item: ItineraryItemView;
+}) {
+  const photoName = item.place.photo?.name ?? null;
+  const photoUrl = photoName
+    ? `/api/trips/${tripId}/place-photo?name=${encodeURIComponent(photoName)}`
+    : item.place.externalPlaceId
+      ? `/api/trips/${tripId}/place-photo?placeId=${encodeURIComponent(item.place.externalPlaceId)}`
+      : null;
+  const [photoFailed, setPhotoFailed] = useState(!photoUrl);
+  const attribution = item.place.photo?.attributions[0] ?? null;
+
+  return (
+    <div className="relative min-h-0 flex-1 overflow-hidden rounded-[1.15rem] bg-[#d8d2c9]">
+      {photoUrl && !photoFailed ? (
+        <Image
+          src={photoUrl}
+          alt={item.place.name}
+          fill
+          sizes="(min-width: 1024px) 560px, 100vw"
+          unoptimized
+          priority
+          className="object-cover"
+          onError={() => setPhotoFailed(true)}
+        />
+      ) : (
+        <div className="flex size-full min-h-44 items-center justify-center bg-[#d8d2c9] text-[#625b53]">
+          <div className="text-center">
+            <MapPin className="mx-auto size-7" aria-hidden="true" />
+            <p className="mt-3 text-sm font-semibold">Place photo unavailable</p>
+          </div>
+        </div>
+      )}
+      {!photoFailed && (
+        <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 bg-black/55 px-4 py-3 text-white backdrop-blur-sm">
+          <div className="flex min-w-0 items-start gap-2">
+            <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{item.place.name}</p>
+              {item.place.address && (
+                <p className="truncate text-xs text-white/72">{item.place.address}</p>
+              )}
+            </div>
+          </div>
+          {attribution && (
+            <span className="shrink-0 text-[10px] text-white/65">
+              Photo by {attribution.displayName}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function LiveTrip({ tripId }: { tripId: string }) {
   const [data, setData] = useState<ItineraryPageData | null>(null);
   const [route, setRoute] = useState<TripRoute | null>(null);
@@ -247,6 +343,8 @@ export function LiveTrip({ tripId }: { tripId: string }) {
   const [realtimeStatus, setRealtimeStatus] =
     useState<TripRealtimeStatus>('CONNECTING');
   const [now, setNow] = useState(() => new Date());
+  const [explicitRainChangeActive, setExplicitRainChangeActive] =
+    useState(false);
 
   const load = useCallback(
     async (showLoading = false) => {
@@ -546,11 +644,28 @@ export function LiveTrip({ tripId }: { tripId: string }) {
   }
 
   const currentWeather = current ? (weather.get(current.id) ?? null) : null;
+  const displayWeather = currentWeather ?? nextWeather;
+  const backgroundMode: LiveBackgroundMode = explicitRainChangeActive
+    ? 'rain'
+    : now.getHours() >= 18
+      ? 'night'
+      : 'day';
+  const currentTime = now.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  const weatherHeading = displayWeather
+    ? (displayWeather.precipitationProbability ?? 0) >= 60
+      ? 'Rain may affect the next move'
+      : displayWeather.condition
+    : 'Live weather is unavailable';
 
   return (
-    <main className="atlas-page min-h-[100dvh] bg-parchment text-ink">
-      <header className="bg-ink text-paper">
-        <div className="mx-auto flex h-16 w-full max-w-[1240px] items-center justify-between gap-4 px-4 sm:px-8">
+    <main className="atlas-page relative isolate min-h-[100dvh] overflow-x-hidden bg-[#111719] text-ink lg:h-[100dvh] lg:overflow-hidden">
+      <LiveBackground mode={backgroundMode} />
+      <header className="relative z-20 mx-3 mt-3 rounded-[1.35rem] border border-white/15 bg-[#111516]/88 text-paper shadow-[0_18px_50px_rgb(0_0_0/24%)] backdrop-blur-xl sm:mx-6 lg:mx-auto lg:max-w-[1200px]">
+        <div className="flex h-14 w-full items-center justify-between gap-4 px-4 sm:px-6">
           <Link
             href={`/trip/${tripId}/plan`}
             className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold outline-none transition-opacity hover:opacity-70 focus-visible:ring-2 focus-visible:ring-paper/70"
@@ -570,18 +685,19 @@ export function LiveTrip({ tripId }: { tripId: string }) {
             </span>
           </div>
 
-          <div className="min-w-16 text-right text-xs text-paper/65 sm:text-sm">
+          <div className="flex min-w-16 items-center justify-end gap-3 text-right text-xs text-paper/75 sm:text-sm">
             {currentWeather?.temperatureC !== null && currentWeather ? (
               <span>{Math.round(currentWeather.temperatureC)}°C</span>
             ) : (
               <span>Day {activeDay.day}</span>
             )}
+            <span className="hidden sm:inline">{data.itinerary.destination}</span>
           </div>
         </div>
       </header>
 
-      <div className="mx-auto w-full max-w-[1240px] px-4 pb-28 pt-7 sm:px-8 sm:pb-12 sm:pt-10">
-        <div className="mb-6 sm:mb-8">
+      <div className="relative z-10 mx-auto w-full max-w-[1200px] px-3 pb-28 pt-4 sm:px-6 lg:h-[calc(100dvh-82px)] lg:pb-20">
+        <div className="sr-only">
           <p className="text-xs font-semibold tracking-[0.16em] text-brown-accent">
             TODAY&apos;S JOURNEY
           </p>
@@ -624,40 +740,47 @@ export function LiveTrip({ tripId }: { tripId: string }) {
           <>
             <section
               aria-labelledby="live-now-heading"
-              className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:gap-5"
+              className="grid gap-4 lg:h-full lg:grid-cols-[minmax(0,1.3fr)_minmax(340px,1fr)] lg:grid-rows-[minmax(0,1fr)_156px] lg:gap-4"
             >
-              <article className="flex min-h-[340px] flex-col rounded-2xl border border-warm-border bg-paper p-6 shadow-editorial sm:p-8 lg:min-h-[390px]">
+              <article className="flex min-h-[520px] flex-col rounded-[1.45rem] border border-white/65 bg-[#f5f0e8]/96 p-5 shadow-[0_24px_70px_rgb(0_0_0/28%)] backdrop-blur-md sm:p-6 lg:row-span-2 lg:min-h-0">
                 <div className="flex items-center justify-between gap-4">
-                  <p className="inline-flex items-center gap-2 text-xs font-bold tracking-[0.18em] text-brown-accent">
-                    <span className="size-2 rounded-full bg-brown-accent" />
-                    NOW
+                  <p className="text-[0.68rem] font-bold tracking-[0.2em] text-brown-accent">
+                    TODAY&apos;S JOURNEY
                   </p>
-                  <time className="text-sm font-semibold text-warm-muted">
-                    {current.plannedTime}
+                  <time className="font-mono text-sm text-warm-muted">
+                    {currentTime}
                   </time>
                 </div>
 
-                <div className="my-auto py-8">
+                <div className="pb-3 pt-2">
                   <h2
                     id="live-now-heading"
-                    className="max-w-2xl font-editorial text-4xl leading-[1.02] font-semibold tracking-[-0.045em] sm:text-5xl lg:text-6xl"
+                    className="line-clamp-2 max-w-2xl font-editorial text-[clamp(2.4rem,4.7vw,4.4rem)] leading-[0.98] font-medium tracking-[-0.055em]"
                   >
                     {current.place.name}
                   </h2>
-                  <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3 text-sm text-warm-muted">
-                    <span className="inline-flex items-center gap-2">
-                      <Clock3 className="size-4" aria-hidden="true" />
-                      {current.estimatedDurationMinutes} min · leave by{' '}
-                      {addMinutesToTime(
-                        current.plannedTime,
-                        current.estimatedDurationMinutes,
-                      )}
-                    </span>
-                    <WeatherLine weather={currentWeather} />
-                  </div>
+                  <p className="mt-3 flex items-center gap-3 text-[0.68rem] font-bold tracking-[0.2em] text-brown-accent">
+                    <span className="size-2 rounded-full bg-[#ef6545]" />
+                    NOW
+                    <span className="h-px flex-1 bg-warm-border" />
+                  </p>
                 </div>
 
-                <div className="flex flex-col gap-4 border-t border-warm-border pt-5 sm:flex-row sm:items-center sm:justify-between">
+                <CurrentPlacePhoto key={current.id} tripId={tripId} item={current} />
+
+                <div className="flex flex-wrap items-center gap-x-7 gap-y-2 border-b border-warm-border py-3 text-sm text-warm-muted">
+                  <span className="inline-flex items-center gap-2">
+                    <Clock3 className="size-4 text-brown-accent" aria-hidden="true" />
+                    {current.estimatedDurationMinutes} min · leave by{' '}
+                    {addMinutesToTime(
+                      current.plannedTime,
+                      current.estimatedDurationMinutes,
+                    )}
+                  </span>
+                  <WeatherLine weather={currentWeather} />
+                </div>
+
+                <div className="flex flex-col gap-3 pt-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="inline-flex max-w-xl items-start gap-2 text-sm leading-6 text-warm-muted">
                     <Navigation
                       className="mt-1 size-4 shrink-0 text-brown-accent"
@@ -677,14 +800,21 @@ export function LiveTrip({ tripId }: { tripId: string }) {
                   </div>
                 </div>
                 {includesCategoryEstimates && (
-                  <p className="mt-2 text-right text-[11px] text-warm-muted">
+                  <p className="mt-1 text-right text-[10px] text-warm-muted">
                     Includes category estimates
                   </p>
                 )}
               </article>
 
-              <div className="relative min-h-[300px] overflow-hidden rounded-2xl border border-warm-border bg-warm-border shadow-editorial lg:min-h-[390px]">
+              <div className="relative min-h-[320px] overflow-hidden rounded-[1.45rem] border border-white/45 bg-[#18201f] shadow-[0_24px_70px_rgb(0_0_0/26%)] lg:min-h-0">
                 <LiveMap items={remaining} route={route} />
+                <Link
+                  href={`/trip/${tripId}/plan`}
+                  className="absolute right-4 top-4 z-10 inline-flex h-9 items-center gap-2 rounded-full border border-white/20 bg-black/55 px-4 text-xs font-semibold text-white backdrop-blur-md hover:bg-black/70"
+                >
+                  Full map
+                  <ArrowUpRight className="size-3.5" aria-hidden="true" />
+                </Link>
                 <div className="pointer-events-none absolute inset-x-4 bottom-4 rounded-xl bg-ink/90 px-4 py-3 text-paper shadow-lg backdrop-blur-sm">
                   <p className="text-xs font-semibold tracking-[0.12em] text-paper/65">
                     LIVE ROUTE
@@ -700,12 +830,36 @@ export function LiveTrip({ tripId }: { tripId: string }) {
                   </p>
                 </div>
               </div>
+
+              <article className="flex min-h-[150px] items-center gap-5 rounded-[1.45rem] border border-white/65 bg-[#f5f0e8]/96 px-6 py-5 shadow-[0_24px_70px_rgb(0_0_0/24%)] backdrop-blur-md">
+                {displayWeather && (displayWeather.precipitationProbability ?? 0) >= 50 ? (
+                  <CloudRain className="size-9 shrink-0 text-brown-accent" aria-hidden="true" />
+                ) : (
+                  <CloudSun className="size-9 shrink-0 text-brown-accent" aria-hidden="true" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-[0.62rem] font-bold tracking-[0.2em] text-brown-accent">
+                    {displayWeather ? 'WEATHER UPDATE' : 'TRIP UPDATE'}
+                  </p>
+                  <h2 className="mt-1 line-clamp-1 font-editorial text-2xl font-medium tracking-[-0.035em]">
+                    {weatherHeading}
+                  </h2>
+                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-warm-muted">
+                    {contextMessage}
+                  </p>
+                </div>
+                {displayWeather?.temperatureC !== null && displayWeather ? (
+                  <span className="self-start font-editorial text-2xl">
+                    {Math.round(displayWeather.temperatureC)}°C
+                  </span>
+                ) : null}
+              </article>
             </section>
 
             {next && (
               <section
                 aria-labelledby="live-next-heading"
-                className="mt-5 rounded-2xl border border-warm-border bg-paper p-5 shadow-editorial sm:p-6"
+                className="mt-5 rounded-2xl border border-warm-border bg-paper p-5 shadow-editorial sm:p-6 lg:hidden"
               >
                 <div className="grid gap-4 sm:grid-cols-[90px_minmax(0,1fr)_auto] sm:items-center sm:gap-6">
                   <div>
@@ -747,7 +901,7 @@ export function LiveTrip({ tripId }: { tripId: string }) {
             {later.length > 0 && (
               <section
                 aria-labelledby="live-later-heading"
-                className="mt-9 sm:mt-11"
+                className="mt-9 sm:mt-11 lg:hidden"
               >
                 <div className="flex items-end justify-between gap-4 border-b border-warm-border pb-4">
                   <div>
@@ -833,8 +987,8 @@ export function LiveTrip({ tripId }: { tripId: string }) {
           </section>
         )}
 
-        <section className="fixed inset-x-3 bottom-3 z-20 rounded-2xl border border-ink/10 bg-ink p-4 text-paper shadow-[0_18px_55px_-24px_rgb(36_32_28/75%)] sm:static sm:mt-11 sm:flex sm:items-center sm:justify-between sm:p-6">
-          <div className="mb-4 sm:mb-0">
+        <section className="fixed inset-x-3 bottom-3 z-20 flex justify-center sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 lg:absolute lg:bottom-3">
+          <div className="sr-only">
             <p className="text-xs font-bold tracking-[0.16em] text-paper/55">
               PLANS CAN CHANGE
             </p>
@@ -855,10 +1009,11 @@ export function LiveTrip({ tripId }: { tripId: string }) {
             onScheduleApply={applyScheduleChange}
             onWeatherDelay={delayWeatherStop}
             onWeatherSkip={skipWeatherStop}
+            onRainOverrideChange={setExplicitRainChangeActive}
           />
         </section>
 
-        <details className="group mt-5 rounded-2xl border border-warm-border bg-paper shadow-editorial">
+        <details className="group mt-5 rounded-2xl border border-warm-border bg-paper shadow-editorial lg:hidden">
           <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-5 text-sm font-semibold marker:hidden sm:px-6">
             Full day weather timeline
             <span className="text-xs font-normal text-warm-muted group-open:hidden">

@@ -79,10 +79,24 @@ export async function GET(
   if (!authenticated) return unauthorizedResponse();
 
   const { id } = await context.params;
-  const photoName = new URL(request.url).searchParams.get('name')?.trim();
-  if (!photoName?.startsWith('places/') || photoName.length > 500) {
+  const searchParams = new URL(request.url).searchParams;
+  const photoName = searchParams.get('name')?.trim() ?? null;
+  const googlePlaceId = searchParams.get('placeId')?.trim() ?? null;
+  if (
+    (!photoName?.startsWith('places/') && !googlePlaceId) ||
+    (photoName?.length ?? 0) > 500 ||
+    (googlePlaceId?.length ?? 0) > 500
+  ) {
     return photoUnavailableResponse();
   }
+
+  let photoQuery = authenticated.supabase
+    .from('malaysia_places')
+    .select('id,google_place_id,photo_name')
+    .limit(1);
+  photoQuery = photoName
+    ? photoQuery.eq('photo_name', photoName)
+    : photoQuery.eq('google_place_id', googlePlaceId!);
 
   const [{ data: membership, error: membershipError }, photoResult] =
     await Promise.all([
@@ -92,28 +106,29 @@ export async function GET(
         .eq('trip_id', id)
         .eq('user_id', authenticated.user.id)
         .maybeSingle(),
-      authenticated.supabase
-        .from('malaysia_places')
-        .select('id,google_place_id')
-        .eq('photo_name', photoName)
-        .limit(1)
-        .maybeSingle(),
+      photoQuery.maybeSingle(),
     ]);
   if (membershipError) throw membershipError;
   if (!membership) return unavailableTripResponse();
-  if (photoResult.error || !photoResult.data) return photoUnavailableResponse();
+  if (photoResult.error) return photoUnavailableResponse();
+  if (!photoResult.data && !googlePlaceId) return photoUnavailableResponse();
 
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) return photoUnavailableResponse();
-  let photoUrl = await resolveGooglePlacePhotoUrl(photoName, apiKey);
-  if (!photoUrl && photoResult.data.google_place_id) {
+  const resolvedPhotoName = photoName ?? photoResult.data?.photo_name ?? null;
+  let photoUrl = resolvedPhotoName
+    ? await resolveGooglePlacePhotoUrl(resolvedPhotoName, apiKey)
+    : null;
+  const resolvedGooglePlaceId =
+    photoResult.data?.google_place_id ?? googlePlaceId;
+  if (!photoUrl && resolvedGooglePlaceId) {
     const refreshedPhoto = await refreshGooglePlacePhotoMetadata(
-      photoResult.data.google_place_id,
+      resolvedGooglePlaceId,
       apiKey,
     );
     if (refreshedPhoto) {
       photoUrl = await resolveGooglePlacePhotoUrl(refreshedPhoto.name, apiKey);
-      if (photoUrl) {
+      if (photoUrl && photoResult.data) {
         await persistRefreshedPhoto(photoResult.data.id, refreshedPhoto);
       }
     }

@@ -15,6 +15,7 @@ import {
   parseTripSetupStage,
 } from '@/lib/trips/setup-core';
 import { parseTripEndpoint } from '@/lib/trips/travel-boundaries';
+import { parsePlacePhotoAttributions } from '@/lib/malaysia-places/photo-core';
 
 function explorationPreference(value: string): ExplorationPreference {
   return value === 'stay_local' ||
@@ -75,6 +76,38 @@ export async function loadItineraryPageData(
     : { data: [], error: null };
   if (placeRows.error) throw placeRows.error;
 
+  const externalPlaceIds = (placeRows.data ?? [])
+    .map((place) => place.external_place_id)
+    .filter((id): id is string => Boolean(id));
+  const photoRows = externalPlaceIds.length
+    ? await supabase
+        .from('malaysia_places')
+        .select(
+          'google_place_id, photo_name, photo_width_px, photo_height_px, photo_attributions',
+        )
+        .in('google_place_id', externalPlaceIds)
+    : { data: [], error: null };
+  if (photoRows.error) throw photoRows.error;
+  const photosByExternalPlaceId = new Map(
+    (photoRows.data ?? []).flatMap((place) =>
+      place.photo_name?.startsWith('places/')
+        ? [
+            [
+              place.google_place_id,
+              {
+                name: place.photo_name,
+                widthPx: place.photo_width_px,
+                heightPx: place.photo_height_px,
+                attributions: parsePlacePhotoAttributions(
+                  place.photo_attributions,
+                ),
+              },
+            ] as const,
+          ]
+        : [],
+    ),
+  );
+
   const places = new Map(
     (placeRows.data ?? []).map((place) => [
       place.id,
@@ -88,6 +121,9 @@ export async function loadItineraryPageData(
         ratingCount: place.rating_count,
         priceLevel: place.price_level,
         types: place.types,
+        photo: place.external_place_id
+          ? (photosByExternalPlaceId.get(place.external_place_id) ?? null)
+          : null,
       } satisfies ItineraryPlace,
     ]),
   );

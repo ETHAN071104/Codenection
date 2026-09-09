@@ -7,6 +7,7 @@ import {
   Clock3,
   CloudRain,
   PackageSearch,
+  SlidersHorizontal,
   Timer,
   UsersRound,
   X,
@@ -69,6 +70,7 @@ export function ChangeBar({
   onScheduleApply,
   onWeatherDelay,
   onWeatherSkip,
+  onRainOverrideChange,
 }: {
   members: LiveTripMember[];
   weatherContext: string | null;
@@ -84,6 +86,7 @@ export function ChangeBar({
   ) => Promise<void>;
   onWeatherDelay: (item: ItineraryItemView, minutes: number) => Promise<void>;
   onWeatherSkip: (item: ItineraryItemView) => Promise<void>;
+  onRainOverrideChange?: (active: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [activeType, setActiveType] = useState<TripChangeType | null>(null);
@@ -104,13 +107,20 @@ export function ChangeBar({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') {
+        setOpen(false);
+        setActiveType((current) => {
+          if (current === 'weather_problem') onRainOverrideChange?.(false);
+          return null;
+        });
+      }
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [onRainOverrideChange]);
 
   function selectType(type: TripChangeType) {
+    onRainOverrideChange?.(type === 'weather_problem');
     setActiveType(type);
     setNote('');
     setCapturedEvent(null);
@@ -125,6 +135,7 @@ export function ChangeBar({
   }
 
   function close() {
+    if (activeType === 'weather_problem') onRainOverrideChange?.(false);
     setOpen(false);
     setActiveType(null);
     setNote('');
@@ -211,9 +222,9 @@ export function ChangeBar({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-ink bg-ink px-4 text-sm font-semibold text-paper transition-colors hover:bg-ink/90 active:translate-y-px sm:w-auto"
+        className="inline-flex h-14 w-full min-w-[280px] items-center justify-center gap-3 rounded-[1.1rem] border border-white/30 bg-[#111516]/92 px-7 text-base font-semibold text-paper shadow-[0_18px_45px_rgb(0_0_0/35%)] backdrop-blur-xl transition-colors hover:bg-black active:translate-y-px sm:w-auto"
       >
-        <AlertTriangle className="size-4" aria-hidden="true" />
+        <SlidersHorizontal className="size-5" aria-hidden="true" />
         Something changed
       </button>
 
