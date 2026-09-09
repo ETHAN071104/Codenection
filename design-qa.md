@@ -29,16 +29,17 @@
 **Findings**
 
 - No actionable P0, P1, or P2 visual differences remain.
-- P3: the final atmosphere depends on the three pending production MP4 files and live Google photo availability.
+- P3: the deterministic QA fixture intentionally uses the neutral current-place photo fallback; production itineraries use the Google Places photo path.
 
 **Comparison history**
 
 - Initial comparison passed without a correction cycle. No P0, P1, or P2 fixes were required after capture.
+- Targeted desktop follow-up: `C:\Users\Asus\Documents\ChatGPT\Codenection\live-trip-fix-1478x930.png` at 1478 × 930 confirmed the change dialog is fully contained at 512 × 443, all six choices are visible, Heavy rain is present, and desktop NEXT STOP plus WEATHER UPDATE are visible. The first follow-up capture exposed a transformed-ancestor positioning bug; removing that transform produced the passing evidence.
 
 **Implementation checklist**
 
 - Preserve the existing change dialog, route, weather, realtime, cost, and itinerary logic.
-- Drop final assets into `public/videos/live/day.mp4`, `night.mp4`, and `rain.mp4`.
+- Keep the change dialog viewport-contained with its content region independently scrollable on smaller screens.
 - Verify one production itinerary with a cached Google Places photo after assets are supplied.
 
 final result: passed

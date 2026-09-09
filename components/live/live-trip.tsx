@@ -831,28 +831,49 @@ export function LiveTrip({ tripId }: { tripId: string }) {
                 </div>
               </div>
 
-              <article className="flex min-h-[150px] items-center gap-5 rounded-[1.45rem] border border-white/65 bg-[#f5f0e8]/96 px-6 py-5 shadow-[0_24px_70px_rgb(0_0_0/24%)] backdrop-blur-md">
-                {displayWeather && (displayWeather.precipitationProbability ?? 0) >= 50 ? (
-                  <CloudRain className="size-9 shrink-0 text-brown-accent" aria-hidden="true" />
-                ) : (
-                  <CloudSun className="size-9 shrink-0 text-brown-accent" aria-hidden="true" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="text-[0.62rem] font-bold tracking-[0.2em] text-brown-accent">
-                    {displayWeather ? 'WEATHER UPDATE' : 'TRIP UPDATE'}
-                  </p>
-                  <h2 className="mt-1 line-clamp-1 font-editorial text-2xl font-medium tracking-[-0.035em]">
-                    {weatherHeading}
-                  </h2>
-                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-warm-muted">
-                    {contextMessage}
-                  </p>
+              <article className="grid min-h-[150px] rounded-[1.45rem] border border-white/65 bg-[#f5f0e8]/96 shadow-[0_24px_70px_rgb(0_0_0/24%)] backdrop-blur-md lg:grid-cols-[0.9fr_1.1fr]">
+                <div className="hidden min-w-0 items-center gap-4 border-r border-warm-border px-5 py-4 lg:flex">
+                  <Navigation className="size-7 shrink-0 text-brown-accent" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <p className="text-[0.6rem] font-bold tracking-[0.2em] text-brown-accent">
+                      NEXT STOP
+                    </p>
+                    <h2 className="mt-1 line-clamp-2 font-editorial text-xl font-medium leading-tight tracking-[-0.03em]">
+                      {next?.place.name ?? 'Day complete'}
+                    </h2>
+                    <p className="mt-2 text-xs text-warm-muted">
+                      {nextSegment
+                        ? `${formatTravel(nextSegment.durationSeconds)} away`
+                        : next
+                          ? `Starts at ${next.plannedTime}`
+                          : 'No more scheduled stops'}
+                    </p>
+                  </div>
                 </div>
-                {displayWeather?.temperatureC !== null && displayWeather ? (
-                  <span className="self-start font-editorial text-2xl">
-                    {Math.round(displayWeather.temperatureC)}°C
-                  </span>
-                ) : null}
+
+                <div className="flex min-w-0 items-center gap-4 px-5 py-4">
+                  {displayWeather && (displayWeather.precipitationProbability ?? 0) >= 50 ? (
+                    <CloudRain className="size-8 shrink-0 text-brown-accent" aria-hidden="true" />
+                  ) : (
+                    <CloudSun className="size-8 shrink-0 text-brown-accent" aria-hidden="true" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[0.6rem] font-bold tracking-[0.2em] text-brown-accent">
+                      {displayWeather ? 'WEATHER UPDATE' : 'TRIP UPDATE'}
+                    </p>
+                    <h2 className="mt-1 line-clamp-1 font-editorial text-xl font-medium tracking-[-0.03em]">
+                      {weatherHeading}
+                    </h2>
+                    <p className="mt-2 line-clamp-2 text-xs leading-5 text-warm-muted">
+                      {contextMessage}
+                    </p>
+                  </div>
+                  {displayWeather?.temperatureC !== null && displayWeather ? (
+                    <span className="self-start font-editorial text-xl">
+                      {Math.round(displayWeather.temperatureC)}°C
+                    </span>
+                  ) : null}
+                </div>
               </article>
             </section>
 
@@ -987,7 +1008,7 @@ export function LiveTrip({ tripId }: { tripId: string }) {
           </section>
         )}
 
-        <section className="fixed inset-x-3 bottom-3 z-20 flex justify-center sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 lg:absolute lg:bottom-3">
+        <section className="fixed inset-x-3 bottom-3 z-20 flex justify-center sm:inset-x-0 lg:absolute lg:bottom-3">
           <div className="sr-only">
             <p className="text-xs font-bold tracking-[0.16em] text-paper/55">
               PLANS CAN CHANGE

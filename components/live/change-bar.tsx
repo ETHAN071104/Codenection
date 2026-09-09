@@ -33,7 +33,7 @@ const CHANGE_OPTIONS: ChangeOption[] = [
   { type: 'running_late', label: 'Running late', Icon: Timer },
   { type: 'lost_item', label: 'Lost item', Icon: PackageSearch },
   { type: 'separated', label: 'Someone separated', Icon: UsersRound },
-  { type: 'weather_problem', label: 'Weather problem', Icon: CloudRain },
+  { type: 'weather_problem', label: 'Heavy rain', Icon: CloudRain },
   { type: 'emergency', label: 'Emergency', Icon: AlertTriangle },
 ];
 
@@ -229,7 +229,7 @@ export function ChangeBar({
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-40 flex items-end bg-ink/35 sm:items-center sm:justify-center">
+        <div className="fixed inset-0 z-40 flex items-end bg-ink/35 p-0 sm:items-center sm:justify-center sm:p-6">
           <button
             type="button"
             aria-label="Close change panel"
@@ -238,10 +238,11 @@ export function ChangeBar({
           />
           <dialog
             open
+            aria-modal="true"
             aria-labelledby="change-bar-title"
-            className="relative z-10 max-h-[82dvh] w-full overflow-y-auto rounded-t-2xl border border-warm-border bg-paper shadow-[0_-24px_65px_rgba(67,58,44,0.3)] sm:max-w-lg sm:rounded-2xl sm:shadow-[0_24px_65px_rgba(67,58,44,0.3)]"
+            className="relative z-10 m-0 flex max-h-[calc(100dvh-1rem)] w-full flex-col overflow-hidden rounded-t-2xl border border-warm-border bg-paper shadow-[0_-24px_65px_rgba(67,58,44,0.3)] sm:max-h-[min(760px,calc(100dvh-3rem))] sm:max-w-lg sm:rounded-2xl sm:shadow-[0_24px_65px_rgba(67,58,44,0.3)]"
           >
-            <div className="flex items-start justify-between border-b border-warm-border bg-parchment p-5">
+            <div className="flex shrink-0 items-start justify-between border-b border-warm-border bg-parchment p-5">
               <div>
                 <p className="text-xs font-semibold tracking-[0.12em] text-brown-accent">
                   LIVE CHANGE
@@ -263,7 +264,7 @@ export function ChangeBar({
               </button>
             </div>
 
-            <div className="p-5 sm:p-6">
+            <div className="min-h-0 overflow-y-auto overscroll-contain p-5 sm:p-6">
               {!activeType ? (
                 <div className="grid grid-cols-2 gap-2">
                   {CHANGE_OPTIONS.map(({ type, label, Icon }) => (

@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Fragment,
   type ReactNode,
   type RefObject,
   useCallback,
@@ -219,6 +220,109 @@ function MapDayViewport({
   return null;
 }
 
+function EditorialBasemapStyle() {
+  const { map, isLoaded } = useMap();
+
+  useEffect(() => {
+    if (!map || !isLoaded) return;
+
+    type EditorialPaintProperty =
+      | 'background-color'
+      | 'fill-color'
+      | 'fill-opacity'
+      | 'fill-outline-color'
+      | 'line-color'
+      | 'line-opacity'
+      | 'text-color'
+      | 'text-halo-color'
+      | 'text-halo-width'
+      | 'text-opacity'
+      | 'icon-color'
+      | 'icon-opacity';
+
+    const setPaint = (
+      layerId: string,
+      property: EditorialPaintProperty,
+      value: string | number,
+    ) => {
+      if (map.getLayer(layerId)) map.setPaintProperty(layerId, property, value);
+    };
+    const layers = map.getStyle().layers ?? [];
+
+    for (const layer of layers) {
+      const { id, type } = layer;
+
+      if (id === 'background') {
+        setPaint(id, 'background-color', '#f3f0e8');
+        continue;
+      }
+
+      if (type === 'fill') {
+        if (id === 'water') setPaint(id, 'fill-color', '#d9e7ea');
+        else if (id === 'water_shadow') {
+          setPaint(id, 'fill-color', '#cfdee3');
+          setPaint(id, 'fill-opacity', 0.58);
+        } else if (id.includes('park') || id === 'landcover') {
+          setPaint(id, 'fill-color', '#d8e5d4');
+          setPaint(id, 'fill-opacity', 0.9);
+        } else if (id === 'landuse') {
+          setPaint(id, 'fill-color', '#e4eadc');
+          setPaint(id, 'fill-opacity', 0.74);
+        } else if (id === 'landuse_residential') {
+          setPaint(id, 'fill-color', '#eee9e1');
+          setPaint(id, 'fill-opacity', 0.86);
+        } else if (id.startsWith('building')) {
+          setPaint(id, 'fill-color', id === 'building-top' ? '#eeeae3' : '#e4dfd7');
+          setPaint(id, 'fill-outline-color', '#dcd5cb');
+        }
+      }
+
+      if (type === 'line') {
+        if (id === 'waterway') {
+          setPaint(id, 'line-color', '#bfd7de');
+          setPaint(id, 'line-opacity', 0.95);
+        } else if (id.includes('boundary')) {
+          setPaint(id, 'line-color', '#c8c0b5');
+          setPaint(id, 'line-opacity', 0.55);
+        } else if (id.includes('rail')) {
+          setPaint(id, 'line-color', '#c4bcb1');
+          setPaint(id, 'line-opacity', 0.58);
+        } else if (id.includes('_case')) {
+          setPaint(id, 'line-color', '#cbc4b9');
+          setPaint(id, 'line-opacity', 0.72);
+        } else if (id.includes('_fill')) {
+          const isHighway = id.includes('_mot_') || id.includes('_trunk_');
+          const isPrimary = id.includes('_pri_') || id.includes('_sec_');
+          setPaint(
+            id,
+            'line-color',
+            isHighway ? '#d8c9ae' : isPrimary ? '#ddd3c2' : '#eeeae3',
+          );
+          setPaint(id, 'line-opacity', 0.96);
+        } else if (id.includes('path')) {
+          setPaint(id, 'line-color', '#d9d3ca');
+          setPaint(id, 'line-opacity', 0.78);
+        }
+      }
+
+      if (type === 'symbol') {
+        const isPlaceLabel = id.startsWith('place_');
+        const isRoadLabel = id.startsWith('roadname_');
+        setPaint(id, 'text-color', isPlaceLabel ? '#665f56' : '#756d63');
+        setPaint(id, 'text-halo-color', '#f5f2eb');
+        setPaint(id, 'text-halo-width', isRoadLabel ? 1.15 : 1.35);
+        setPaint(id, 'icon-color', '#887f74');
+        if (id.startsWith('poi_')) {
+          setPaint(id, 'text-opacity', 0.78);
+          setPaint(id, 'icon-opacity', 0.72);
+        }
+      }
+    }
+  }, [isLoaded, map]);
+
+  return null;
+}
+
 function MapCanvas({
   items,
   routes,
@@ -281,17 +385,27 @@ function MapCanvas({
         arrivalPoint={arrivalPoint}
         departurePoint={departurePoint}
       />
+      <EditorialBasemapStyle />
       {routes.map(({ day, route, color }) =>
         route.geometry ? (
-          <MapRoute
-            key={day}
-            id={`saved-driving-route-day-${day}`}
-            coordinates={route.geometry.coordinates}
-            color={color}
-            width={4}
-            opacity={0.82}
-            interactive={false}
-          />
+          <Fragment key={day}>
+            <MapRoute
+              id={`saved-driving-route-outline-day-${day}`}
+              coordinates={route.geometry.coordinates}
+              color="#fff9ef"
+              width={7}
+              opacity={0.88}
+              interactive={false}
+            />
+            <MapRoute
+              id={`saved-driving-route-day-${day}`}
+              coordinates={route.geometry.coordinates}
+              color={color}
+              width={4.5}
+              opacity={0.94}
+              interactive={false}
+            />
+          </Fragment>
         ) : null,
       )}
       <MapControls />
