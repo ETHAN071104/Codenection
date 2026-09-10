@@ -8,6 +8,12 @@ import {
   getDrivingRoute,
   OpenRouteServiceError,
 } from '@/lib/routing/openrouteservice';
+import {
+  ARRIVAL_ENDPOINT_ID,
+  DEPARTURE_ENDPOINT_ID,
+  STAY_ENDPOINT_ID,
+} from '@/lib/routing/route-points-core';
+import { tripDayRouteAnchors } from '@/lib/trips/travel-boundaries';
 
 function routeErrorResponse(error: unknown) {
   const code =
@@ -74,9 +80,24 @@ export async function GET(
 
     const firstDay = data.itinerary.days[0]?.day;
     const finalDay = data.itinerary.days.at(-1)?.day;
+    const anchors = tripDayRouteAnchors({
+      firstDay: day === firstDay,
+      finalDay: day === finalDay,
+      arrivalPoint: data.trip.arrivalPoint,
+      departurePoint: data.trip.departurePoint,
+      stayAnchor: data.trip.stayAnchor,
+    });
     const route = await getDrivingRoute(selectedDay.items, {
-      start: day === firstDay ? data.trip.arrivalPoint : null,
-      end: day === finalDay ? data.trip.departurePoint : null,
+      start: anchors.start,
+      end: anchors.end,
+      startId:
+        anchors.startKind === 'arrival'
+          ? ARRIVAL_ENDPOINT_ID
+          : STAY_ENDPOINT_ID,
+      endId:
+        anchors.endKind === 'departure'
+          ? DEPARTURE_ENDPOINT_ID
+          : STAY_ENDPOINT_ID,
     });
     return Response.json(route, {
       headers: { 'Cache-Control': 'no-store' },

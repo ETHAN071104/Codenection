@@ -5,7 +5,10 @@ import {
   unavailableTripResponse,
 } from '@/lib/phase2/api-error';
 import { loadItineraryPageData } from '@/lib/phase2/storage';
-import { proposeItineraryEdit } from '@/lib/planner/ai-edit';
+import {
+  proposeItineraryEdit,
+  StayResolutionError,
+} from '@/lib/planner/ai-edit';
 
 export async function POST(
   request: Request,
@@ -48,6 +51,12 @@ export async function POST(
       await proposeItineraryEdit({ request: editRequest, day, data }),
     );
   } catch (error) {
+    if (error instanceof StayResolutionError) {
+      return Response.json(
+        { error: { code: error.code, message: error.message } },
+        { status: error.code === 'STAY_AMBIGUOUS' ? 409 : 422 },
+      );
+    }
     return phase2ErrorResponse(error);
   }
 }

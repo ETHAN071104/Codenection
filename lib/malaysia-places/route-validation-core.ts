@@ -306,7 +306,9 @@ export async function validateDeterministicScheduleRoutes({
   const candidatesById = new Map(
     knownPlaces.map((candidate) => [candidate.id, candidate]),
   );
-  const stay = centroidForArea(recommendedStayArea, knownPlaces);
+  const stay =
+    constraints?.stayAnchor ??
+    centroidForArea(recommendedStayArea, knownPlaces);
   const profile = derivePaceProfile(constraints?.averagePace);
   const excluded = new Set<string>();
   const included = new Set(

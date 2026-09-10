@@ -100,6 +100,7 @@ export async function createPlanningIntelligencePlan(input: {
     input.durationDays,
     input.candidates,
     recommendedStayArea,
+    input.constraints.stayAnchor,
   );
   const localSchedule = createDeterministicDraftSchedule(
     dayGroups,

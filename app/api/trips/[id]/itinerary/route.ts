@@ -136,7 +136,7 @@ export async function POST(
     const { data: trip, error: tripError } = await authenticated.supabase
       .from('trips')
       .select(
-        'id, created_by, destination, duration_days, start_date, exploration_preference, planning_mode, arrival_time, departure_time, arrival_point, departure_point',
+        'id, created_by, destination, duration_days, start_date, exploration_preference, planning_mode, arrival_time, departure_time, arrival_point, departure_point, stay_anchor',
       )
       .eq('id', id)
       .maybeSingle();
@@ -228,6 +228,7 @@ export async function POST(
         departureTime,
         arrivalPoint: parseTripEndpoint(trip.arrival_point),
         departurePoint: parseTripEndpoint(trip.departure_point),
+        stayAnchor: parseTripEndpoint(trip.stay_anchor),
         averagePace: travelDna.average_pace,
         startDate: trip.start_date,
       },

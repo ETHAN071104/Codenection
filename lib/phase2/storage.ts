@@ -33,7 +33,7 @@ export async function loadItineraryPageData(
   const { data: trip, error: tripError } = await supabase
     .from('trips')
     .select(
-      'id, created_by, destination, destination_input, duration_days, start_date, end_date, exploration_preference, geographic_scope, planning_mode, setup_stage, arrival_time, departure_time, arrival_point, departure_point, finalized_at, finalized_by',
+      'id, created_by, destination, destination_input, duration_days, start_date, end_date, exploration_preference, geographic_scope, planning_mode, setup_stage, arrival_time, departure_time, arrival_point, departure_point, stay_anchor, finalized_at, finalized_by',
     )
     .eq('id', tripId)
     .maybeSingle();
@@ -164,6 +164,7 @@ export async function loadItineraryPageData(
     departureTime: trip.departure_time?.slice(0, 5) ?? null,
     arrivalPoint: parseTripEndpoint(trip.arrival_point),
     departurePoint: parseTripEndpoint(trip.departure_point),
+    stayAnchor: parseTripEndpoint(trip.stay_anchor),
     finalizedAt: trip.finalized_at,
     finalizedBy: trip.finalized_by,
     planningMode: parseTripPlanningMode(trip.planning_mode),

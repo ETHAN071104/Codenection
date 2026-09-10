@@ -2,9 +2,13 @@ import 'server-only';
 
 import { randomUUID } from 'node:crypto';
 import { requestStructuredJson } from '@/lib/phase2/openrouter';
-import { searchPlannerPlaces } from '@/lib/phase2/google-places';
+import {
+  resolveStayPlace,
+  searchPlannerPlaces,
+} from '@/lib/phase2/google-places';
 import type { ItineraryPageData } from '@/lib/phase2/types';
 import type { AiEditOperation, AiEditProposal } from './types';
+import { extractStayQuery } from './stay-intent-core';
 
 const proposalSchema = {
   type: 'object',
@@ -59,6 +63,15 @@ function cleanText(value: unknown, maxLength: number) {
   return cleaned && cleaned.length <= maxLength ? cleaned : null;
 }
 
+export class StayResolutionError extends Error {
+  constructor(
+    readonly code: 'STAY_AMBIGUOUS' | 'STAY_NOT_FOUND',
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 export async function proposeItineraryEdit({
   request,
   day,
@@ -70,6 +83,45 @@ export async function proposeItineraryEdit({
 }): Promise<AiEditProposal> {
   const itineraryDay = data.itinerary?.days.find((entry) => entry.day === day);
   if (!itineraryDay || !data.itinerary) throw new Error('INVALID_DAY');
+
+  const stayQuery = extractStayQuery(request);
+  if (stayQuery) {
+    const resolution = await resolveStayPlace(
+      stayQuery,
+      data.itinerary.destination,
+    );
+    if (resolution.status === 'not_found') {
+      throw new StayResolutionError(
+        'STAY_NOT_FOUND',
+        `I couldn't find an accommodation matching “${stayQuery}”. Please check the hotel name.`,
+      );
+    }
+    if (resolution.status === 'ambiguous') {
+      const options = resolution.candidates
+        .map((place) => place.name)
+        .join(', ');
+      throw new StayResolutionError(
+        'STAY_AMBIGUOUS',
+        `I found several possible stays: ${options}. Which one did you mean?`,
+      );
+    }
+    return {
+      request,
+      overview: `Set your exact stay to ${resolution.place.name} and replan the trip around it.`,
+      operations: [
+        {
+          id: randomUUID(),
+          type: 'set_stay',
+          day,
+          itemId: null,
+          targetIndex: null,
+          summary: `Stay at ${resolution.place.name}`,
+          expectedEffect: 'Replans daily routes around this exact stay.',
+          place: resolution.place,
+        },
+      ],
+    };
+  }
 
   const response = (await requestStructuredJson({
     schemaName: 'itinerary_edit_proposal',
@@ -158,9 +210,7 @@ export async function proposeItineraryEdit({
         const existingItem = itineraryDay.items.find(
           (item) => item.id === itemId,
         );
-        if (
-          existingItem?.place.externalPlaceId === place.externalPlaceId
-        ) {
+        if (existingItem?.place.externalPlaceId === place.externalPlaceId) {
           continue;
         }
       }

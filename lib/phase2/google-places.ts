@@ -2,6 +2,10 @@ import 'server-only';
 
 import { Phase2ProviderError } from './openrouter';
 import type { PlaceCandidate, SearchRequest } from './types';
+import {
+  selectStayPlaceResolution,
+  type StayPlaceResolution,
+} from './stay-grounding-core';
 
 const GOOGLE_PLACES_URL = 'https://places.googleapis.com/v1/places:searchText';
 const GOOGLE_PLACE_DETAILS_URL = 'https://places.googleapis.com/v1/places';
@@ -84,6 +88,21 @@ export async function searchPlannerPlaces(
     },
     destination,
   );
+}
+
+export async function resolveStayPlace(
+  query: string,
+  destination: string,
+): Promise<StayPlaceResolution> {
+  const candidates = await searchPlaces(
+    {
+      query: `${query} hotel accommodation`,
+      category: 'stay',
+      desiredCount: 5,
+    },
+    destination,
+  );
+  return selectStayPlaceResolution(query, candidates);
 }
 
 export async function resolveDestinationLocation(query: string) {

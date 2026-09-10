@@ -17,6 +17,7 @@ import {
   Bot,
   CloudSun,
   GripVertical,
+  Hotel,
   MapPin,
   PlaneLanding,
   PlaneTakeoff,
@@ -63,10 +64,14 @@ import { AiEditPanel } from '@/components/map/ai-edit-panel';
 import { cn } from '@/lib/utils';
 import { phase2Fetch } from '@/lib/phase2/client';
 import type { ItineraryItemView, ItineraryPageData } from '@/lib/phase2/types';
-import type { TripEndpoint } from '@/lib/trips/travel-boundaries';
+import {
+  tripDayRouteAnchors,
+  type TripEndpoint,
+} from '@/lib/trips/travel-boundaries';
 import {
   ARRIVAL_ENDPOINT_ID,
   DEPARTURE_ENDPOINT_ID,
+  STAY_ENDPOINT_ID,
 } from '@/lib/routing/route-points-core';
 import type { RouteSegment, TripRoute } from '@/lib/routing/types';
 import type {
@@ -130,14 +135,14 @@ function getRouteCacheKey(
   tripId: string,
   dayNumber: number,
   items: ItineraryItemView[],
-  endpoints?: { arrival?: TripEndpoint | null; departure?: TripEndpoint | null },
+  endpoints?: ReturnType<typeof getDayEndpoints>,
 ) {
   const endpointKey = [
-    endpoints?.arrival
-      ? `arrival:${endpoints.arrival.googlePlaceId}:${endpoints.arrival.longitude},${endpoints.arrival.latitude}`
+    endpoints?.start
+      ? `${endpoints.startId}:${endpoints.start.googlePlaceId}:${endpoints.start.longitude},${endpoints.start.latitude}`
       : '',
-    endpoints?.departure
-      ? `departure:${endpoints.departure.googlePlaceId}:${endpoints.departure.longitude},${endpoints.departure.latitude}`
+    endpoints?.end
+      ? `${endpoints.endId}:${endpoints.end.googlePlaceId}:${endpoints.end.longitude},${endpoints.end.latitude}`
       : '',
   ].join('|');
   return `${tripId}:${dayNumber}:${endpointKey}:${items
@@ -148,18 +153,32 @@ function getRouteCacheKey(
     .join('|')}`;
 }
 
-function getDayEndpoints(
-  data: ItineraryPageData | null,
-  dayNumber: number,
-) {
+function getDayEndpoints(data: ItineraryPageData | null, dayNumber: number) {
   const days = data?.itinerary?.days ?? [];
+  const arrival =
+    dayNumber === days[0]?.day ? (data?.trip.arrivalPoint ?? null) : null;
+  const departure =
+    dayNumber === days.at(-1)?.day ? (data?.trip.departurePoint ?? null) : null;
+  const stay = data?.trip.stayAnchor ?? null;
+  const anchors = tripDayRouteAnchors({
+    firstDay: dayNumber === days[0]?.day,
+    finalDay: dayNumber === days.at(-1)?.day,
+    arrivalPoint: arrival,
+    departurePoint: departure,
+    stayAnchor: stay,
+  });
   return {
-    arrival:
-      dayNumber === days[0]?.day ? (data?.trip.arrivalPoint ?? null) : null,
-    departure:
-      dayNumber === days.at(-1)?.day
-        ? (data?.trip.departurePoint ?? null)
-        : null,
+    arrival,
+    departure,
+    stay,
+    start: anchors.start,
+    end: anchors.end,
+    startId:
+      anchors.startKind === 'arrival' ? ARRIVAL_ENDPOINT_ID : STAY_ENDPOINT_ID,
+    endId:
+      anchors.endKind === 'departure'
+        ? DEPARTURE_ENDPOINT_ID
+        : STAY_ENDPOINT_ID,
   };
 }
 
@@ -167,26 +186,41 @@ function MapDayViewport({
   items,
   arrivalPoint,
   departurePoint,
+  stayPoint,
 }: {
   items: ItineraryItemView[];
   arrivalPoint: TripEndpoint | null;
   departurePoint: TripEndpoint | null;
+  stayPoint: TripEndpoint | null;
 }) {
   const { map, isLoaded } = useMap();
   const coordinates = useMemo(
     () => [
       ...(arrivalPoint
-        ? [{ longitude: arrivalPoint.longitude, latitude: arrivalPoint.latitude }]
+        ? [
+            {
+              longitude: arrivalPoint.longitude,
+              latitude: arrivalPoint.latitude,
+            },
+          ]
         : []),
       ...items.filter(hasValidCoordinates).map((item) => ({
         longitude: item.place.longitude!,
         latitude: item.place.latitude!,
       })),
       ...(departurePoint
-        ? [{ longitude: departurePoint.longitude, latitude: departurePoint.latitude }]
+        ? [
+            {
+              longitude: departurePoint.longitude,
+              latitude: departurePoint.latitude,
+            },
+          ]
+        : []),
+      ...(stayPoint
+        ? [{ longitude: stayPoint.longitude, latitude: stayPoint.latitude }]
         : []),
     ],
-    [arrivalPoint, departurePoint, items],
+    [arrivalPoint, departurePoint, items, stayPoint],
   );
 
   useEffect(() => {
@@ -261,8 +295,7 @@ function EditorialBasemapStyle() {
         if (id === 'water') {
           setPaint(id, 'fill-color', '#c8e5ec');
           setPaint(id, 'fill-opacity', 0.98);
-        }
-        else if (id === 'water_shadow') {
+        } else if (id === 'water_shadow') {
           setPaint(id, 'fill-color', '#b8d9e2');
           setPaint(id, 'fill-opacity', 0.72);
         } else if (id.includes('park') || id === 'landcover') {
@@ -275,7 +308,11 @@ function EditorialBasemapStyle() {
           setPaint(id, 'fill-color', '#eee9e1');
           setPaint(id, 'fill-opacity', 0.82);
         } else if (id.startsWith('building')) {
-          setPaint(id, 'fill-color', id === 'building-top' ? '#eeeae3' : '#e4dfd7');
+          setPaint(
+            id,
+            'fill-color',
+            id === 'building-top' ? '#eeeae3' : '#e4dfd7',
+          );
           setPaint(id, 'fill-outline-color', '#dcd5cb');
         }
       }
@@ -331,6 +368,7 @@ function MapCanvas({
   routes,
   arrivalPoint,
   departurePoint,
+  stayPoint,
   selectedItemId,
   onSelect,
 }: {
@@ -338,6 +376,7 @@ function MapCanvas({
   routes: { day: number; route: TripRoute; color: string }[];
   arrivalPoint: TripEndpoint | null;
   departurePoint: TripEndpoint | null;
+  stayPoint: TripEndpoint | null;
   selectedItemId: string | null;
   onSelect: (itemId: string, scrollToCard?: boolean) => void;
 }) {
@@ -347,14 +386,19 @@ function MapCanvas({
     departurePoint?.googlePlaceId === arrivalPoint.googlePlaceId;
   const initialPoint = arrivalPoint
     ? { longitude: arrivalPoint.longitude, latitude: arrivalPoint.latitude }
-    : validItems[0]
-      ? {
-          longitude: validItems[0].place.longitude!,
-          latitude: validItems[0].place.latitude!,
-        }
-      : departurePoint
-        ? { longitude: departurePoint.longitude, latitude: departurePoint.latitude }
-        : null;
+    : stayPoint
+      ? { longitude: stayPoint.longitude, latitude: stayPoint.latitude }
+      : validItems[0]
+        ? {
+            longitude: validItems[0].place.longitude!,
+            latitude: validItems[0].place.latitude!,
+          }
+        : departurePoint
+          ? {
+              longitude: departurePoint.longitude,
+              latitude: departurePoint.latitude,
+            }
+          : null;
 
   if (!initialPoint) {
     return (
@@ -387,6 +431,7 @@ function MapCanvas({
         items={items}
         arrivalPoint={arrivalPoint}
         departurePoint={departurePoint}
+        stayPoint={stayPoint}
       />
       <EditorialBasemapStyle />
       {routes.map(({ day, route, color }) =>
@@ -427,9 +472,15 @@ function MapCanvas({
           </MarkerContent>
           <MarkerPopup closeButton>
             <div className="min-w-48 p-1 text-ink">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-brown-accent">{sameEndpoint ? 'Arrival and departure point' : 'Arrival point'}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-brown-accent">
+                {sameEndpoint ? 'Arrival and departure point' : 'Arrival point'}
+              </p>
               <p className="mt-1 font-semibold">{arrivalPoint.name}</p>
-              {arrivalPoint.address && <p className="mt-2 text-sm text-warm-muted">{arrivalPoint.address}</p>}
+              {arrivalPoint.address && (
+                <p className="mt-2 text-sm text-warm-muted">
+                  {arrivalPoint.address}
+                </p>
+              )}
             </div>
           </MarkerPopup>
         </MapMarker>
@@ -449,13 +500,49 @@ function MapCanvas({
           </MarkerContent>
           <MarkerPopup closeButton>
             <div className="min-w-48 p-1 text-ink">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-brown-accent">Departure point</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-brown-accent">
+                Departure point
+              </p>
               <p className="mt-1 font-semibold">{departurePoint.name}</p>
-              {departurePoint.address && <p className="mt-2 text-sm text-warm-muted">{departurePoint.address}</p>}
+              {departurePoint.address && (
+                <p className="mt-2 text-sm text-warm-muted">
+                  {departurePoint.address}
+                </p>
+              )}
             </div>
           </MarkerPopup>
         </MapMarker>
       )}
+      {stayPoint &&
+        stayPoint.googlePlaceId !== arrivalPoint?.googlePlaceId &&
+        stayPoint.googlePlaceId !== departurePoint?.googlePlaceId && (
+          <MapMarker
+            longitude={stayPoint.longitude}
+            latitude={stayPoint.latitude}
+          >
+            <MarkerContent>
+              <div
+                className="flex size-10 items-center justify-center rounded-full border-2 border-paper bg-[#2d604d] text-paper shadow-[0_6px_16px_rgb(55_43_34/28%)]"
+                aria-label={`Stay: ${stayPoint.name}`}
+              >
+                <Hotel className="size-4" aria-hidden="true" />
+              </div>
+            </MarkerContent>
+            <MarkerPopup closeButton>
+              <div className="min-w-48 p-1 text-ink">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#2d604d]">
+                  Stay
+                </p>
+                <p className="mt-1 font-semibold">{stayPoint.name}</p>
+                {stayPoint.address && (
+                  <p className="mt-2 text-sm text-warm-muted">
+                    {stayPoint.address}
+                  </p>
+                )}
+              </div>
+            </MarkerPopup>
+          </MapMarker>
+        )}
       {validItems.map((item, index) => {
         const selected = item.id === selectedItemId;
         return (
@@ -469,11 +556,9 @@ function MapCanvas({
               <button
                 type="button"
                 aria-label={`${index + 1}. ${item.place.name}`}
-              className={cn(
+                className={cn(
                   'flex size-9 items-center justify-center rounded-full border-2 border-paper text-sm font-bold text-paper shadow-[0_6px_16px_rgb(55_43_34/28%)] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent focus-visible:ring-offset-2',
-                  selected
-                    ? 'scale-125'
-                    : 'hover:scale-110',
+                  selected ? 'scale-125' : 'hover:scale-110',
                 )}
                 style={{ backgroundColor: '#724a2d' }}
               >
@@ -668,33 +753,33 @@ function SortableItineraryCard({
         cardRef={cardRef}
         dragHandle={
           editable ? (
-          <button
-            type="button"
-            className="flex w-8 shrink-0 cursor-grab items-center justify-center text-warm-muted/45 outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-brown-accent focus-visible:ring-inset active:cursor-grabbing disabled:cursor-default disabled:opacity-35 sm:w-9"
-            aria-label={`Drag ${item.place.name}`}
-            title="Drag to reorder"
-            disabled={disabled}
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical className="size-4" aria-hidden="true" />
-          </button>
+            <button
+              type="button"
+              className="flex w-8 shrink-0 cursor-grab items-center justify-center text-warm-muted/45 outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-brown-accent focus-visible:ring-inset active:cursor-grabbing disabled:cursor-default disabled:opacity-35 sm:w-9"
+              aria-label={`Drag ${item.place.name}`}
+              title="Drag to reorder"
+              disabled={disabled}
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical className="size-4" aria-hidden="true" />
+            </button>
           ) : (
             <span className="w-8 shrink-0 sm:w-9" aria-hidden="true" />
           )
         }
         removeAction={
           editable ? (
-          <button
-            type="button"
-            aria-label={`Remove ${item.place.name}`}
-            title="Remove stop"
-            disabled={disabled}
-            onClick={onRemove}
-            className="flex w-9 shrink-0 items-center justify-center text-warm-muted/45 outline-none transition-colors hover:text-[#a84a3f] focus-visible:ring-2 focus-visible:ring-brown-accent focus-visible:ring-inset disabled:opacity-35 sm:w-10"
-          >
-            <Trash2 className="size-4" aria-hidden="true" />
-          </button>
+            <button
+              type="button"
+              aria-label={`Remove ${item.place.name}`}
+              title="Remove stop"
+              disabled={disabled}
+              onClick={onRemove}
+              className="flex w-9 shrink-0 items-center justify-center text-warm-muted/45 outline-none transition-colors hover:text-[#a84a3f] focus-visible:ring-2 focus-visible:ring-brown-accent focus-visible:ring-inset disabled:opacity-35 sm:w-10"
+            >
+              <Trash2 className="size-4" aria-hidden="true" />
+            </button>
           ) : null
         }
         weather={weather}
@@ -804,9 +889,12 @@ export function MapPlanner({ tripId }: { tripId: string }) {
   const [data, setData] = useState<ItineraryPageData | null>(null);
   const [selectedDay, setSelectedDay] = useState<MapDaySelection | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const [routeStates, setRouteStates] = useState<Record<number, RouteState>>({});
+  const [routeStates, setRouteStates] = useState<Record<number, RouteState>>(
+    {},
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [plannerError, setPlannerError] = useState<string | null>(null);
+  const [plannerNotice, setPlannerNotice] = useState<string | null>(null);
   const [addPlaceOpen, setAddPlaceOpen] = useState(false);
   const [aiEditOpen, setAiEditOpen] = useState(false);
   const [weatherByItemId, setWeatherByItemId] = useState(
@@ -882,20 +970,19 @@ export function MapPlanner({ tripId }: { tripId: string }) {
   const planningLocked = Boolean(data?.trip.finalizedAt);
   const activeEndpoints = activeDay
     ? getDayEndpoints(data, activeDay.day)
-    : { arrival: null, departure: null };
+    : getDayEndpoints(null, 0);
   const visibleItems = useMemo(
     () =>
-      isAllDays
-        ? days.flatMap((day) => day.items)
-        : (activeDay?.items ?? []),
+      isAllDays ? days.flatMap((day) => day.items) : (activeDay?.items ?? []),
     [activeDay?.items, days, isAllDays],
   );
   const visibleArrivalPoint = isAllDays
-    ? data?.trip.arrivalPoint ?? null
+    ? (data?.trip.arrivalPoint ?? null)
     : activeEndpoints.arrival;
   const visibleDeparturePoint = isAllDays
-    ? data?.trip.departurePoint ?? null
+    ? (data?.trip.departurePoint ?? null)
     : activeEndpoints.departure;
+  const visibleStayPoint = data?.trip.stayAnchor ?? null;
   const realtimeMembers = useTripRealtime({
     tripId,
     editingItemId: selectedItemId,
@@ -908,14 +995,15 @@ export function MapPlanner({ tripId }: { tripId: string }) {
         .flatMap((day) => day.items)
         .find((item) => item.id === activeEditor.editingItemId)?.place.name
     : null;
-  const routeKey = !isAllDays && activeDay
-    ? getRouteCacheKey(
-        tripId,
-        activeDay.day,
-        activeDay.items,
-        activeEndpoints,
-      )
-    : null;
+  const routeKey =
+    !isAllDays && activeDay
+      ? getRouteCacheKey(
+          tripId,
+          activeDay.day,
+          activeDay.items,
+          activeEndpoints,
+        )
+      : null;
 
   const loadRoute = useCallback(
     async (day: { day: number; items: ItineraryItemView[] }) => {
@@ -924,8 +1012,8 @@ export function MapPlanner({ tripId }: { tripId: string }) {
 
       const validPointCount =
         day.items.filter(hasValidCoordinates).length +
-        (endpoints.arrival ? 1 : 0) +
-        (endpoints.departure ? 1 : 0);
+        (endpoints.start ? 1 : 0) +
+        (endpoints.end ? 1 : 0);
       if (validPointCount < 2) {
         const emptyRoute: TripRoute = {
           geometry: null,
@@ -1113,6 +1201,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
     }
     setData(result.data);
     setSelectedItemId(null);
+    setPlannerNotice(result.message ?? null);
   }
 
   async function handleDragEnd(event: DragEndEvent) {
@@ -1348,6 +1437,7 @@ export function MapPlanner({ tripId }: { tripId: string }) {
             routes={visibleRoutes}
             arrivalPoint={visibleArrivalPoint}
             departurePoint={visibleDeparturePoint}
+            stayPoint={visibleStayPoint}
             selectedItemId={selectedItemId}
             onSelect={selectItem}
           />
@@ -1406,46 +1496,56 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                 All
               </button>
               {days.map((day) => {
-              const active = !isAllDays && day.day === activeDay.day;
-              return (
-                <button
-                  key={day.day}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => {
-                    setSelectedDay(day.day);
-                    setSelectedItemId(null);
-                    setAiEditOpen(false);
-                    setAddPlaceOpen(false);
-                  }}
-                  className={cn(
-                    'h-8 shrink-0 rounded-full border px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/45 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
-                    active
-                      ? 'border-ink bg-ink text-paper'
-                      : 'border-warm-border/80 bg-white/28 text-warm-muted hover:border-brown-accent/45 hover:text-ink',
-                  )}
-                >
-                  <span
-                    className="mr-1.5 inline-block size-1.5 rounded-full align-middle"
-                    style={{ backgroundColor: routeColorForDay(day.day) }}
-                    aria-hidden="true"
-                  />
-                  Day {day.day}
-                </button>
-              );
+                const active = !isAllDays && day.day === activeDay.day;
+                return (
+                  <button
+                    key={day.day}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => {
+                      setSelectedDay(day.day);
+                      setSelectedItemId(null);
+                      setAiEditOpen(false);
+                      setAddPlaceOpen(false);
+                    }}
+                    className={cn(
+                      'h-8 shrink-0 rounded-full border px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-accent/45 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
+                      active
+                        ? 'border-ink bg-ink text-paper'
+                        : 'border-warm-border/80 bg-white/28 text-warm-muted hover:border-brown-accent/45 hover:text-ink',
+                    )}
+                  >
+                    <span
+                      className="mr-1.5 inline-block size-1.5 rounded-full align-middle"
+                      style={{ backgroundColor: routeColorForDay(day.day) }}
+                      aria-hidden="true"
+                    />
+                    Day {day.day}
+                  </button>
+                );
               })}
             </div>
             <button
               type="button"
               disabled={isSaving || isAllDays}
               onClick={() => {
-                setAiEditOpen((open) => nextAiPanelState(open, selectedDay ?? 'all'));
+                setAiEditOpen((open) =>
+                  nextAiPanelState(open, selectedDay ?? 'all'),
+                );
                 setAddPlaceOpen(false);
               }}
               aria-expanded={aiEditOpen}
-              aria-label={isAllDays ? 'Choose a day before asking AI' : 'Ask AI to adjust this day'}
-              title={isAllDays ? 'Choose a day to edit with AI' : 'Adjust this day with AI'}
+              aria-label={
+                isAllDays
+                  ? 'Choose a day before asking AI'
+                  : 'Ask AI to adjust this day'
+              }
+              title={
+                isAllDays
+                  ? 'Choose a day to edit with AI'
+                  : 'Adjust this day with AI'
+              }
               className={cn(
                 'inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brown-accent/40 disabled:cursor-not-allowed disabled:opacity-45',
                 aiEditOpen
@@ -1539,7 +1639,15 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                 }
               />
             )}
+            {!plannerError && plannerNotice && (
+              <SystemNotice
+                className="mt-2 px-3 py-2"
+                title="Stay updated."
+                description={plannerNotice}
+              />
+            )}
             {!plannerError &&
+              !plannerNotice &&
               ['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(
                 realtimeStatus,
               ) && (
@@ -1565,13 +1673,20 @@ export function MapPlanner({ tripId }: { tripId: string }) {
             )}
             {planningLocked && (
               <p className="mt-2 text-[0.68rem] leading-5 text-warm-muted">
-                This trip is finalized. Use Ask AI or Live Trip for future changes.
+                This trip is finalized. Use Ask AI or Live Trip for future
+                changes.
               </p>
             )}
             {isAllDays && (
-              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5" aria-label="Day route colors">
+              <div
+                className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5"
+                aria-label="Day route colors"
+              >
                 {days.map((day) => (
-                  <span key={day.day} className="inline-flex items-center gap-1.5 text-[0.68rem] text-warm-muted">
+                  <span
+                    key={day.day}
+                    className="inline-flex items-center gap-1.5 text-[0.68rem] text-warm-muted"
+                  >
                     <span
                       className="size-2 rounded-full"
                       style={{ backgroundColor: routeColorForDay(day.day) }}
@@ -1594,104 +1709,120 @@ export function MapPlanner({ tripId }: { tripId: string }) {
                 cardRefs={cardRefs}
               />
             ) : (
-            <div role="tabpanel" aria-label={`Day ${activeDay.day} itinerary`}>
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={(event) => void handleDragEnd(event)}
+              <div
+                role="tabpanel"
+                aria-label={`Day ${activeDay.day} itinerary`}
               >
-                <SortableContext
-                  items={activeDay.items.map((item) => item.id)}
-                  strategy={verticalListSortingStrategy}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={(event) => void handleDragEnd(event)}
                 >
-                  {(activeEndpoints.arrival ||
-                    (activeDay.day === days[0]?.day &&
-                      data.trip.arrivalTime)) && (
-                    <div className="border-b border-warm-border/65 bg-white/20 px-5 py-4 sm:px-6">
-                      <div className="flex items-start gap-3">
-                        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brown-accent text-paper">
-                          <PlaneLanding className="size-4" aria-hidden="true" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.13em] text-brown-accent">
-                            Arrive{data.trip.arrivalTime ? ` · ${data.trip.arrivalTime}` : ''}
-                          </p>
-                          {activeEndpoints.arrival && (
-                            <p className="mt-1 font-editorial text-base font-medium text-ink">
-                              {activeEndpoints.arrival.name}
+                  <SortableContext
+                    items={activeDay.items.map((item) => item.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {(activeEndpoints.arrival ||
+                      (activeDay.day === days[0]?.day &&
+                        data.trip.arrivalTime)) && (
+                      <div className="border-b border-warm-border/65 bg-white/20 px-5 py-4 sm:px-6">
+                        <div className="flex items-start gap-3">
+                          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brown-accent text-paper">
+                            <PlaneLanding
+                              className="size-4"
+                              aria-hidden="true"
+                            />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.13em] text-brown-accent">
+                              Arrive
+                              {data.trip.arrivalTime
+                                ? ` · ${data.trip.arrivalTime}`
+                                : ''}
                             </p>
-                          )}
+                            {activeEndpoints.arrival && (
+                              <p className="mt-1 font-editorial text-base font-medium text-ink">
+                                {activeEndpoints.arrival.name}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <TravelSegment
+                          segment={
+                            activeDay.items[0]
+                              ? (routeSegments.get(
+                                  `${activeEndpoints.startId}:${activeDay.items[0].id}`,
+                                ) ?? null)
+                              : null
+                          }
+                        />
+                      </div>
+                    )}
+                    {activeDay.items.map((item, index) => {
+                      const nextItem = activeDay.items[index + 1];
+                      const segment = nextItem
+                        ? (routeSegments.get(`${item.id}:${nextItem.id}`) ??
+                          null)
+                        : null;
+                      return (
+                        <SortableItineraryCard
+                          key={item.id}
+                          tripId={tripId}
+                          item={item}
+                          index={index}
+                          selected={item.id === selectedItemId}
+                          onSelect={() => selectItem(item.id)}
+                          cardRef={(element) => {
+                            if (element) cardRefs.current.set(item.id, element);
+                            else cardRefs.current.delete(item.id);
+                          }}
+                          segment={segment}
+                          disabled={isSaving || planningLocked}
+                          editable={!planningLocked}
+                          onRemove={() => void handleRemovePlace(item)}
+                          weather={weatherByItemId.get(item.id) ?? null}
+                        />
+                      );
+                    })}
+                    {(activeEndpoints.departure ||
+                      (activeDay.day === days.at(-1)?.day &&
+                        data.trip.departureTime)) && (
+                      <div className="bg-white/20">
+                        <TravelSegment
+                          segment={
+                            activeDay.items.at(-1)
+                              ? (routeSegments.get(
+                                  `${activeDay.items.at(-1)!.id}:${activeEndpoints.endId}`,
+                                ) ?? null)
+                              : null
+                          }
+                        />
+                        <div className="flex items-start gap-3 px-5 py-4 sm:px-6">
+                          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-ink text-paper">
+                            <PlaneTakeoff
+                              className="size-4"
+                              aria-hidden="true"
+                            />
+                          </span>
+                          <div className="min-w-0">
+                            {activeEndpoints.departure && (
+                              <p className="font-editorial text-base font-medium text-ink">
+                                {activeEndpoints.departure.name}
+                              </p>
+                            )}
+                            <p className="mt-1 text-[0.68rem] font-semibold uppercase tracking-[0.13em] text-brown-accent">
+                              Depart
+                              {data.trip.departureTime
+                                ? ` · ${data.trip.departureTime}`
+                                : ''}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                      <TravelSegment
-                        segment={
-                          activeDay.items[0]
-                            ? (routeSegments.get(
-                                `${ARRIVAL_ENDPOINT_ID}:${activeDay.items[0].id}`,
-                              ) ?? null)
-                            : null
-                        }
-                      />
-                    </div>
-                  )}
-                  {activeDay.items.map((item, index) => {
-                    const nextItem = activeDay.items[index + 1];
-                    const segment = nextItem
-                      ? (routeSegments.get(`${item.id}:${nextItem.id}`) ?? null)
-                      : null;
-                    return (
-                      <SortableItineraryCard
-                        key={item.id}
-                        tripId={tripId}
-                        item={item}
-                        index={index}
-                        selected={item.id === selectedItemId}
-                        onSelect={() => selectItem(item.id)}
-                        cardRef={(element) => {
-                          if (element) cardRefs.current.set(item.id, element);
-                          else cardRefs.current.delete(item.id);
-                        }}
-                        segment={segment}
-                        disabled={isSaving || planningLocked}
-                        editable={!planningLocked}
-                        onRemove={() => void handleRemovePlace(item)}
-                        weather={weatherByItemId.get(item.id) ?? null}
-                      />
-                    );
-                  })}
-                  {(activeEndpoints.departure ||
-                    (activeDay.day === days.at(-1)?.day &&
-                      data.trip.departureTime)) && (
-                    <div className="bg-white/20">
-                      <TravelSegment
-                        segment={
-                          activeDay.items.at(-1)
-                            ? (routeSegments.get(
-                                `${activeDay.items.at(-1)!.id}:${DEPARTURE_ENDPOINT_ID}`,
-                              ) ?? null)
-                            : null
-                        }
-                      />
-                      <div className="flex items-start gap-3 px-5 py-4 sm:px-6">
-                        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-ink text-paper">
-                          <PlaneTakeoff className="size-4" aria-hidden="true" />
-                        </span>
-                        <div className="min-w-0">
-                          {activeEndpoints.departure && (
-                            <p className="font-editorial text-base font-medium text-ink">
-                              {activeEndpoints.departure.name}
-                            </p>
-                          )}
-                          <p className="mt-1 text-[0.68rem] font-semibold uppercase tracking-[0.13em] text-brown-accent">
-                            Depart{data.trip.departureTime ? ` · ${data.trip.departureTime}` : ''}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </SortableContext>
-              </DndContext>
-            </div>
+                    )}
+                  </SortableContext>
+                </DndContext>
+              </div>
             )}
 
             {!planningLocked && !isAllDays && (

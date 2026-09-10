@@ -3,6 +3,7 @@ import type { TripEndpoint } from '@/lib/trips/travel-boundaries';
 
 export const ARRIVAL_ENDPOINT_ID = 'arrival-endpoint';
 export const DEPARTURE_ENDPOINT_ID = 'departure-endpoint';
+export const STAY_ENDPOINT_ID = 'stay-endpoint';
 
 export type RoutingPoint = {
   id: string;
@@ -12,12 +13,17 @@ export type RoutingPoint = {
 
 export function buildRoutingPoints(
   items: ItineraryItemView[],
-  endpoints?: { start?: TripEndpoint | null; end?: TripEndpoint | null },
+  endpoints?: {
+    start?: TripEndpoint | null;
+    end?: TripEndpoint | null;
+    startId?: string;
+    endId?: string;
+  },
 ): RoutingPoint[] {
   const result: RoutingPoint[] = [];
   if (endpoints?.start) {
     result.push({
-      id: ARRIVAL_ENDPOINT_ID,
+      id: endpoints.startId ?? ARRIVAL_ENDPOINT_ID,
       longitude: endpoints.start.longitude,
       latitude: endpoints.start.latitude,
     });
@@ -39,7 +45,7 @@ export function buildRoutingPoints(
   }
   if (endpoints?.end) {
     result.push({
-      id: DEPARTURE_ENDPOINT_ID,
+      id: endpoints.endId ?? DEPARTURE_ENDPOINT_ID,
       longitude: endpoints.end.longitude,
       latitude: endpoints.end.latitude,
     });

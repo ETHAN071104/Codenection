@@ -7,7 +7,9 @@ import {
 } from '@/lib/phase2/api-error';
 import { loadItineraryPageData } from '@/lib/phase2/storage';
 import { getPlaceCandidateById } from '@/lib/phase2/google-places';
+import { isAccommodationPlace } from '@/lib/phase2/stay-grounding-core';
 import { finalizePlannerDay } from '@/lib/planner/server';
+import { applyStayAnchorReplan } from '@/lib/planner/stay-anchor';
 import type { AiEditOperation, AiEditProposal } from '@/lib/planner/types';
 
 function isOperation(value: unknown): value is AiEditOperation {
@@ -18,7 +20,8 @@ function isOperation(value: unknown): value is AiEditOperation {
     (operation.type === 'remove' ||
       operation.type === 'move' ||
       operation.type === 'add' ||
-      operation.type === 'replace') &&
+      operation.type === 'replace' ||
+      operation.type === 'set_stay') &&
     typeof operation.day === 'number' &&
     (operation.itemId === null || typeof operation.itemId === 'string') &&
     (operation.targetIndex === null ||
@@ -79,10 +82,41 @@ export async function POST(
     }
 
     const data = await loadItineraryPageData(authenticated.supabase, id);
-    const day = data?.itinerary?.days.find(
-      (entry) => entry.day === dayNumber,
-    );
+    const day = data?.itinerary?.days.find((entry) => entry.day === dayNumber);
     if (!data?.itinerary || !day) return unavailableTripResponse();
+
+    const stayOperations = proposal.operations.filter(
+      (operation) => operation.type === 'set_stay',
+    );
+    if (stayOperations.length > 0) {
+      const stayOperation = stayOperations[0];
+      const externalPlaceId = stayOperation?.place?.externalPlaceId;
+      if (
+        stayOperations.length !== 1 ||
+        proposal.operations.length !== 1 ||
+        !externalPlaceId
+      ) {
+        throw new Error('INVALID_EDIT_PROPOSAL');
+      }
+      const grounded = await getPlaceCandidateById(externalPlaceId);
+      if (!isAccommodationPlace(grounded)) {
+        throw new Error('INVALID_STAY_PLACE');
+      }
+      return Response.json(
+        await applyStayAnchorReplan({
+          supabase: authenticated.supabase,
+          tripId: id,
+          dayNumber,
+          stayAnchor: {
+            googlePlaceId: grounded.externalPlaceId,
+            name: grounded.name,
+            address: grounded.address,
+            latitude: grounded.latitude,
+            longitude: grounded.longitude,
+          },
+        }),
+      );
+    }
 
     const nextItems = day.items.map((item) => ({
       id: item.id,

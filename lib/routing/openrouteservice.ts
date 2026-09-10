@@ -2,10 +2,7 @@ import 'server-only';
 
 import type { ItineraryItemView } from '@/lib/phase2/types';
 import type { TripEndpoint } from '@/lib/trips/travel-boundaries';
-import {
-  buildRoutingPoints,
-  type RoutingPoint,
-} from './route-points-core';
+import { buildRoutingPoints, type RoutingPoint } from './route-points-core';
 import type { RouteSegment, TripRoute } from './types';
 
 const DIRECTIONS_URL =
@@ -66,7 +63,12 @@ function nonNegativeNumber(value: unknown) {
 
 export async function getDrivingRoute(
   items: ItineraryItemView[],
-  endpoints?: { start?: TripEndpoint | null; end?: TripEndpoint | null },
+  endpoints?: {
+    start?: TripEndpoint | null;
+    end?: TripEndpoint | null;
+    startId?: string;
+    endId?: string;
+  },
 ): Promise<TripRoute> {
   const routingPoints = buildRoutingPoints(items, endpoints);
   return getDrivingRouteForPoints(routingPoints);

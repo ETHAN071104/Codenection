@@ -10,6 +10,12 @@ import {
 import type { TripRoute } from '@/lib/routing/types';
 import type { PlannerMutationResponse } from './types';
 import { calculateDaySchedule } from './scheduling';
+import {
+  ARRIVAL_ENDPOINT_ID,
+  DEPARTURE_ENDPOINT_ID,
+  STAY_ENDPOINT_ID,
+} from '@/lib/routing/route-points-core';
+import { tripDayRouteAnchors } from '@/lib/trips/travel-boundaries';
 
 const EMPTY_ROUTE: TripRoute = {
   geometry: null,
@@ -34,15 +40,24 @@ export async function finalizePlannerDay(
   if (day) {
     try {
       const days = beforeSchedule.itinerary?.days ?? [];
+      const anchors = tripDayRouteAnchors({
+        firstDay: dayNumber === days[0]?.day,
+        finalDay: dayNumber === days.at(-1)?.day,
+        arrivalPoint: beforeSchedule.trip.arrivalPoint,
+        departurePoint: beforeSchedule.trip.departurePoint,
+        stayAnchor: beforeSchedule.trip.stayAnchor,
+      });
       route = await getDrivingRoute(day.items, {
-        start:
-          dayNumber === days[0]?.day
-            ? beforeSchedule.trip.arrivalPoint
-            : null,
-        end:
-          dayNumber === days.at(-1)?.day
-            ? beforeSchedule.trip.departurePoint
-            : null,
+        start: anchors.start,
+        end: anchors.end,
+        startId:
+          anchors.startKind === 'arrival'
+            ? ARRIVAL_ENDPOINT_ID
+            : STAY_ENDPOINT_ID,
+        endId:
+          anchors.endKind === 'departure'
+            ? DEPARTURE_ENDPOINT_ID
+            : STAY_ENDPOINT_ID,
       });
     } catch (error) {
       if (!(error instanceof OpenRouteServiceError)) throw error;

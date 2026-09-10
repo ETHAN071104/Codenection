@@ -53,7 +53,7 @@ async function loadPhase9Plan(
     supabase
       .from('trips')
       .select(
-        'created_by, destination, duration_days, start_date, exploration_preference, geographic_scope, planning_mode, setup_stage, arrival_time, departure_time, arrival_point, departure_point',
+        'created_by, destination, duration_days, start_date, exploration_preference, geographic_scope, planning_mode, setup_stage, arrival_time, departure_time, arrival_point, departure_point, stay_anchor',
       )
       .eq('id', tripId)
       .maybeSingle(),
@@ -209,6 +209,7 @@ async function loadPhase9Plan(
     departureTime: tripResult.data.departure_time?.slice(0, 5) ?? null,
     arrivalPoint: parseTripEndpoint(tripResult.data.arrival_point),
     departurePoint: parseTripEndpoint(tripResult.data.departure_point),
+    stayAnchor: parseTripEndpoint(tripResult.data.stay_anchor),
     averagePace: travelDna.average_pace,
     startDate: tripResult.data.start_date,
   };

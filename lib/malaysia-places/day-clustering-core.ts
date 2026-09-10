@@ -150,6 +150,7 @@ export function clusterSelectedPlacesByDay(
   activeDays: number,
   knownPlaces: CandidatePlace[],
   recommendedStayArea: string | null,
+  exactStayAnchor?: Coordinate | null,
 ): GeographicDayClustering {
   const normalizedDays = Math.max(1, Math.floor(activeDays));
   if (!selectedPlaces.length) {
@@ -239,7 +240,8 @@ export function clusterSelectedPlacesByDay(
     }
   }
 
-  const stayAreaCenter = areaCentroid(recommendedStayArea, knownPlaces);
+  const stayAreaCenter =
+    exactStayAnchor ?? areaCentroid(recommendedStayArea, knownPlaces);
   const orderedClusters = [...clusters].sort((a, b) => {
     const aCenter = centroid(a.places);
     const bCenter = centroid(b.places);

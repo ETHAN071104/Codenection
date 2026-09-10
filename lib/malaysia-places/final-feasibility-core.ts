@@ -100,7 +100,8 @@ export function validateFinalPlanningItinerary({
   const seenScheduledIds = new Set<string>();
   const seenGoogleIds = new Set<string>();
   const profile = derivePaceProfile(constraints?.averagePace);
-  const stay = centroidForArea(recommendedStayArea, candidates);
+  const stay =
+    constraints?.stayAnchor ?? centroidForArea(recommendedStayArea, candidates);
   const routeDays = new Map(
     schedule.routeValidation?.days.map((day) => [day.day, day]) ?? [],
   );

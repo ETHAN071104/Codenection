@@ -519,7 +519,9 @@ export function createDeterministicDraftSchedule(
   routeDurations?: RouteDurationOverrides,
 ): DeterministicDraftSchedule {
   const paceProfile = derivePaceProfile(constraints?.averagePace);
-  const stayOrigin = centroidForArea(recommendedStayArea, knownPlaces);
+  const stayOrigin =
+    constraints?.stayAnchor ??
+    centroidForArea(recommendedStayArea, knownPlaces);
   let scheduledPlaceCount = 0;
   let overflowPlaceCount = 0;
   const days = grouping.days.map((group) => {
@@ -748,6 +750,10 @@ export function createDeterministicDraftSchedule(
       if (previous)
         reasons.push(
           `Placed after ${previous.name} using geographic proximity and group priority.`,
+        );
+      else if (constraints?.stayAnchor)
+        reasons.push(
+          `Day starts from the exact stay at ${constraints.stayAnchor.name}.`,
         );
       else if (recommendedStayArea && stayOrigin)
         reasons.push(

@@ -15,6 +15,7 @@ const operationLabels = {
   move: 'Move',
   add: 'Add',
   replace: 'Replace',
+  set_stay: 'Set stay',
 } as const;
 
 export function AiEditPanel({
@@ -121,7 +122,7 @@ export function AiEditPanel({
           id="ai-edit-request"
           value={request}
           onChange={(event) => setRequest(event.target.value)}
-          placeholder="Make this day more relaxed"
+          placeholder="Make this day more relaxed or set our hotel"
           disabled={disabled || working}
           rows={3}
           className="mt-2 w-full resize-none rounded-xl border border-warm-border bg-parchment p-3 text-sm leading-6 text-ink outline-none placeholder:text-warm-muted/70 focus:border-brown-accent focus:ring-1 focus:ring-brown-accent/20"
@@ -149,11 +150,7 @@ export function AiEditPanel({
               ? 'Those changes weren’t applied.'
               : 'We couldn’t prepare a preview.'
           }
-          description={
-            errorStage === 'apply'
-              ? 'Your saved itinerary is unchanged. Try applying the preview again or close it.'
-              : 'Your saved itinerary is unchanged. Adjust the request or try previewing it again.'
-          }
+          description={error}
         />
       )}
 

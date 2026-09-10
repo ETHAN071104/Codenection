@@ -134,6 +134,7 @@ export type ItineraryPageData = {
     departureTime: string | null;
     arrivalPoint: import('@/lib/trips/travel-boundaries').TripEndpoint | null;
     departurePoint: import('@/lib/trips/travel-boundaries').TripEndpoint | null;
+    stayAnchor: import('@/lib/trips/travel-boundaries').TripEndpoint | null;
     finalizedAt: string | null;
     finalizedBy: string | null;
     planningMode: import('@/lib/trips/setup-core').TripPlanningMode | null;

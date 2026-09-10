@@ -13,7 +13,37 @@ export type TripTimeConstraints = {
   departureTime: string | null;
   arrivalPoint: TripEndpoint | null;
   departurePoint: TripEndpoint | null;
+  stayAnchor?: TripEndpoint | null;
 };
+
+export type TripDayAnchorKind = 'arrival' | 'stay' | 'departure';
+
+export function tripDayRouteAnchors({
+  firstDay,
+  finalDay,
+  arrivalPoint,
+  departurePoint,
+  stayAnchor,
+}: {
+  firstDay: boolean;
+  finalDay: boolean;
+  arrivalPoint: TripEndpoint | null;
+  departurePoint: TripEndpoint | null;
+  stayAnchor: TripEndpoint | null;
+}) {
+  const start = firstDay ? (arrivalPoint ?? stayAnchor) : stayAnchor;
+  const end = finalDay ? (departurePoint ?? stayAnchor) : stayAnchor;
+  return {
+    start,
+    end,
+    startKind: (firstDay && arrivalPoint ? 'arrival' : 'stay') as
+      | 'arrival'
+      | 'stay',
+    endKind: (finalDay && departurePoint ? 'departure' : 'stay') as
+      | 'departure'
+      | 'stay',
+  };
+}
 
 export function parseTimeMinutes(value: string | null | undefined) {
   if (!value) return null;

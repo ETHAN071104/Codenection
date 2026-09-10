@@ -5,6 +5,7 @@ export type PlannerMutationResponse = {
   data: ItineraryPageData;
   day: number;
   route: TripRoute;
+  message?: string;
 };
 
 export type PlaceSearchResponse = {
@@ -13,7 +14,7 @@ export type PlaceSearchResponse = {
 
 export type AiEditOperation = {
   id: string;
-  type: 'remove' | 'move' | 'add' | 'replace';
+  type: 'remove' | 'move' | 'add' | 'replace' | 'set_stay';
   day: number;
   itemId: string | null;
   targetIndex: number | null;

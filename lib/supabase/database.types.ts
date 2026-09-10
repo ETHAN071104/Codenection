@@ -25,6 +25,7 @@ type TripRow = {
   departure_time: string | null;
   arrival_point: Json | null;
   departure_point: Json | null;
+  stay_anchor: Json | null;
   finalized_at: string | null;
   finalized_by: string | null;
   planning_mode: string | null;
@@ -48,6 +49,7 @@ type TripInsert = {
   departure_time?: string | null;
   arrival_point?: Json | null;
   departure_point?: Json | null;
+  stay_anchor?: Json | null;
   finalized_at?: string | null;
   finalized_by?: string | null;
   planning_mode?: string | null;
@@ -403,6 +405,14 @@ export type Database = {
           p_day_number: number;
           p_items: Json;
           p_places: Json;
+        };
+        Returns: { saved_items: number }[];
+      };
+      apply_stay_anchor_replan: {
+        Args: {
+          p_trip_id: string;
+          p_stay_anchor: Json;
+          p_schedule: Json;
         };
         Returns: { saved_items: number }[];
       };
