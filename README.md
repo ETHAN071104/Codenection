@@ -64,6 +64,10 @@ Chosen ideas are listed first.
 
 Most of our ideation happened through face-to-face discussion. Rather than jumping directly to the final feature set, we repeatedly narrowed the problem and added structure only when the previous concept could not resolve the next planning challenge:
 
+![Handwritten notes from an offline ideation session](docs/images/process/offline-ideation-notes.png)
+
+This is one of the handwritten records from our offline discussions. It captures feature candidates, differences in traveller preferences and budgets, live-trip situations, and third-party integration ideas; crossed-out items show how we reduced the scope as the concept became more focused.
+
 **Recommendation App → Group Preference System → Consensus Layer → Deterministic Planner → Live Adaptive Trip**
 
 1. **Recommendation App** — We began with personalised place suggestions, but recommendations alone did not resolve disagreements within a group.
@@ -91,6 +95,10 @@ At 10:46 PM, shortly after the scheduled start, the team tagged the mentor in th
 ![Team waiting in the consultation voice channel](docs/images/process/mentor-wait-duration.png)
 
 The team remained in the consultation voice channel for approximately one hour. The evidence is included to document the attempted engagement, not to attribute blame.
+
+![Organiser response to the missed mentor consultation](docs/images/process/mentor-organizer-response.png)
+
+The team reported the missed session to the organisers. The organiser acknowledged that the team had not been informed about the mentor's availability and confirmed that the situation would be taken into account when mentor-feedback marks were considered.
 
 ## 3. Design & Prototype
 
@@ -199,12 +207,21 @@ AI proposes within a structured boundary, while the deterministic planning engin
 
 The prototype scope is deliberately centred on **planning and adapting one shared trip**, not booking or payments.
 
-1. **Collaborative foundation** — create and join private rooms, establish anonymous identities, secure data with RLS, and synchronize member state.
-2. **Preference collection** — collect Travel DNA from each traveller and reveal a group summary only when everyone has completed it.
-3. **Grounded choice** — configure destination and travel boundaries, retrieve real places, rank suggestions, and collect group votes.
-4. **Feasible itinerary** — cluster selected places into practical days, schedule them deterministically, route them, and prevent invalid plans from being saved.
-5. **Review and finalisation** — provide itinerary and map views, weather context, AI-assisted edits, and a host-controlled finalisation step.
-6. **During-trip adaptation** — provide Live Mode and a constrained set of change scenarios without expanding into booking, ticketing, or full travel operations.
+#### Current Prototype
+
+The current prototype already includes Travel DNA, place voting, deterministic scheduling, Live Mode, Google Places integration, and realtime collaboration.
+
+#### Three-Week Build Phase
+
+During the three-week building phase, we will keep the scope focused on strengthening the existing end-to-end experience:
+
+- Harden collaborative realtime flows
+- Improve recommendation quality and ranking
+- Expand deterministic scheduling edge cases
+- Complete Live Mode disruption handling
+- Improve mobile responsiveness and UX
+- Add end-to-end testing and provider fallbacks
+- Add production hardening, rate limits, and clearer error states
 
 ### Feasibility Evidence
 
