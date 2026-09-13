@@ -1,14 +1,16 @@
-# Jalan Jalan
+# JalanJalan by Kampung Ren
 
-**Team:** Ethan Lim Yik Hern, Deric Ong Yong Quan, Tham Kai Le
+**Team:** Kampung Ren — Ethan Lim Yik Hern, Deric Ong Yong Quan, Tham Kai Le
 
 **Problem Statement:** Travel Planner
 
-**Video Presentation:** Pending
+**Live Demo:** [https://jlnjln.vercel.app](https://jlnjln.vercel.app)
+
+**Video Presentation:** [Watch on YouTube](https://youtu.be/T0j4UQ7uBC0)
 
 **Presentation Slides:** [View the Canva presentation](https://canva.link/4g8qaylfieh5jw9)
 
-> **Jalan Jalan** turns a group of travellers' individual preferences into one practical, shared itinerary—before the trip and while plans are changing on the ground.
+> **JalanJalan** turns a group of travellers' individual preferences into one practical, shared itinerary—before the trip and while plans are changing on the ground.
 
 ## 1. Project Overview
 
@@ -18,11 +20,11 @@ Planning a group trip is rarely just a search problem. Travellers have different
 
 The main stakeholders are groups of friends and families travelling together, especially the trip organiser who currently carries most of the planning workload. Tourism businesses and local attractions are secondary stakeholders because better-matched plans can connect travellers with places they are more likely to enjoy.
 
-[Wanderlog](https://wanderlog.com/trip-planner-ai) already combines itineraries, maps, collaboration, AI suggestions, and route optimisation. [TripIt](https://www.tripit.com/web/free) is strong at collecting existing reservations into one itinerary. Jalan Jalan takes a narrower approach: it begins with structured preferences from every traveller, makes agreement visible through place voting, and then passes the shared choices through deterministic scheduling and feasibility checks. Its focus is not simply storing or generating a plan, but helping a group reach and maintain an explainable compromise.
+[Wanderlog](https://wanderlog.com/trip-planner-ai) already combines itineraries, maps, collaboration, AI suggestions, and route optimisation, while [TripIt](https://www.tripit.com/web/free) is strong at collecting existing reservations into one itinerary. However, these tools mainly help travellers organise or co-edit a plan after decisions are made. JalanJalan makes every traveller's structured preferences and place votes explicit inputs to the plan, then protects the group's consensus with deterministic scheduling and feasibility checks. Its focus is not simply storing or generating an itinerary, but helping a group reach and maintain an explainable compromise.
 
 ### Our Solution
 
-Jalan Jalan is a collaborative travel-planning web application for groups. Travellers join a private room, complete a short **Travel DNA** questionnaire, and vote on real places matched to the group's combined preferences. The application turns those choices into a grounded itinerary that accounts for pace, opening hours, geography, travel time, arrival and departure constraints, and the group's stay. After the plan is finalised, **Live Mode** helps the group respond to delays, weather, emergencies, or other changes without rebuilding the trip from scratch.
+JalanJalan is a collaborative travel-planning web application for groups. Travellers join a private room, complete a short **Travel DNA** questionnaire, and vote on real places matched to the group's combined preferences. The application turns those choices into a grounded itinerary that accounts for pace, opening hours, geography, travel time, arrival and departure constraints, and the group's stay. After the plan is finalised, **Live Mode** helps the group respond to delays, weather, emergencies, or other changes without rebuilding the trip from scratch.
 
 #### Feature Set
 
@@ -60,32 +62,61 @@ Chosen ideas are listed first.
 
 ### 2.2 Ideation Boards
 
-<!-- TODO: Upload one or more ideation-board images to the repository and replace the placeholder below. -->
+Most of our ideation happened through face-to-face discussion. Rather than jumping directly to the final feature set, we repeatedly narrowed the problem and added structure only when the previous concept could not resolve the next planning challenge:
 
-> **Ideation board placeholder.** Add a mind map, user flow, Crazy Eights sheet, affinity diagram, or other team working notes here. Include a one- or two-sentence caption explaining what the team explored and which decisions came from it.
+**Recommendation App → Group Preference System → Consensus Layer → Deterministic Planner → Live Adaptive Trip**
 
-Example after uploading an image:
+1. **Recommendation App** — We began with personalised place suggestions, but recommendations alone did not resolve disagreements within a group.
+2. **Group Preference System** — Travel DNA gave every traveller a structured way to express budget, pace, and interests.
+3. **Consensus Layer** — Place voting made agreement visible and prevented the loudest person from controlling the itinerary.
+4. **Deterministic Planner** — We separated AI suggestions from scheduling so that time windows, opening hours, travel distance, meals, and group priorities could be validated consistently.
+5. **Live Adaptive Trip** — We extended the plan into the journey itself, allowing the group to respond to delays, weather, separation, and emergencies.
 
-```md
-![Jalan Jalan ideation board](docs/images/ideation-board.png)
+![Old and new JalanJalan interface designs](docs/images/process/ui-design-evolution.png)
 
-This board shows how we moved from broad travel-planning problems to a focused
-flow built around Travel DNA, group voting, feasible scheduling, and Live Mode.
-```
+The comparison records our interface iteration. The earlier design prioritised proving the room and place-selection flow; the later design improved hierarchy, visual context, and the emotional experience of planning a trip together while preserving the same core decisions.
 
 ### 2.3 Mentor Consultation
 
 | Date and Time | Mentor | Feedback Received | What Was Changed |
 | --- | --- | --- | --- |
-| 12 September 2026, 10:40 PM |  |  |  |
+| 12 September 2026, 10:40 PM | Varsha Selvakumar | The mentor did not join the scheduled consultation, so no feedback was received. The team waited for one hour and followed up by tagging the mentor in the group chat; supporting evidence was retained. | No mentor-directed changes were made because no consultation feedback was received. |
 
-The row is ready to complete after the consultation feedback is received.
+#### Consultation Evidence
+
+![Message tagging the scheduled mentor](docs/images/process/mentor-follow-up.png)
+
+At 10:46 PM, shortly after the scheduled start, the team tagged the mentor in the group chat to confirm whether she was available to join.
+
+![Team waiting in the consultation voice channel](docs/images/process/mentor-wait-duration.png)
+
+The team remained in the consultation voice channel for approximately one hour. The evidence is included to document the attempted engagement, not to attribute blame.
 
 ## 3. Design & Prototype
 
-**UI Prototype:** Public deployment link pending. The application is intended to be deployed on Vercel.
+**UI Prototype:** [Open the public Vercel deployment](https://jlnjln.vercel.app)
 
-The following repository screenshots show four key parts of the current prototype.
+The following screenshots show eight key parts of the current prototype and the complete journey from individual preferences to an adaptive live trip.
+
+### Travel DNA
+
+![Travel DNA interest questionnaire](docs/images/prototype/travel-dna-interests.png)
+
+Each traveller rates experience categories on a five-point scale. Together with budget and pace, these responses form the structured Travel DNA used by the group recommendation system.
+
+### Group Preference Summary
+
+![Group preference summary](docs/images/prototype/group-preference-summary.png)
+
+Completed responses are combined into a shared view of budget, pace, and top interests. This gives the group a visible basis for discussing the trip before selecting a destination or place.
+
+### Place Selection and Consensus
+
+| Before selection | After keeping a place |
+| --- | --- |
+| ![Suggested place before selection](docs/images/prototype/place-selection-before.png) | ![Suggested place after selection](docs/images/prototype/place-selection-after.png) |
+
+Grounded place cards explain why each suggestion matches the group. A traveller can keep or skip each place, and the saved decision becomes an input to the later consensus and scheduling stages.
 
 ### Travel Boundaries
 
@@ -113,7 +144,7 @@ During the trip, travellers can report common disruptions such as delays, separa
 
 ## 4. What Makes It Different
 
-| Capability | What is distinctive in Jalan Jalan |
+| Capability | What is distinctive in JalanJalan |
 | --- | --- |
 | Travel DNA | Every traveller provides structured budget, pace, and interest preferences before planning begins. The group summary is derived from all completed responses. |
 | Consensus before generation | Place voting remains visible and meaningful. Unanimous and high-consensus places receive stronger scheduling priority than individual choices. |
@@ -123,7 +154,7 @@ During the trip, travellers can report common disruptions such as delays, separa
 | Explainable overflow | When every selected place cannot fit, lower-priority choices move to an optional list instead of silently disappearing or breaking the schedule. |
 | Planning-to-live continuity | The final itinerary becomes an operational trip view with current weather, the next stop, route context, and event-specific change controls. |
 
-Jalan Jalan does not try to replace booking platforms. Its original contribution is the decision layer between “everyone has opinions” and “the group has a feasible plan.”
+JalanJalan does not try to replace booking platforms. Its original contribution is the decision layer between “everyone has opinions” and “the group has a feasible plan.”
 
 ## 5. Technical Architecture & Feasibility
 
@@ -177,7 +208,7 @@ The prototype scope is deliberately centred on **planning and adapting one share
 - TypeScript validation currently passes with `npm run typecheck`.
 - The Next.js production build currently completes successfully with `npm run build`.
 - The test suite covers consensus, Travel DNA ranking, trip capacity, opening hours, meal fit, route direction, arrival/departure constraints, stay anchoring, AI persistence gates, fallbacks, finalisation, and host permissions.
-- The remaining prototype work is primarily deployment configuration, end-to-end browser testing, ideation/presentation assets, and resolution of four existing lint findings.
+- Future production hardening would focus on broader end-to-end browser coverage, provider resilience, rate limiting, and abuse protection.
 
 ## Local Setup
 
@@ -231,7 +262,6 @@ Open [http://localhost:3000](http://localhost:3000).
 ```bash
 npm run typecheck
 npx tsx --test tests/*.test.ts
-npm run lint
 npm run build
 ```
 
@@ -239,20 +269,6 @@ For collaborative testing, open two isolated browser sessions. Create a trip in 
 
 ## Known Limitations
 
-- The public Vercel prototype link and video presentation are not available yet.
-- Mentor feedback and the ideation-board image still need to be added.
 - External APIs require valid keys, quotas, and network access; fallback behaviour cannot replace every provider feature.
 - Anonymous access is suitable for the prototype but needs production-grade rate limiting and bot protection.
 - The current scope does not include flight or hotel booking, payments, expense splitting, offline access, or RedNote integration.
-- `npm run lint` currently reports four existing findings involving React hook dependencies, the React compiler, and one unoptimised `<img>` element.
-
-## Final Submission Checklist
-
-- [ ] Upload and embed the ideation-board image.
-- [ ] Add the mentor's name, feedback, and resulting changes.
-- [ ] Deploy the application to Vercel and verify the public link in an incognito window.
-- [ ] Add the public UI prototype link.
-- [ ] Record and add the unlisted YouTube presentation.
-- [ ] Verify that the Canva presentation is publicly accessible.
-- [ ] Resolve the remaining lint findings and run the production build.
-- [ ] Check that no `.env` files, API keys, tokens, or other secrets are committed before publishing the repository.
