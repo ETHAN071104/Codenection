@@ -110,13 +110,17 @@ Each traveller rates experience categories on a five-point scale. Together with 
 
 Completed responses are combined into a shared view of budget, pace, and top interests. This gives the group a visible basis for discussing the trip before selecting a destination or place.
 
-### Place Selection and Consensus
+### Place Selection
 
-| Before selection | After keeping a place |
-| --- | --- |
-| ![Suggested place before selection](docs/images/prototype/place-selection-before.png) | ![Suggested place after selection](docs/images/prototype/place-selection-after.png) |
+![Suggested place during selection](docs/images/prototype/place-selection-before.png)
 
-Grounded place cards explain why each suggestion matches the group. A traveller can keep or skip each place, and the saved decision becomes an input to the later consensus and scheduling stages.
+Grounded place cards explain why each suggestion matches the group. Each traveller can keep or skip a place, turning individual choices into visible group input for the consensus and scheduling stages.
+
+### Stay Recommendation
+
+![Recommended stay area based on selected places](docs/images/prototype/stay-area-recommendation.png)
+
+After the group chooses its places, JalanJalan recommends a practical area to stay by comparing their combined distance and geographical spread. It also presents a nearby alternative while keeping the recommendation separate from an actual hotel-booking decision.
 
 ### Travel Boundaries
 
